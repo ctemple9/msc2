@@ -130,6 +130,7 @@ struct ConsoleView {
     server_id: Option<String>,
     query: String,
     searching: bool,
+    command: Option<String>,
     cleared: std::collections::HashSet<String>,
 }
 
@@ -776,6 +777,47 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
                 }
                 continue;
             }
+            if console_expanded && console_view.command.is_some() {
+                match key.code {
+                    KeyCode::Esc => console_view.command = None,
+                    KeyCode::Backspace => {
+                        console_view.command.as_mut().unwrap().pop();
+                    }
+                    KeyCode::Char(ch) => console_view.command.as_mut().unwrap().push(ch),
+                    KeyCode::Enter => {
+                        let command = console_view
+                            .command
+                            .as_ref()
+                            .unwrap()
+                            .trim()
+                            .trim_start_matches('/');
+                        if !command.is_empty() {
+                            let result = async {
+                                let client = SharedClient::connect_local().await?;
+                                client
+                                    .post_json::<_, serde_json::Value>(
+                                        "/v1/command",
+                                        &serde_json::json!({
+                                            "command": command,
+                                            "expectedActiveServerId": snapshot.active_server_id
+                                        }),
+                                    )
+                                    .await
+                            }
+                            .await;
+                            match result {
+                                Ok(_) => {
+                                    console_view.command = None;
+                                    message = "Command sent.".into();
+                                }
+                                Err(error) => message = format!("Could not send command: {error}"),
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+                continue;
+            }
             if console_expanded && console_view.searching {
                 match key.code {
                     KeyCode::Esc => {
@@ -786,12 +828,17 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
                     KeyCode::Backspace => {
                         console_view.query.pop();
                     }
+                    KeyCode::Char('/') if console_view.query.is_empty() => {
+                        console_view.searching = false;
+                        console_view.command = Some(String::new());
+                    }
                     KeyCode::Char(ch) => console_view.query.push(ch),
                     _ => {}
                 }
                 continue;
             }
             if console_expanded && key.code == KeyCode::Char('/') {
+                console_view.query.clear();
                 console_view.searching = true;
                 continue;
             }
@@ -2146,7 +2193,7 @@ fn draw_workspace(
             top + 1,
             main_w,
             &format!(
-                "Console  {console_status}  [c Collapse]  [p Command palette]  [/ Search]  [l Clear]"
+                "Console  {console_status}  [c Collapse]  [p Command palette]  [/ Search]  [// Command]  [l Clear]"
             ),
             Color::DarkGrey,
         )?;
@@ -2160,18 +2207,23 @@ fn draw_workspace(
                     && line.text.to_lowercase().contains(&query)
             })
             .collect();
-        let searching = console_view.searching || !query.is_empty();
+        let searching =
+            console_view.command.is_some() || console_view.searching || !query.is_empty();
         if searching {
             paint(
                 out,
                 main_x,
                 top + 2,
                 main_w,
-                &format!(
-                    "Search: /{}  ({} matches)  Enter Apply · Esc Clear",
-                    console_view.query,
-                    matches.len()
-                ),
+                &if let Some(command) = &console_view.command {
+                    format!("Command: {command}_  Enter Send · Esc Cancel")
+                } else {
+                    format!(
+                        "Search: /{}  ({} matches)  Enter Apply · Esc Clear · // Command",
+                        console_view.query,
+                        matches.len()
+                    )
+                },
                 Color::Green,
             )?;
         }

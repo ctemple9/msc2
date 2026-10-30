@@ -626,6 +626,15 @@ result. No up-front Plan/Read move, test run, or release gate is implied.
 - **Batch:** P22.67 only.
 - **Commit:** `P22.67: add console search and clear shortcuts`
 
+### P22.68 — Type console commands with double slash
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui.rs`, `docs/msc2/rolling-plan.md`.
+- **What:** / begins a new console search; a second slash before search text switches to command entry. Enter sends through the existing command API with expected server identity; Esc cancels. Failed sends preserve input. Header labels // Command alongside / Search.
+- **Verify:** `cargo run -p msc-agent -- tui` — expand console, type //list and Enter with a running server; check / still searches and Esc cancels command input.
+- **Batch:** P22.68 only.
+- **Commit:** `P22.68: add double slash console command entry`
+
 ## macOS owner testing — 0.1.32
 
 **Started:** October 21, 2026

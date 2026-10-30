@@ -147,11 +147,12 @@ The helmet appears only while the local agent runs. A small companion process ow
 **Commit:** `P23.13: register the agent indicator for desktop sessions`
 
 #### P23.14 — Document and inspect platform behavior
-**Status:** planned
-**Files:** `README.md`, `docs/msc2/rolling-plan.md`, packaging files if inspection finds a defect
+**Status:** awaiting Cameron verification
+**Files:** `README.md`, `docs/msc2/agent-indicator.md`, `docs/msc2/rolling-plan.md`
 **What:** Explain the indicator's local-only meaning and login-session limits. Inspect startup and removal paths on all platforms; hand physical macOS, Windows, and Linux checks to Cameron without running test suites unless he requests them.
 **Verify:** `git diff HEAD^ HEAD -- README.md docs/msc2/rolling-plan.md packaging`
 **Batch:** solo
+**Commit:** `P23.14: document the agent indicator and platform checks`
 
 **Phase 22 disposition:** Cameron accepted the current TUI on 2026-10-30. Detailed P22 records and their original verification commands are in the archive.
 

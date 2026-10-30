@@ -44,6 +44,11 @@ the full-screen TUI, so its `msc` command does not include `msc tui`.
 The current source tree includes the TUI. To use it now, run
 `cargo run -p msc-agent -- tui` at the project root on the agent host.
 
+The source tree also includes a local agent indicator, which is not in v0.1.38.
+Desktop builds show a Minecraft-style helmet in the system bar while the local
+agent runs, including after the desktop window closes. See the
+[indicator guide](docs/msc2/agent-indicator.md) for startup behavior and development use.
+
 ## Start your first server
 
 1. Open MSC 2, or use `msc` on a headless host (`msc tui` when running from

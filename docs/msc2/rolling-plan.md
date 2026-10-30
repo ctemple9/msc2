@@ -527,6 +527,15 @@ result. No up-front Plan/Read move, test run, or release gate is implied.
 - **Batch:** P22.56 only.
 - **Commit:** `P22.56: cover expanded console and edit server notes`
 
+### P22.57 — Bring Handbook and Router Guide into the TUI
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui.rs`; `crates/msc-agent/src/cli/tui/guides.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Review desktop HelpSection, HandbookBrowser, RouterGuidePanel, RouterGuideReader, RouterGuideTroubleshooting, catalog ordering, markdown behavior and help DTOs. Replace the ? placeholder with a two-pane guide overlay containing Handbook and Router Guide only. Read the same API catalogs and article/resolved-router content. Handbook includes desktop reading order, persisted TUI favorites, title search, related/internal-help links, history, previous/next chapters, structured prose/checklists/tables and scrolling. Router supports catalog/category browsing, generic fallback, server-side search/fallback results, runtime-resolved sections and unavailable-value warnings, intro/notes toggles, step selection/completion/all-reset, symptom selection, real analysis with causes/actions/escalation and suggested-guide navigation. Local completion state stays in this guide session. Keep Help out of other modal text inputs. Long text wraps within the reader.
+- **Verify:** Run `cargo run -p msc-agent -- tui` and press ?. Browse Handbook, use Tab to focus the reader, scroll with arrows/PgUp/PgDn, search with / then Enter, favorite with f, open related topics with l, navigate chapters with brackets and history with b. Select 2 for Router Guide; browse/search and read a generic or named guide with a selected server. Check actual runtime values and missing-value warnings. Use j/k and Space for steps, x all/reset, i/n intro/notes, t for symptoms, Space to select, a to analyze, g to open the suggested guide, r to reset symptoms, and Esc to return. Confirm no onboarding view exists. No test command run; live navigation verification remains with Cameron.
+- **Batch:** P22.57 only.
+- **Commit:** `P22.57: add handbook and interactive router guides to tui`
+
 ## macOS owner testing — 0.1.32
 
 **Started:** October 21, 2026

@@ -6,6 +6,7 @@ mod chat;
 mod components;
 mod create;
 mod files;
+mod guides;
 mod initiate;
 mod notes;
 mod performance;
@@ -109,6 +110,7 @@ struct ViewState<'a> {
     app_settings: &'a app_settings::AppSettingsUi,
     transfer: &'a transfer::TransferUi,
     notes: Option<&'a notes::Editor>,
+    guides: &'a guides::Guides,
     files: &'a files::FilesUi,
     wizard: Option<&'a create::Wizard>,
     server_editor: Option<&'a server_editor::ServerEditor>,
@@ -386,6 +388,7 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
     let mut app_settings_ui = app_settings::AppSettingsUi::default();
     let mut transfer_ui = transfer::TransferUi::default();
     let mut notes_editor: Option<notes::Editor> = None;
+    let mut guides_ui = guides::Guides::default();
     let mut files_ui = files::FilesUi::default();
     let mut wizard: Option<create::Wizard> = None;
     let mut server_editor: Option<server_editor::ServerEditor> = None;
@@ -442,6 +445,7 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
                 app_settings: &app_settings_ui,
                 transfer: &transfer_ui,
                 notes: notes_editor.as_ref(),
+                guides: &guides_ui,
                 files: &files_ui,
                 wizard: wizard.as_ref(),
                 server_editor: server_editor.as_ref(),
@@ -488,6 +492,20 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
             continue;
         };
         if key.kind != KeyEventKind::Press {
+            continue;
+        }
+        if guides_ui.open {
+            guides_ui.handle(key.code).await;
+            continue;
+        }
+        if key.code == KeyCode::Char('?')
+            && notes_editor.is_none()
+            && server_editor.is_none()
+            && wizard.is_none()
+            && !transfer_ui.open
+            && !app_settings_ui.is_open()
+        {
+            guides_ui.open().await;
             continue;
         }
         if let Some(editor) = &mut notes_editor {
@@ -817,7 +835,7 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
                 message = "Refreshing…".into();
                 last_refresh = Instant::now();
             }
-            KeyCode::Char('?') => message = "Help screen is not connected yet.".into(),
+
             KeyCode::Char('S') => app_settings_ui.open().await,
             KeyCode::Enter => {
                 match selected {
@@ -1007,6 +1025,7 @@ fn draw(
         }
         view.app_settings.draw(out, width, height)?;
         view.transfer.draw(out, width, height)?;
+        view.guides.draw(out, width, height)?;
         if let Some(editor) = view.notes {
             editor.draw(out, width, height)?;
         }
@@ -1337,6 +1356,7 @@ fn draw(
     }
     view.app_settings.draw(out, width, height)?;
     view.transfer.draw(out, width, height)?;
+    view.guides.draw(out, width, height)?;
     if let Some(editor) = view.notes {
         editor.draw(out, width, height)?;
     }

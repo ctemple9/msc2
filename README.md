@@ -35,14 +35,20 @@ Update the macOS or Windows desktop app from its built-in updater. Update Linux
 packages with `apt` or `dnf`. For a headless install, run `msc update check`,
 then `msc update install --release-id 0.1.38`.
 
-The published v0.1.38 download predates the TUI and does not include
-`msc tui`. To use it now from this repository, run
-`cargo run -p msc-agent -- tui` at the project root.
+### What is in the download?
+
+The published v0.1.38 download includes the desktop app, host-local CLI,
+saved-terrain maps, and the listed server-management features. It predates
+the full-screen TUI, so its `msc` command does not include `msc tui`.
+
+The current source tree includes the TUI. To use it now, run
+`cargo run -p msc-agent -- tui` at the project root on the agent host.
 
 ## Start your first server
 
-1. Open MSC 2, or use `msc`/`msc tui` on a headless host. The desktop app can
-   connect to a headless agent from another computer.
+1. Open MSC 2, or use `msc` on a headless host (`msc tui` when running from
+   the current source tree). The desktop app can connect to a headless agent
+   from another computer.
 2. Choose **Add Server**.
 3. Choose **Java** or **Bedrock**, then select the Minecraft version and server
    software.
@@ -112,8 +118,7 @@ live player tracking is available, you can see players moving, fly to them,
 or follow them as they explore.
 
 The map shows terrain Minecraft has generated and saved. Flying around the
-map does not generate new chunks in the game. Saved-terrain maps are included
-in the published v0.1.38 release.
+map does not generate new chunks in the game.
 
 ### Handles mods, plugins, datapacks, and modpacks
 
@@ -123,7 +128,7 @@ versions and loaders, resolves dependencies, and keeps client-only mods off
 the server when it can identify them.
 
 Java datapacks can be added during server creation or to a stopped world.
-v0.1.22 accepts both legacy `pack_format` metadata and modern
+The current release accepts both legacy `pack_format` metadata and modern
 `min_format`/`max_format` ranges, including Tectonic 3.0.29 for Minecraft 26.3.
 Adding a terrain-generation datapack affects newly generated chunks; it does
 not rebuild terrain already saved in the world.

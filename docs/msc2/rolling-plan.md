@@ -56,18 +56,19 @@ The previous phase work is finished. The old Phase 16 acceptance packet and owne
 **Commit:** `P23.2: shorten README release history`
 
 #### P23.3 — Add current product screenshots
-**Status:** planned
+**Status:** deferred; Cameron will add screenshots later
 **Files:** `README.md`, `docs/msc2/rolling-plan.md`, screenshot assets to be chosen during the step
 **What:** Show the current desktop app and host-local TUI near the top of the README, with accurate captions and accessible descriptions.
 **Verify:** `git diff HEAD^ HEAD -- README.md`
 **Batch:** solo
 
 #### P23.4 — Clarify published versus source-only features
-**Status:** planned
+**Status:** done; verification waived by Cameron
 **Files:** `README.md`, `docs/msc2/rolling-plan.md`
-**What:** Group current-release availability notes so readers can tell what the download contains and what requires a source build.
+**What:** Group current-release availability notes so readers can tell what the download contains and what requires a source build. Put the published/source distinction beside installation and remove scattered version notes from feature descriptions.
 **Verify:** `rg -n 'published|source|release|TUI' README.md`
 **Batch:** solo
+**Commit:** `P23.4: clarify download and source feature availability`
 
 #### P23.5 — Improve the contributor entry point
 **Status:** planned

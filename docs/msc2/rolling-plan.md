@@ -572,6 +572,15 @@ result. No up-front Plan/Read move, test run, or release gate is implied.
 - **Batch:** P22.61 only.
 - **Commit:** `P22.61: add sidebar quick commands sheet`
 
+### P22.62 — Reorder agent panels and space sidebar shortcuts
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Move Actions to the upper-left panel and Current Agent to the upper-right panel. Keep bottom panels in place. Space server-workspace shortcuts at two-row intervals, including conditional Resume/Discard entries.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, open Agents and confirm Actions is left and Current Agent right. Select a server and confirm Start, Manage, Agents, How to connect, Directory and Quick Commands are equally spaced; check paused-initiation Resume/Discard follow the same spacing. No tests run.
+- **Batch:** P22.62 only.
+- **Commit:** `P22.62: reorder agent panels and space sidebar actions`
+
 ## macOS owner testing — 0.1.32
 
 **Started:** October 21, 2026

@@ -1164,17 +1164,17 @@ fn draw(
     box_outline(out, right_x, top_y, right_w, top_h)?;
     paint(
         out,
-        main_x + 2,
+        right_x + 2,
         top_y + 1,
-        left_w - 4,
+        right_w - 4,
         "CURRENT AGENT",
         Color::DarkGrey,
     )?;
     paint(
         out,
-        main_x + 2,
+        right_x + 2,
         top_y + 2,
-        left_w - 4,
+        right_w - 4,
         &format!("{host_name} · This computer"),
         Color::White,
     )?;
@@ -1212,15 +1212,15 @@ fn draw(
     ];
     for (index, (label, value)) in facts.iter().enumerate() {
         let y = top_y + 3 + index as u16;
-        paint(out, main_x + 2, y, 16, label, Color::DarkGrey)?;
-        paint(out, main_x + 18, y, left_w - 20, value, Color::White)?;
+        paint(out, right_x + 2, y, 16, label, Color::DarkGrey)?;
+        paint(out, right_x + 18, y, right_w - 20, value, Color::White)?;
     }
 
     paint(
         out,
-        right_x + 2,
+        main_x + 2,
         top_y + 1,
-        right_w - 4,
+        left_w - 4,
         "ACTIONS",
         Color::DarkGrey,
     )?;
@@ -1258,16 +1258,16 @@ fn draw(
         };
         paint(
             out,
-            right_x + 2,
+            main_x + 2,
             y,
             2,
             if view.selected == index { ">" } else { " " },
             color,
         )?;
-        paint(out, right_x + 4, y, right_w - 16, label, color)?;
+        paint(out, main_x + 4, y, left_w - 16, label, color)?;
         paint(
             out,
-            right_x + right_w - 11,
+            main_x + left_w - 11,
             y,
             9,
             if *ready { shortcut } else { "soon" },
@@ -1479,13 +1479,13 @@ fn draw_workspace(
     paint(out, 2, 10, 18, "Manage         m", Color::White)?;
     paint(out, 2, 12, 18, "Agents         a", Color::White)?;
     paint(out, 2, 14, 18, "How to connect h", Color::White)?;
-    paint(out, 2, 15, 18, "Directory      d", Color::White)?;
+    paint(out, 2, 16, 18, "Directory      d", Color::White)?;
     paint(out, 2, 18, 18, "Quick commands q", Color::White)?;
     if hidden_initiate
         .is_some_and(|flow| snapshot.active_server_id.as_deref() == Some(flow.server_id()))
     {
-        paint(out, 2, 16, 18, "Resume init.   i", Color::Green)?;
-        paint(out, 2, 17, 18, "Discard setup  D", Color::White)?;
+        paint(out, 2, 20, 18, "Resume init.   i", Color::Green)?;
+        paint(out, 2, 22, 18, "Discard setup  D", Color::White)?;
     }
 
     let main_x = 24;

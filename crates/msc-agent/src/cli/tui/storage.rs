@@ -23,6 +23,9 @@ pub(super) struct StorageUi {
     results: Vec<String>,
 }
 impl StorageUi {
+    pub(super) fn is_confirming(&self) -> bool {
+        self.review.is_some()
+    }
     pub async fn load(&mut self) {
         let result = async {
             let client = SharedClient::connect_local().await?;
@@ -191,8 +194,10 @@ impl StorageUi {
                     self.confirmation.pop();
                 }
                 KeyCode::Char(c) => self.confirmation.push(c),
-                KeyCode::Enter if self.confirmation == review.confirmation => {
-                    let result = async { let c = SharedClient::connect_local().await?; c.post_json::<_,Value>("/v1/host/storage/cleanups", &json!({"hostId":review.host_id,"previewToken":review.preview_token,"confirmation":self.confirmation})).await }.await;
+                KeyCode::Enter
+                    if self.confirmation == keyboard_confirmation(&review.confirmation) =>
+                {
+                    let result = async { let c = SharedClient::connect_local().await?; c.post_json::<_,Value>("/v1/host/storage/cleanups", &json!({"hostId":review.host_id,"previewToken":review.preview_token,"confirmation":review.confirmation})).await }.await;
                     match result {
                         Ok(v) => {
                             self.operation = v["operationId"].as_str().map(|id| (id.into(), true));
@@ -204,6 +209,10 @@ impl StorageUi {
                             self.review = None;
                         }
                     }
+                }
+                KeyCode::Enter => {
+                    self.message =
+                        "Type the displayed confirmation exactly, then press Enter.".into()
                 }
                 _ => {}
             }
@@ -464,7 +473,10 @@ impl StorageUi {
                 lines.push(item.label.clone());
                 lines.extend(item.consequences.clone());
             }
-            lines.push(format!("Type exactly: {}", review.confirmation));
+            lines.push(format!(
+                "Type exactly: {}",
+                keyboard_confirmation(&review.confirmation)
+            ));
             lines.push(self.confirmation.clone());
         } else if let Some(c) = &self.candidates {
             lines.push(removal_name(&c.action).into());
@@ -611,4 +623,10 @@ async fn open_folder(path: &str) -> String {
         Ok(Err(error)) => format!("Could not open folder: {error}"),
         Err(_) => "Folder opener timed out. Use the displayed path on this computer.".into(),
     }
+}
+
+// Display punctuation must be typeable on a basic keyboard. The submitted
+// confirmation remains the original phrase bound to this exact API review.
+fn keyboard_confirmation(phrase: &str) -> String {
+    phrase.replace(['·', '•'], "-")
 }

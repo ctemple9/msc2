@@ -464,6 +464,15 @@ result. No up-front Plan/Read move, test run, or release gate is implied.
 - **Batch:** P22.49 only.
 - **Commit:** `P22.49: allow component inventory requests to finish`
 
+### P22.50 — Make removal confirmations typeable
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui/storage.rs`; `crates/msc-agent/src/cli/tui/app_settings.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Display middle-dot and bullet separators as keyboard hyphens in removal confirmations. Require the exact displayed phrase and submit the original preview-bound API phrase. Route number keys to confirmation input instead of switching Settings sections. Show feedback on an incomplete phrase.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, open a server removal review, and confirm the required phrase uses hyphens and accepts digits 1/2/3 without switching tabs. Type only part of the phrase and press Enter: removal must not submit. Esc cancels. Complete an intended removal only with the exact displayed phrase. No tests run.
+- **Batch:** P22.50 only.
+- **Commit:** `P22.50: make storage removal confirmations typeable`
+
 ## macOS owner testing — 0.1.32
 
 **Started:** October 21, 2026

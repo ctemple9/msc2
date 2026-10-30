@@ -80,10 +80,11 @@ impl AppSettingsUi {
             return false;
         }
         if self.tab == 2
-            && !matches!(
-                key,
-                KeyCode::Tab | KeyCode::BackTab | KeyCode::Char('1' | '2' | '3')
-            )
+            && (self.storage.is_confirming()
+                || !matches!(
+                    key,
+                    KeyCode::Tab | KeyCode::BackTab | KeyCode::Char('1' | '2' | '3')
+                ))
         {
             if !self.storage.handle(key).await {
                 self.open = false;

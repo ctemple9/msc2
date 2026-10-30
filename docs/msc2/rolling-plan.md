@@ -186,6 +186,14 @@ The helmet appears only while the local agent runs. A small companion process ow
 **Batch:** solo
 **Commit:** `P23.18: use Microsoft Edit for Windows TUI files`
 
+#### P23.19 — Prepare and publish v0.1.39
+**Status:** prepared; publication pending
+**Files:** agent and desktop version manifests and lockfiles, `clients/desktop-web/src/lib/bundle-identity.ts`, `README.md`, `packaging/windows/desktop-cli-path.wxs`, `docs/msc2/release/v0.1.39.md`, `docs/msc2/rolling-plan.md`
+**What:** Align v0.1.39 identities and release notes for the restored TUI, agent indicator, and intervening fixes. During packaging inspection, replace an invalid WiX RemoveRegistryValue uninstall attribute with the desktop executable's explicit indicator-unregistration action. Preserve the build-only release workflow, nine artifacts, checksums, and signed update metadata. Publish one new immutable tag; no test suites are authorized or run.
+**Verify:** `gh release view v0.1.39 --json url,isPrerelease,assets`
+**Batch:** solo
+**Commit:** `P23.19: prepare v0.1.39 release`
+
 **Phase 22 disposition:** Cameron accepted the current TUI on 2026-10-30. Detailed P22 records and their original verification commands are in the archive.
 
 ## Archived owner-testing details

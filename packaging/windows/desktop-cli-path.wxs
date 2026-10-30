@@ -5,8 +5,11 @@
       <Component Id="MscCliPath" Guid="*">
         <RegistryValue Root="HKLM" Key="Software\CTemple\MSC2" Name="DesktopCliPath" Type="string" Value="[INSTALLDIR]agent" KeyPath="yes" />
         <Environment Id="MscCliPathEntry" Name="PATH" Value="[INSTALLDIR]agent" Action="set" Part="last" System="yes" Permanent="no" />
-        <RemoveRegistryValue Id="MscRemoveIndicatorStartup" Root="HKCU" Key="Software\Microsoft\Windows\CurrentVersion\Run" Name="MSC2AgentIndicator" Action="removeOnUninstall" />
       </Component>
     </DirectoryRef>
+    <CustomAction Id="MscRemoveIndicatorStartup" FileKey="Path" ExeCommand="--unregister-agent-indicator" Execute="immediate" Return="ignore" />
+    <InstallExecuteSequence>
+      <Custom Action="MscRemoveIndicatorStartup" Before="InstallValidate">Installed AND REMOVE="ALL" AND NOT UPGRADINGPRODUCTCODE</Custom>
+    </InstallExecuteSequence>
   </Fragment>
 </Wix>

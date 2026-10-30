@@ -635,6 +635,15 @@ result. No up-front Plan/Read move, test run, or release gate is implied.
 - **Batch:** P22.68 only.
 - **Commit:** `P22.68: add double slash console command entry`
 
+### P22.69 — Distribute server tabs across terminal width
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui.rs`, `docs/msc2/rolling-plan.md`.
+- **What:** Divide the main panel into seven equal slots and center each numbered tab in its slot. Recalculate on every draw so terminal resizing keeps the row evenly spaced. Retain compact labels on narrow terminals.
+- **Verify:** `cargo run -p msc-agent -- tui` — open a server and resize the terminal; tabs 1–7 should remain evenly distributed across the main panel.
+- **Batch:** P22.69 only.
+- **Commit:** `P22.69: space server tabs across terminal width`
+
 ## macOS owner testing — 0.1.32
 
 **Started:** October 21, 2026

@@ -1613,7 +1613,6 @@ fn draw_workspace(
 
     let main_x = 24;
     let main_w = width - main_x - 2;
-    let mut tab_x = main_x;
     for (index, label) in SERVER_TABS.iter().enumerate() {
         let label = if width < 120 {
             match index {
@@ -1625,10 +1624,11 @@ fn draw_workspace(
             label
         };
         let tab = format!("{} {}", index + 1, label);
-        let tab_w = tab.chars().count() as u16 + 2;
-        if tab_x + tab_w > width - 2 {
-            break;
-        }
+        let start = main_w * index as u16 / SERVER_TABS.len() as u16;
+        let end = main_w * (index + 1) as u16 / SERVER_TABS.len() as u16;
+        let slot_w = end - start;
+        let tab_w = (tab.chars().count() as u16).min(slot_w);
+        let tab_x = main_x + start + slot_w.saturating_sub(tab_w) / 2;
         paint(
             out,
             tab_x,
@@ -1641,7 +1641,6 @@ fn draw_workspace(
                 Color::DarkGrey
             },
         )?;
-        tab_x += tab_w;
     }
     paint(
         out,

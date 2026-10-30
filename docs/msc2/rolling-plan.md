@@ -102,6 +102,14 @@ The previous phase work is finished. The old Phase 16 acceptance packet and owne
 **Batch:** solo
 **Commit:** `P23.8: correct the helmet indicator silhouette`
 
+#### P23.9 — Show the indicator only while the agent runs
+**Status:** done; verification waived by Cameron
+**Files:** `docs/msc2/agent-indicator-preview.html`, `docs/msc2/rolling-plan.md`
+**What:** Remove stopped and unavailable symbol variants from the preview. Show an empty system-bar position when the agent is stopped or its status cannot be confirmed.
+**Verify:** Refresh `docs/msc2/agent-indicator-preview.html` in a browser.
+**Batch:** solo
+**Commit:** `P23.9: show the indicator only while the agent runs`
+
 **Phase 22 disposition:** Cameron accepted the current TUI on 2026-10-30. Detailed P22 records and their original verification commands are in the archive.
 
 ## Archived owner-testing details

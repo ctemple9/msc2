@@ -139,11 +139,12 @@ The helmet appears only while the local agent runs. A small companion process ow
 **Commit:** `P23.12: build the running-only helmet companion`
 
 #### P23.13 — Register the companion with desktop installations
-**Status:** planned
+**Status:** awaiting Cameron verification
 **Files:** `clients/desktop-web/src-tauri/`, `packaging/macos/`, `packaging/windows/`, `packaging/linux/`, `docs/msc2/rolling-plan.md`
 **What:** Start one indicator companion per signed-in desktop user at login on macOS, Windows, and Linux where a tray is available. Include it in desktop installs, updates, repair, and removal; leave standalone headless packages unchanged.
 **Verify:** `git diff HEAD^ HEAD -- clients/desktop-web/src-tauri packaging`
 **Batch:** solo
+**Commit:** `P23.13: register the agent indicator for desktop sessions`
 
 #### P23.14 — Document and inspect platform behavior
 **Status:** planned

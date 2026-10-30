@@ -82,6 +82,7 @@ pub async fn uninstall_local(request: UninstallRequest) -> Result<Scheduled, Str
         return Err("Local uninstall is already being scheduled.".into());
     }
     let result = tauri::async_runtime::spawn_blocking(move || {
+        super::indicator_startup::remove()?;
         let mut command = local_command(&request.installers)?;
         command.args([
             "--danger",

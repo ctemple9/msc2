@@ -35,7 +35,21 @@ pub(super) fn stop() -> Result<(), String> {
             .write_all(token.as_bytes())
             .map_err(|error| error.to_string())?;
     }
-    Ok(())
+    let lock = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(directory.join("agent-indicator.lock"))
+        .map_err(|error| error.to_string())?;
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    loop {
+        if fs2::FileExt::try_lock_exclusive(&lock).is_ok() {
+            return Ok(());
+        }
+        if std::time::Instant::now() >= deadline {
+            return Err("Agent indicator did not exit before package replacement".into());
+        }
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
 }
 
 fn helmet() -> tauri::image::Image<'static> {
@@ -53,6 +67,24 @@ fn helmet() -> tauri::image::Image<'static> {
                         let offset = ((y * 2 + dy) * 32 + x * 2 + dx) * 4;
                         pixels[offset..offset + 4].copy_from_slice(&[240, 240, 240, 255]);
                     }
+                }
+            }
+        }
+    }
+    // A dark one-pixel edge keeps the white helmet legible on light taskbars.
+    // macOS uses the alpha mask as a native template instead.
+    #[cfg(not(target_os = "macos"))]
+    {
+        let original = pixels.clone();
+        for y in 1..31 {
+            for x in 1..31 {
+                let offset = (y * 32 + x) * 4;
+                if original[offset + 3] == 0
+                    && [(x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)]
+                        .iter()
+                        .any(|&(nx, ny)| original[(ny * 32 + nx) * 4 + 3] != 0)
+                {
+                    pixels[offset..offset + 4].copy_from_slice(&[25, 25, 25, 255]);
                 }
             }
         }
@@ -126,6 +158,10 @@ pub(super) fn run() {
     let Ok(directory) = super::agent_data_directory() else {
         return;
     };
+    if !directory.exists() {
+        let _ = super::indicator_startup::remove_registration();
+        return;
+    }
     if std::fs::create_dir_all(&directory).is_err() {
         return;
     }
@@ -218,6 +254,11 @@ pub(super) fn run() {
             tauri::async_runtime::spawn(async move {
                 let mut delay = 1;
                 loop {
+                    if super::agent_data_directory().is_ok_and(|path| !path.exists()) {
+                        let _ = super::indicator_startup::remove_registration();
+                        handle_exit();
+                        return;
+                    }
                     let connection =
                         tokio::time::timeout(std::time::Duration::from_secs(3), connect()).await;
                     if let Ok(Ok(mut connection)) = connection {
@@ -243,4 +284,9 @@ pub(super) fn run() {
             api.prevent_exit();
         }
     });
+}
+
+fn handle_exit() {
+    // No server action is associated with ending this graphical companion.
+    std::process::exit(0);
 }

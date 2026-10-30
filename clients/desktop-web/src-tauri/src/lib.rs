@@ -14,6 +14,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 mod agent_indicator;
+mod indicator_startup;
 mod native_transfer;
 mod ssh;
 mod storage;
@@ -983,6 +984,11 @@ fn manage_agent_service_blocking(
             }
         }
     };
+    if report.state == ServiceState::NotInstalled {
+        indicator_startup::remove()?;
+    } else if let Err(error) = indicator_startup::install() {
+        eprintln!("MSC 2 agent indicator: {error}");
+    }
     Ok(report_status(report))
 }
 
@@ -1809,8 +1815,16 @@ fn reveal_command(path: &Path) -> std::process::Command {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    if std::env::args().any(|arg| arg == "--unregister-agent-indicator") {
+        if let Err(error) = indicator_startup::remove() {
+            eprintln!("{error}");
+        }
+        return;
+    }
     if std::env::args().any(|arg| arg == "--stop-agent-indicator") {
-        if let Err(error) = agent_indicator::stop() { eprintln!("{error}"); }
+        if let Err(error) = agent_indicator::stop() {
+            eprintln!("{error}");
+        }
         return;
     }
     if std::env::args().any(|arg| arg == "--agent-indicator") {
@@ -1830,6 +1844,12 @@ pub fn run() {
     update::report_desktop_update_ready(false);
 
     tauri::Builder::default()
+        .setup(|_| {
+            if let Err(error) = indicator_startup::install() {
+                eprintln!("MSC 2 agent indicator: {error}");
+            }
+            Ok(())
+        })
         .on_page_load(|webview, payload| {
             if webview.label() == "main"
                 && payload.event() == tauri::webview::PageLoadEvent::Started

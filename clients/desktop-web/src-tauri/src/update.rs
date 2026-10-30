@@ -161,6 +161,7 @@ pub fn install(request: InstallRequest, data_directory: &Path) -> Result<Install
     if staged.install_mode == "tauri-coordinated" {
         #[cfg(target_os = "macos")]
         require_stopped_macos_server()?;
+        super::agent_indicator::stop()?;
         schedule_desktop_update(&request.release_id, data_directory)?;
         return Ok(InstallResult {
             state: "scheduled",

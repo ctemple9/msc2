@@ -15,6 +15,11 @@ MSC 2 puts as much of that as possible into guided controls and explains the
 rest as you go, so you can learn what you need without having to master
 everything first.
 
+The terminal options are the scriptable `msc` commands and the keyboard-driven
+`msc tui` interface. The TUI runs on the computer hosting the agent, including
+in an SSH session to that computer; it does not connect directly to another
+host.
+
 ## Download and install
 
 Download [MSC 2 v0.1.38](https://github.com/ctemple9/msc2/releases/tag/v0.1.38)
@@ -29,6 +34,10 @@ and choose the file for your computer. The desktop app includes the agent.
 Update the macOS or Windows desktop app from its built-in updater. Update Linux
 packages with `apt` or `dnf`. For a headless install, run `msc update check`,
 then `msc update install --release-id 0.1.38`.
+
+The published v0.1.38 download predates the TUI and does not include
+`msc tui`. To use it now from this repository, run
+`cargo run -p msc-agent -- tui` at the project root.
 
 ## What MSC 2 does
 
@@ -157,6 +166,10 @@ MSC 2 has one part that runs your servers and several ways to control it.
 - **The CLI** gives you task commands from a local terminal or an SSH login
   shell on the agent host. It authenticates as the installing OS account;
   remote host selection stays in the desktop app.
+- **The TUI** gives you a full-screen, keyboard-driven control surface on the
+  agent host, either in its local terminal or through SSH. It shares the CLI's
+  host-local authorization and agent API; use the desktop app to manage a
+  different host remotely.
 
 The server keeps running when you close the desktop app or sign out. The app
 is a control panel; it is not the thing keeping Minecraft alive.
@@ -176,7 +189,8 @@ the Minecraft server but do not need MSC 2 installed.
 
 ## Start your first server
 
-1. Open MSC 2, or connect to the headless agent from another computer.
+1. Open MSC 2, or use `msc`/`msc tui` on a headless host. The desktop app can
+   connect to a headless agent from another computer.
 2. Choose **Add Server**.
 3. Choose **Java** or **Bedrock**, then select the Minecraft version and server
    software.

@@ -2,7 +2,7 @@
 
 > Owner amendment (2026-10-06, D-042): modded map repair/import and private Minecraft client capture are retired. The standard Java and Bedrock saved-terrain maps remain supported. Earlier repair-plan or capture acceptance requirements are withdrawn rather than satisfied.
 
-**Revision:** 1.10 · **Date:** 2026-10-26 · **Owner:** Cameron Temple
+**Revision:** 1.11 · **Date:** 2026-10-30 · **Owner:** Cameron Temple
 **Baseline:** MSC 1 at commit `fccd61f0ed743086f1f5db6bef58e228a36010f3`
 
 **Companion documents:**
@@ -21,7 +21,7 @@
 
 MSC 2 is the control plane for self-hosted Minecraft servers: creation, runtime management, worlds, backups, mods, players, diagnostics, networking, and updates.
 
-Architecturally it is **one engine shared by the desktop app, CLI, and restored TUI**. All server-management behavior lives in a Rust service. The Tauri desktop app and command-line client already use that service's API; the planned terminal client uses the same host-local access path. No client implements server-management logic; the agent does not serve a browser UI (D-038, D-043).
+Architecturally it is **one engine shared by the desktop app, CLI, and TUI**. All server-management behavior lives in a Rust service. Each client uses that service's API; the TUI uses the host-local access path. No client implements server-management logic; the agent does not serve a browser UI (D-038, D-043).
 
 The defining constraint:
 
@@ -93,7 +93,7 @@ Clients display and request. They never become co-owners. This is what keeps rec
 | HTTP / WebSocket | `axum` + `tokio` | Replaces MSC 1's hand-written socket server. |
 | CLI parsing | `clap` | Generates shell completions. |
 | Interactive prompts | `inquire` | Fuzzy select, confirm. Phase: after core CLI. |
-| Full-screen terminal client | Rust terminal rendering and input | Restored under D-043; the specific presentation library is chosen during Phase 22 implementation. |
+| Full-screen terminal client | Rust terminal rendering and input | Implemented with `crossterm`; restored under D-043 and accepted in Phase 22. |
 | Progress | `indicatif` | Downloads, installs. |
 | Desktop shell | **Tauri** | Thin. Loads the Svelte bundle. |
 | Desktop frontend | **Svelte + TypeScript** | Bundled in and loaded by Tauri; the agent does not serve it to browsers (D-038). |
@@ -138,12 +138,13 @@ The CLI remains the scriptable terminal interface: named one-shot commands,
 automation-friendly output, and interactive confirmations where an action is
 destructive.
 
-**TUI mode (being restored).** `msc tui` opens a full-screen, keyboard-driven
-client on the agent host in a local terminal or SSH login shell. It uses the
-CLI's host-local authorization boundary and existing API/WebSocket contracts;
+**TUI mode.** `msc tui` opens the full-screen, keyboard-driven client on the
+agent host in a local terminal or SSH login shell. It uses the CLI's
+host-local authorization boundary and existing API/WebSocket contracts;
 agent service controls still use the local operating system when the API is
-down. The TUI is intended for macOS, Windows, and Linux. It does not acquire
-a direct-remote host, URL, port, or bearer-token mode (D-040, D-043).
+down. The TUI is supported on macOS, Windows, and Linux. It does not provide
+a direct-remote host, URL, port, or bearer-token mode (D-040, D-043). From the
+repository, run `cargo run -p msc-agent -- tui`.
 
 ---
 
@@ -691,18 +692,20 @@ Given that MSC 1's remote-client parity gap was itself a months-long project, th
 
 ### How parity is tracked
 
-One row per capability, maintained continuously from the first vertical slice:
+The [client capability matrix](client-capability-matrix.csv) lists each API
+operation and its implementation state. Its current columns cover Desktop and
+CLI:
 
 ```
-MSC 1 capability → MSC 2 agent operation → Desktop → CLI → TUI
+MSC 1 capability → MSC 2 agent operation → Desktop → CLI
 ```
 
 Every cell is **Implemented**, **Planned**, or **Intentional exception**.
 
-The matrix covers Tauri desktop and CLI, plus the restored TUI as its
-capabilities are implemented in Phase 22. Planned TUI cells must not be
-reported as shipped. Browser and mobile management do not receive capability
-columns (D-033, D-038, D-043).
+Phase 22's implementation and acceptance are recorded in the
+[rolling-plan archive](rolling-plan-archive.md). The current matrix does not
+have a TUI column, so it does not claim row-by-row TUI parity. Browser and
+mobile management do not receive capability columns (D-033, D-038, D-043).
 
 Accordingly:
 
@@ -735,7 +738,7 @@ Every megabyte the agent holds on an 8 GB host is a megabyte Java cannot have. T
 
 ## 18. Educational content (D-026)
 
-MSC 1's teaching material is among its largest assets: a 31-topic Server Handbook across 6 categories, a concept guide, an onboarding tour over the live UI, ~18 files of router port-forwarding guides with brand matching and a troubleshooting decision tree, and contextual help throughout. It is also the clearest example of the duplication MSC 2 removes — all of it is Swift compiled into the macOS app, so the former remote client required a second, separately-written educational surface (`QuickGuideView`, 706 lines). MSC 2 currently teaches through the Tauri desktop app and CLI; the restored TUI will render the same agent-owned content as its screens are built. The browser presentation is retired by D-038.
+MSC 1's teaching material is among its largest assets: a 31-topic Server Handbook across 6 categories, a concept guide, an onboarding tour over the live UI, ~18 files of router port-forwarding guides with brand matching and a troubleshooting decision tree, and contextual help throughout. It is also the clearest example of the duplication MSC 2 removes — all of it is Swift compiled into the macOS app, so the former remote client required a second, separately-written educational surface (`QuickGuideView`, 706 lines). MSC 2 teaches through the Tauri desktop app, CLI, and TUI. The TUI includes the Server Handbook and interactive Router Guide; onboarding is not part of the TUI. The browser presentation is retired by D-038.
 
 **Content is data the agent serves. Clients render it; they never author it.**
 

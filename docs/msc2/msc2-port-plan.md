@@ -2,7 +2,7 @@
 
 > Owner amendment (2026-10-06, D-042): modded map repair/import and private Minecraft client capture are retired. The standard Java and Bedrock saved-terrain maps remain supported. Earlier repair-plan or capture acceptance requirements are withdrawn rather than satisfied.
 
-**Revision:** 1.8 · **Date:** 2026-10-26
+**Revision:** 1.9 · **Date:** 2026-10-30
 **Status:** **Execution document — Proposed, not owner-approved.**
 
 **This document is deliberately separate from the vision.** `msc2-product.md` and `msc2-engineering.md` describe the destination, its guarantees, and its architecture. This document describes a *route*, and routes change. Nothing here constrains the vision; if a phase order proves wrong, this file changes and the vision does not.
@@ -380,9 +380,10 @@ automatically authorized tests.
 
 ## Phase 22 — Restored full-screen terminal client
 
-**State:** Opened at Cameron's October 26 direction under D-043. Work begins
-with the host-local Agents page and proceeds one owner-requested screen or
-bounded behavior at a time. The current record is in `rolling-plan.md`.
+**State:** Cameron accepted the current TUI on 2026-10-30. Its implementation
+records are archived in `rolling-plan-archive.md`. The original October 26
+direction under D-043 restored the host-local client; the Phase 22 exception
+below describes how that incremental work was carried out.
 
 **Workflow exception:** Phase 22 has no separate Plan/Read stage and no
 prewritten step list. Each implementation conversation records only the step
@@ -395,6 +396,10 @@ request nor the build-only beta publication policy.
 **Product boundary:** `msc tui` runs on macOS, Windows, or Linux on the agent
 host, including through SSH. It shares the agent API, local authorization, and
 service controls with the existing `msc` CLI; one-shot commands remain
-scriptable. The restored TUI does not serve a browser page or directly pair
-with a remote host. Its exact screens and completion criteria are refined with
-Cameron during the incremental work rather than prescribed here.
+scriptable. The TUI does not serve a browser page or directly pair with a
+remote host. Its accepted scope includes the server-management screens,
+Handbook, interactive Router Guide, and console tools; onboarding is omitted.
+
+**Acceptance:** Cameron confirmed the current TUI is accepted on 2026-10-30.
+That acceptance closes the Phase 22 implementation work; it does not by itself
+assert release packaging or row-by-row parity in the client-capability matrix.

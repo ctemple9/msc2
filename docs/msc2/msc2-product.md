@@ -2,7 +2,7 @@
 
 > Owner amendment (2026-10-06, D-042): modded map repair/import and private Minecraft client capture are retired. The standard Java and Bedrock saved-terrain maps remain supported. Earlier repair-plan or capture acceptance requirements are withdrawn rather than satisfied.
 
-**Revision:** 1.8 · **Date:** 2026-10-26 · **Owner:** Cameron Temple
+**Revision:** 1.9 · **Date:** 2026-10-30 · **Owner:** Cameron Temple
 
 This document describes MSC 2 in plain language: what it does, who it's for, and what using it feels like. No code, no architecture.
 
@@ -106,10 +106,11 @@ Some things are better suited to one surface than another — editing a large co
 
 **The terminal.** For automation and for people who like terminals. Every action available as a command, with proper output for scripts.
 
-**The full-screen terminal interface.** The restored `msc tui` is being built
-screen by screen for local terminals and SSH shells on the agent host. It uses
-keyboard navigation for everyday management while the named commands remain
-available for scripts.
+**The full-screen terminal interface.** `msc tui` is a keyboard-driven control
+surface for the agent host, available in a local terminal or SSH shell. It
+covers server management and includes the Server Handbook and interactive
+Router Guide. The named `msc` commands remain available for scripts. The TUI
+does not directly connect to another host; use the desktop app for that.
 
 The agent does not serve a browser interface. A screenless machine can be managed from a remote desktop app over the authenticated API, or with `msc` in an SSH shell on that machine.
 

@@ -1,5 +1,12 @@
 # Full-screen terminal client retirement audit
 
+> **Historical record — superseded 2026-10-30.** This audit documents the
+> D-034 retirement as it stood on 2026-09-07. D-043 restored the host-local
+> TUI, and Cameron accepted the Phase 22 implementation on 2026-10-30. The
+> retirement result and supported-client table below are historical, not the
+> current product status. See `msc2-port-plan.md` Phase 22 and the current
+> supported-interface documentation.
+
 **Date:** 2026-09-07
 **Decision:** D-034
 **Steps:** P12.109–P12.114

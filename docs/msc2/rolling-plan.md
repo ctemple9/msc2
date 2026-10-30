@@ -178,6 +178,14 @@ The helmet appears only while the local agent runs. A small companion process ow
 **Batch:** solo
 **Commit:** `P23.17: simplify the agent indicator control`
 
+#### P23.18 — Use a terminal editor on Windows
+**Status:** awaiting Cameron verification
+**Files:** `crates/msc-agent/src/cli/tui/files.rs`, `docs/msc2/rolling-plan.md`
+**What:** Use Microsoft Edit (`edit.exe`) for the Windows TUI's Files editing action, with an actionable `winget install Microsoft.Edit` message when unavailable. Preserve nano and its arguments on macOS/Linux, the existing selected-server path boundary, and terminal restoration after the editor exits or fails. No additional tests: this is a small platform command selection; native Windows launch remains an owner check.
+**Verify:** `cargo run -p msc-agent -- tui` — on Windows open a text file from Files, save in Microsoft Edit, exit, and confirm the TUI returns; on macOS confirm the same action still uses nano.
+**Batch:** solo
+**Commit:** `P23.18: use Microsoft Edit for Windows TUI files`
+
 **Phase 22 disposition:** Cameron accepted the current TUI on 2026-10-30. Detailed P22 records and their original verification commands are in the archive.
 
 ## Archived owner-testing details

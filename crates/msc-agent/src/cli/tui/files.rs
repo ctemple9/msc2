@@ -161,18 +161,28 @@ impl FilesUi {
                 return;
             }
         };
-        // Nano needs the normal terminal. Restore the TUI even if launch fails.
+        // Terminal editors need the normal screen. Restore the TUI even if launch fails.
         let _ = execute!(out, cursor::Show, LeaveAlternateScreen);
         let _ = terminal::disable_raw_mode();
-        let result = Command::new("nano").arg("--").arg(&target).status();
+        #[cfg(windows)]
+        let (editor, result) = (
+            "Microsoft Edit",
+            Command::new("edit.exe").arg(&target).status(),
+        );
+        #[cfg(not(windows))]
+        let (editor, result) = ("nano", Command::new("nano").arg("--").arg(&target).status());
         let raw = terminal::enable_raw_mode();
         let screen = execute!(out, EnterAlternateScreen, cursor::Hide);
         *message = match (result, raw, screen) {
             (Ok(status), Ok(()), Ok(())) if status.success() => {
-                format!("Returned from nano: {}", item.name)
+                format!("Returned from {editor}: {}", item.name)
             }
-            (Ok(status), Ok(()), Ok(())) => format!("nano exited with {status}"),
-            (Err(error), _, _) => format!("Could not launch nano: {error}"),
+            (Ok(status), Ok(()), Ok(())) => format!("{editor} exited with {status}"),
+            #[cfg(windows)]
+            (Err(error), _, _) if error.kind() == io::ErrorKind::NotFound => {
+                "Microsoft Edit is not installed. Run: winget install Microsoft.Edit".into()
+            }
+            (Err(error), _, _) => format!("Could not launch {editor}: {error}"),
             (_, Err(error), _) | (_, _, Err(error)) => {
                 format!("Could not restore terminal: {error}")
             }
@@ -257,7 +267,11 @@ impl FilesUi {
             x,
             height - 7,
             width,
-            "↑↓ Select  Enter Open/Edit in nano  Backspace Parent  r Refresh",
+            if cfg!(windows) {
+                "↑↓ Select  Enter Open/Edit in Microsoft Edit  Backspace Parent  r Refresh"
+            } else {
+                "↑↓ Select  Enter Open/Edit in nano  Backspace Parent  r Refresh"
+            },
             Color::DarkGrey,
         )?;
         Ok(())

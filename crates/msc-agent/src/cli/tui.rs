@@ -601,7 +601,7 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
             let close = flow.handle(key.code).await;
             if flow.take_hide_request() {
                 initiate_hidden = true;
-                message = "Initiation hidden. Press i to resume or d to discard setup.".into();
+                message = "Initiation hidden. Press i to resume or x to discard setup.".into();
             }
             if let Some(broadcast) = flow.take_service_request() {
                 server_editor = Some(
@@ -628,7 +628,7 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
                     workspace_open = true;
                     continue;
                 }
-                KeyCode::Char('D') => {
+                KeyCode::Char('x') => {
                     let id = initiate
                         .as_ref()
                         .expect("hidden initiation exists")
@@ -1164,7 +1164,7 @@ fn draw(
             .is_some_and(|flow| snapshot.active_server_id.as_deref() == Some(flow.server_id()))
     {
         paint(out, 2, 20, 18, "Resume init.   i", Color::Green)?;
-        paint(out, 2, 21, 18, "Discard setup  D", Color::White)?;
+        paint(out, 2, 21, 18, "Discard setup  x", Color::White)?;
     }
 
     let main_x = 24;
@@ -1510,7 +1510,7 @@ fn draw_workspace(
         .is_some_and(|flow| snapshot.active_server_id.as_deref() == Some(flow.server_id()))
     {
         paint(out, 2, 20, 18, "Resume init.   i", Color::Green)?;
-        paint(out, 2, 22, 18, "Discard setup  D", Color::White)?;
+        paint(out, 2, 22, 18, "Discard setup  x", Color::White)?;
     }
 
     let main_x = 24;

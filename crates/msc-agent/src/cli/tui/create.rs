@@ -3144,6 +3144,15 @@ players need the mods",
             w.saturating_sub(80) / 2,
             h / 2,
             w.min(78),
+            &" ".repeat(usize::from(w.min(78))),
+            Color::Green,
+        )
+        .map_err(|e| CliError::internal(e.to_string()))?;
+        paint(
+            out,
+            w.saturating_sub(80) / 2,
+            h / 2,
+            w.min(78),
             line,
             Color::Green,
         )
@@ -3235,7 +3244,7 @@ players need the mods",
             if self.pending_operation_id.is_some() {
                 "Checking submitted server operation…"
             } else {
-                "Sending server request…"
+                "Creating server"
             },
         )?;
         if self.path == PathKind::Import {

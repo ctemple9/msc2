@@ -608,6 +608,15 @@ result. No up-front Plan/Read move, test run, or release gate is implied.
 - **Batch:** P22.65 only.
 - **Commit:** `P22.65: handle empty agent refresh without inventory warning`
 
+### P22.66 — Clarify setup shortcut and creation progress
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui.rs`, `crates/msc-agent/src/cli/tui/create.rs`, `docs/msc2/rolling-plan.md`.
+- **What:** Use x for Discard setup in both sidebar layouts and the resume hint, leaving d for Directory. Start creation with “Creating server” and clear the progress area before each update so shorter messages do not retain old text.
+- **Verify:** `cargo run -p msc-agent -- tui` — check paused setup shows x and d still opens Directory; check creation progress has no trailing characters.
+- **Batch:** P22.66 only.
+- **Commit:** `P22.66: clarify discard shortcut and creation progress`
+
 ## macOS owner testing — 0.1.32
 
 **Started:** October 21, 2026

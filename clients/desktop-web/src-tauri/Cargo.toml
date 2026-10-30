@@ -13,10 +13,11 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = [] }
+tauri = { version = "2", features = ["tray-icon"] }
 tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
 tauri-plugin-notification = "2"
+fs2 = "0.4"
 msc-infrastructure = { path = "../../../crates/msc-infrastructure" }
 msc-api = { path = "../../../crates/msc-api" }
 msc-application = { path = "../../../crates/msc-application" }

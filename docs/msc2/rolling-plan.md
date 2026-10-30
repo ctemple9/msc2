@@ -131,11 +131,12 @@ The helmet appears only while the local agent runs. A small companion process ow
 **Commit:** `P23.11: add the local agent lifecycle channel`
 
 #### P23.12 — Build the running-only helmet companion
-**Status:** planned
+**Status:** awaiting Cameron verification
 **Files:** `clients/desktop-web/src-tauri/`, `docs/msc2/rolling-plan.md`
 **What:** Launch a separate user-session process with the approved pixel helmet in the native system bar. Show it only while connected to the local agent channel; hide it immediately on disconnect and reconnect with bounded backoff. Provide Open MSC 2 and Quit indicator without changing agent lifecycle.
 **Verify:** `cargo check --manifest-path clients/desktop-web/src-tauri/Cargo.toml`
 **Batch:** solo
+**Commit:** `P23.12: build the running-only helmet companion`
 
 #### P23.13 — Register the companion with desktop installations
 **Status:** planned

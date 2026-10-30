@@ -13,6 +13,7 @@ use std::path::{Path, PathBuf};
 #[cfg(any(not(target_os = "linux"), debug_assertions, test))]
 use std::sync::Mutex;
 
+mod agent_indicator;
 mod native_transfer;
 mod ssh;
 mod storage;
@@ -1808,6 +1809,14 @@ fn reveal_command(path: &Path) -> std::process::Command {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    if std::env::args().any(|arg| arg == "--stop-agent-indicator") {
+        if let Err(error) = agent_indicator::stop() { eprintln!("{error}"); }
+        return;
+    }
+    if std::env::args().any(|arg| arg == "--agent-indicator") {
+        agent_indicator::run();
+        return;
+    }
     if ssh::run_ssh_askpass_helper() {
         return;
     }

@@ -2408,6 +2408,7 @@ name = "msc2-desktop-web"
 version = "0.1.38"
 dependencies = [
  "ed25519-dalek",
+ "fs2",
  "futures-util",
  "libc",
  "msc-api",

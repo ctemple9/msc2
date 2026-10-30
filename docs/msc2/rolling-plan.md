@@ -154,6 +154,14 @@ The helmet appears only while the local agent runs. A small companion process ow
 **Batch:** solo
 **Commit:** `P23.14: document the agent indicator and platform checks`
 
+#### P23.15 — Share the desktop and indicator application context
+**Status:** awaiting Cameron verification
+**Files:** `clients/desktop-web/src-tauri/src/lib.rs`, `clients/desktop-web/src-tauri/src/agent_indicator.rs`, `docs/msc2/rolling-plan.md`
+**What:** Fix the macOS build failure reported during owner verification. Generate Tauri's application context in one shared factory so the two process modes embed only one Info.plist symbol.
+**Verify:** `cargo build --manifest-path clients/desktop-web/src-tauri/Cargo.toml --no-default-features`
+**Batch:** solo
+**Commit:** `P23.15: share the desktop and indicator application context`
+
 **Phase 22 disposition:** Cameron accepted the current TUI on 2026-10-30. Detailed P22 records and their original verification commands are in the archive.
 
 ## Archived owner-testing details

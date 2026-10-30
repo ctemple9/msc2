@@ -153,7 +153,7 @@ async fn connect() -> Result<BufReader<Box<dyn Connection>>, String> {
     Ok(reader)
 }
 
-pub(super) fn run() {
+pub(super) fn run(mut context: tauri::Context<tauri::Wry>) {
     use fs2::FileExt;
     let Ok(directory) = super::agent_data_directory() else {
         return;
@@ -177,7 +177,6 @@ pub(super) fn run() {
     if lock.try_lock_exclusive().is_err() {
         return;
     }
-    let mut context = tauri::generate_context!();
     context.config_mut().app.windows.clear();
     let app = tauri::Builder::default()
         .setup(|app| {

@@ -1828,7 +1828,7 @@ pub fn run() {
         return;
     }
     if std::env::args().any(|arg| arg == "--agent-indicator") {
-        agent_indicator::run();
+        agent_indicator::run(desktop_context());
         return;
     }
     if ssh::run_ssh_askpass_helper() {
@@ -1919,8 +1919,13 @@ pub fn run() {
             ssh::ssh_tunnel_retry,
             ssh::ssh_tunnel_stop
         ])
-        .run(tauri::generate_context!())
+        .run(desktop_context())
         .expect("error while running the MSC 2 desktop shell");
+}
+
+fn desktop_context() -> tauri::Context<tauri::Wry> {
+    // macOS embeds a single Info.plist symbol for both process modes.
+    tauri::generate_context!()
 }
 
 #[cfg(test)]

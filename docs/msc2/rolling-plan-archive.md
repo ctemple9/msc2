@@ -19541,3 +19541,13 @@ The current private converted cache was inspected read-only. Its five Overworld 
 - **Verify:** Review the phase table and open-work rows against `msc2-port-plan.md`, the Phase 16 acceptance packet, and archived owner findings; `git diff --check`.
 - **Batch:** P22.73 only.
 - **Commit:** `P22.73: restore phase map and clarify open work`
+
+
+### P22.74 — Resolve the active work summary
+
+- **Status:** Documentation updated from Cameron's confirmation that all previously listed work is finished (2026-10-30).
+- **Files:** `docs/msc2/rolling-plan.md`; `docs/msc2/rolling-plan-archive.md`.
+- **What:** Replace the open-work table with a no-active-work status, update the phase map for owner-confirmed follow-ups, and clarify that archived pending labels preserve historical state rather than current work. Keep the old Phase 16 acceptance packet as historical evidence; this update does not rewrite its recorded artifact observations.
+- **Verify:** Confirm the rolling plan has no open-work table or active follow-up rows and says no active work; `git diff --check`.
+- **Batch:** P22.74 only.
+- **Commit:** `P22.74: resolve active work summary`

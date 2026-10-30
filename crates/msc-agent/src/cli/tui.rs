@@ -11,6 +11,7 @@ mod initiate;
 mod notes;
 mod palette;
 mod performance;
+mod quick;
 mod server_editor;
 mod settings;
 mod storage;
@@ -113,6 +114,7 @@ struct ViewState<'a> {
     notes: Option<&'a notes::Editor>,
     guides: &'a guides::Guides,
     palette: &'a palette::Palette,
+    quick: &'a quick::Quick,
     connections: Option<&'a initiate::InitiateUi>,
     files: &'a files::FilesUi,
     wizard: Option<&'a create::Wizard>,
@@ -393,6 +395,7 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
     let mut notes_editor: Option<notes::Editor> = None;
     let mut guides_ui = guides::Guides::default();
     let mut palette_ui = palette::Palette::default();
+    let mut quick_ui = quick::Quick::default();
     let mut connections: Option<initiate::InitiateUi> = None;
     let mut files_ui = files::FilesUi::default();
     let mut wizard: Option<create::Wizard> = None;
@@ -452,6 +455,7 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
                 notes: notes_editor.as_ref(),
                 guides: &guides_ui,
                 palette: &palette_ui,
+                quick: &quick_ui,
                 connections: connections.as_ref(),
                 files: &files_ui,
                 wizard: wizard.as_ref(),
@@ -505,6 +509,10 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
             if matches!(key.code, KeyCode::Enter | KeyCode::Esc) {
                 connections = None;
             }
+            continue;
+        }
+        if quick_ui.open {
+            quick_ui.handle(key.code).await;
             continue;
         }
         if palette_ui.open {
@@ -778,6 +786,10 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
                     refresh(&mut snapshot, &mut message).await;
                     worlds_ui.refreshed();
                 }
+                continue;
+            }
+            if key.code == KeyCode::Char('q') {
+                quick_ui.open(&snapshot).await;
                 continue;
             }
             if key.code == KeyCode::Char('s') {
@@ -1065,6 +1077,7 @@ fn draw(
         view.transfer.draw(out, width, height)?;
         view.guides.draw(out, width, height)?;
         view.palette.draw(out, width, height)?;
+        view.quick.draw(out, width, height)?;
         if let Some(summary) = view.connections {
             summary.draw(out, width, height)?;
         }
@@ -1400,6 +1413,7 @@ fn draw(
     view.transfer.draw(out, width, height)?;
     view.guides.draw(out, width, height)?;
     view.palette.draw(out, width, height)?;
+    view.quick.draw(out, width, height)?;
     if let Some(summary) = view.connections {
         summary.draw(out, width, height)?;
     }
@@ -1466,6 +1480,7 @@ fn draw_workspace(
     paint(out, 2, 12, 18, "Agents         a", Color::White)?;
     paint(out, 2, 14, 18, "How to connect h", Color::White)?;
     paint(out, 2, 15, 18, "Directory      d", Color::White)?;
+    paint(out, 2, 18, 18, "Quick commands q", Color::White)?;
     if hidden_initiate
         .is_some_and(|flow| snapshot.active_server_id.as_deref() == Some(flow.server_id()))
     {

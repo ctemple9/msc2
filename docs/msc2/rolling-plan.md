@@ -563,6 +563,15 @@ result. No up-front Plan/Read move, test run, or release gate is implied.
 - **Batch:** P22.60 only.
 - **Commit:** `P22.60: add sidebar connection and directory shortcuts`
 
+### P22.61 — Add sidebar Quick Commands
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui.rs`; `crates/msc-agent/src/cli/tui/quick.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Review desktop QuickCommandsSection and implement workspace q with same-day Dawn/Dusk/Night capability checks, weather presets, active-world difficulty/default gamemode, Enforce Gamemode, Save All, and Java-only Reload. Load saved world/profile values, reuse existing profile/settings/command APIs and API-provided safety confirmations, and check original server selection before dispatch. Bedrock Save All uses save hold then save resume. Commands require running state except Enforce Gamemode; all actions have explicit review. Keep q Quit on the agent home screen and honor existing tab text-input handlers first.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, select a server and press q. Navigate with arrows, change settings with Left/Right, Enter reviews and y applies; Esc cancels. Confirm saved profile values load, stopped-server actions fail clearly, advertised same-day presets are enforced, Java Reload is absent on Bedrock, and safety-sensitive changes show the API acknowledgement prompt. Verify q remains available as text in an active settings input. No tests or gameplay commands run.
+- **Batch:** P22.61 only.
+- **Commit:** `P22.61: add sidebar quick commands sheet`
+
 ## macOS owner testing — 0.1.32
 
 **Started:** October 21, 2026

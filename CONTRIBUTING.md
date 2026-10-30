@@ -28,8 +28,8 @@ npm run build
 
 Choose checks that cover the files you changed. Do not claim a platform or
 Minecraft lifecycle was verified unless it was run on that platform or against
-that server. The CI workflow describes the automated checks used for pull
-requests.
+that server. Pull requests do not currently run an active CI workflow; describe
+the checks you ran in the pull request.
 
 ## Licensing contributions
 

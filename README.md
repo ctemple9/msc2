@@ -98,8 +98,8 @@ live player tracking is available, you can see players moving, fly to them,
 or follow them as they explore.
 
 The map shows terrain Minecraft has generated and saved. Flying around the
-map does not generate new chunks in the game. This feature is in the current
-development build; it is not included in the published v0.1.18 release.
+map does not generate new chunks in the game. Saved-terrain maps are included
+in the published v0.1.38 release.
 
 ### Handles mods, plugins, datapacks, and modpacks
 

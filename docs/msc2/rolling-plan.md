@@ -1,6 +1,6 @@
 # MSC 2 — Rolling Plan
 
-**Current priority:** No active work remains. Cameron confirmed on 2026-10-30 that the items formerly listed below are finished. Phase history and acceptance records remain available in the archive.
+**Current priority:** Repository presentation polish, requested by Cameron on 2026-10-30. Earlier phase history and acceptance records remain available in the archive.
 
 ## Phases
 
@@ -35,7 +35,45 @@ This table is the quick map; detailed steps and historical findings are linked f
 
 ## Current work
 
-**No active work reported.** Cameron confirmed on 2026-10-30 that all items previously listed here are finished. The old Phase 16 acceptance packet and owner-testing findings remain in the archive as historical records; their earlier pending statuses describe the state when recorded, not the current work list.
+The previous phase work is finished. The old Phase 16 acceptance packet and owner-testing findings remain in the archive as historical records; their earlier pending statuses describe the state when recorded, not the current work list.
+
+### Repository presentation polish
+
+#### P23.1 — Correct stale public documentation claims
+**Status:** awaiting Cameron verification
+**Files:** `README.md`, `CONTRIBUTING.md`, `docs/msc2/rolling-plan.md`
+**What:** Align the map availability statement with the published v0.1.38 release and remove the contributing guide's claim that pull requests run an active CI workflow.
+**Verify:** `rg -n 'saved-terrain maps are included|Saved-terrain maps are included|Pull requests do not currently run|v0.1.18 release|CI workflow describes' README.md CONTRIBUTING.md`
+**Batch:** solo
+**Commit:** `P23.1: correct stale public documentation claims`
+
+#### P23.2 — Shorten and structure the README
+**Status:** planned
+**Files:** `README.md`, `docs/msc2/rolling-plan.md`
+**What:** Keep the first-use path and current capabilities easy to scan; move historical release detail behind existing release-note links without losing important support limits.
+**Verify:** `git diff HEAD^ HEAD -- README.md`
+**Batch:** solo
+
+#### P23.3 — Add current product screenshots
+**Status:** planned
+**Files:** `README.md`, `docs/msc2/rolling-plan.md`, screenshot assets to be chosen during the step
+**What:** Show the current desktop app and host-local TUI near the top of the README, with accurate captions and accessible descriptions.
+**Verify:** `git diff HEAD^ HEAD -- README.md`
+**Batch:** solo
+
+#### P23.4 — Clarify published versus source-only features
+**Status:** planned
+**Files:** `README.md`, `docs/msc2/rolling-plan.md`
+**What:** Group current-release availability notes so readers can tell what the download contains and what requires a source build.
+**Verify:** `rg -n 'published|source|release|TUI' README.md`
+**Batch:** solo
+
+#### P23.5 — Improve the contributor entry point
+**Status:** planned
+**Files:** `CONTRIBUTING.md`, `docs/msc2/rolling-plan.md`
+**What:** Add a concise repo map and build or launch instructions for the desktop app and agent, checked against the actual project scripts.
+**Verify:** `git diff HEAD^ HEAD -- CONTRIBUTING.md`
+**Batch:** solo
 
 **Phase 22 disposition:** Cameron accepted the current TUI on 2026-10-30. Detailed P22 records and their original verification commands are in the archive.
 

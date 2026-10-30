@@ -617,6 +617,15 @@ result. No up-front Plan/Read move, test run, or release gate is implied.
 - **Batch:** P22.66 only.
 - **Commit:** `P22.66: clarify discard shortcut and creation progress`
 
+### P22.67 — Search and clear expanded console output
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui.rs`, `docs/msc2/rolling-plan.md`.
+- **What:** Expanded console / opens live case-insensitive text filtering with match count; Enter applies, / reopens editing, Esc clears while editing. l clears loaded output locally, preserving log files and allowing new output. Search and clear state reset on server changes. Console header advertises both shortcuts. Search covers the loaded 200-line tail.
+- **Verify:** `cargo run -p msc-agent -- tui` — expand with c, type / and a log phrase, press Enter, reopen with / and Esc to clear; press l and confirm new server output still appears.
+- **Batch:** P22.67 only.
+- **Commit:** `P22.67: add console search and clear shortcuts`
+
 ## macOS owner testing — 0.1.32
 
 **Started:** October 21, 2026

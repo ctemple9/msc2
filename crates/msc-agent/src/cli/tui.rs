@@ -122,6 +122,21 @@ struct ViewState<'a> {
     initiate: Option<&'a initiate::InitiateUi>,
     initiate_hidden: bool,
     console_expanded: bool,
+    console_view: &'a ConsoleView,
+}
+
+#[derive(Default)]
+struct ConsoleView {
+    server_id: Option<String>,
+    query: String,
+    searching: bool,
+    cleared: std::collections::HashSet<String>,
+}
+
+impl ConsoleView {
+    fn key(line: &ConsoleLine) -> String {
+        format!("{}\n{}\n{}", line.ts, line.source, line.text)
+    }
 }
 
 async fn load() -> Result<Snapshot, CliError> {
@@ -403,6 +418,7 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
     let mut initiate: Option<initiate::InitiateUi> = None;
     let mut initiate_hidden = false;
     let mut console_expanded = false;
+    let mut console_view = ConsoleView::default();
     let mut message = String::new();
     let mut confirm_stop = false;
     let mut last_refresh = Instant::now();
@@ -415,6 +431,12 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
     let mut last_initiate_poll = Instant::now();
 
     loop {
+        if console_view.server_id != snapshot.active_server_id {
+            console_view = ConsoleView {
+                server_id: snapshot.active_server_id.clone(),
+                ..Default::default()
+            };
+        }
         if refresh_task
             .as_ref()
             .is_some_and(|(_, _, task)| task.is_finished())
@@ -463,6 +485,7 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
                 initiate: initiate.as_ref(),
                 initiate_hidden,
                 console_expanded,
+                console_view: &console_view,
             },
         )
         .map_err(terminal_error)?;
@@ -751,6 +774,32 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
                 } else {
                     message = "Select a server first.".into();
                 }
+                continue;
+            }
+            if console_expanded && console_view.searching {
+                match key.code {
+                    KeyCode::Esc => {
+                        console_view.searching = false;
+                        console_view.query.clear();
+                    }
+                    KeyCode::Enter => console_view.searching = false,
+                    KeyCode::Backspace => {
+                        console_view.query.pop();
+                    }
+                    KeyCode::Char(ch) => console_view.query.push(ch),
+                    _ => {}
+                }
+                continue;
+            }
+            if console_expanded && key.code == KeyCode::Char('/') {
+                console_view.searching = true;
+                continue;
+            }
+            if console_expanded && key.code == KeyCode::Char('l') {
+                for line in snapshot.console_lines.as_deref().unwrap_or(&[]) {
+                    console_view.cleared.insert(ConsoleView::key(line));
+                }
+                message = "Console cleared from this view. Log files are kept.".into();
                 continue;
             }
             if key.code == KeyCode::Char('p') && console_expanded {
@@ -1077,6 +1126,7 @@ fn draw(
             view.message,
             view.initiate.filter(|_| view.initiate_hidden),
             view.console_expanded,
+            view.console_view,
             width,
             height,
         )?;
@@ -1460,6 +1510,7 @@ fn draw_workspace(
     message: &str,
     hidden_initiate: Option<&initiate::InitiateUi>,
     console_expanded: bool,
+    console_view: &ConsoleView,
     width: u16,
     height: u16,
 ) -> io::Result<()> {
@@ -2094,16 +2145,42 @@ fn draw_workspace(
             main_x,
             top + 1,
             main_w,
-            &format!("Console  {console_status}  [c Collapse]  [p Command palette]"),
+            &format!(
+                "Console  {console_status}  [c Collapse]  [p Command palette]  [/ Search]  [l Clear]"
+            ),
             Color::DarkGrey,
         )?;
         let lines = snapshot.console_lines.as_deref().unwrap_or(&[]);
         let visible = height.saturating_sub(top + 4).min(6) as usize;
-        for (index, line) in lines.iter().rev().take(visible).rev().enumerate() {
+        let query = console_view.query.to_lowercase();
+        let matches: Vec<_> = lines
+            .iter()
+            .filter(|line| {
+                !console_view.cleared.contains(&ConsoleView::key(line))
+                    && line.text.to_lowercase().contains(&query)
+            })
+            .collect();
+        let searching = console_view.searching || !query.is_empty();
+        if searching {
             paint(
                 out,
                 main_x,
-                top + 2 + index as u16,
+                top + 2,
+                main_w,
+                &format!(
+                    "Search: /{}  ({} matches)  Enter Apply · Esc Clear",
+                    console_view.query,
+                    matches.len()
+                ),
+                Color::Green,
+            )?;
+        }
+        let visible = visible.saturating_sub(usize::from(searching));
+        for (index, line) in matches.iter().rev().take(visible).rev().enumerate() {
+            paint(
+                out,
+                main_x,
+                top + 2 + u16::from(searching) + index as u16,
                 main_w,
                 &line.text,
                 Color::White,

@@ -482,6 +482,15 @@ result. No up-front Plan/Read move, test run, or release gate is implied.
 - **Batch:** P22.51 only.
 - **Commit:** `P22.51: add manage servers transfer controls`
 
+### P22.52 — Correct Manage Servers transfer hint
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Replace the stale Transfer soon footer with Transfer. Confirm the existing t handler opens TransferUi.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, open Manage Servers, confirm the footer says t Transfer and press t to open the transfer sheet. No tests run.
+- **Batch:** P22.52 only.
+- **Commit:** `P22.52: correct manage servers transfer hint`
+
 ## macOS owner testing — 0.1.32
 
 **Started:** October 21, 2026

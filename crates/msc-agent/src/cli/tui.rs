@@ -2038,7 +2038,7 @@ fn draw_manage(
         x + 2,
         y + dialog_h - 2,
         dialog_w - 4,
-        "t Transfer soon   c Create server   ↑↓ Move   Enter Select   Esc Close",
+        "t Transfer   c Create server   ↑↓ Move   Enter Select   Esc Close",
         Color::DarkGrey,
     )
 }

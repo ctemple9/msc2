@@ -19531,3 +19531,13 @@ The current private converted cache was inspected read-only. Its five Overworld 
 - **Verify:** Confirm the rolling plan contains no detailed Finding/P16.97/P16.101/P16.130–P16.136 records, the archive retains them, and `git diff --check` passes.
 - **Batch:** P22.72 only.
 - **Commit:** `P22.72: archive detailed owner testing findings`
+
+
+### P22.73 — Reconcile the phase map and open-work summary
+
+- **Status:** Documentation cleanup committed; phase dispositions summarized without claiming archived work passed its gate.
+- **Files:** `docs/msc2/rolling-plan.md`; `docs/msc2/rolling-plan-archive.md`.
+- **What:** Restore a concise phase table at the top of the rolling plan, distinguish completed/archived implementation from open physical acceptance, and rewrite the open-work summary with current evidence, actionable next steps, and the non-actionable Playit watch item. Record that the v0.1.18 Phase 16 packet is historical now that v0.1.38 is published.
+- **Verify:** Review the phase table and open-work rows against `msc2-port-plan.md`, the Phase 16 acceptance packet, and archived owner findings; `git diff --check`.
+- **Batch:** P22.73 only.
+- **Commit:** `P22.73: restore phase map and clarify open work`

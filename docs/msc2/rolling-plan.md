@@ -123,11 +123,12 @@ The helmet appears only while the local agent runs. A small companion process ow
 **Commit:** `P23.10: plan the agent running indicator`
 
 #### P23.11 — Add the local agent lifecycle channel
-**Status:** planned
+**Status:** awaiting Cameron verification
 **Files:** `crates/msc-agent/src/`, `docs/msc2/rolling-plan.md`
 **What:** Expose an authenticated, host-local connection that stays open while the agent runs and closes on shutdown or crash. Reuse the existing local IPC and owner boundary on macOS, Windows, and Linux where possible. Keep the headless agent free of GUI dependencies and avoid periodic HTTP requests.
 **Verify:** `cargo check -p msc-agent`
 **Batch:** solo
+**Commit:** `P23.11: add the local agent lifecycle channel`
 
 #### P23.12 — Build the running-only helmet companion
 **Status:** planned

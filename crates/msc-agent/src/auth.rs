@@ -29,6 +29,8 @@ mod local_cli_macos;
 #[cfg(target_os = "windows")]
 #[path = "auth/local_cli_windows.rs"]
 mod local_cli_windows;
+#[path = "auth/local_watch.rs"]
+mod local_watch;
 
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::ffi::OsString;

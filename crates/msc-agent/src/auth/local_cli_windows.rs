@@ -69,7 +69,8 @@ async fn exchange(
                 &mut pipe,
                 &serde_json::json!({ "status": "ok", "token": issued.token }),
             )
-            .await
+            .await?;
+            super::local_watch::wait(&mut pipe).await
         }
         Err(LocalCliExchangeError::Unauthorized) => write_error(&mut pipe, "unauthorized").await,
         Err(LocalCliExchangeError::Busy) => write_error(&mut pipe, "busy").await,

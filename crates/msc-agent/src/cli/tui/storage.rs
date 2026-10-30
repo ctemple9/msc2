@@ -117,11 +117,6 @@ impl StorageUi {
                 .collect()
         };
         for (key, title) in match self.path.get(1).map(String::as_str) {
-            Some("servers") => vec![
-                ('t', "Remove servers…"),
-                ('w', "Remove worlds…"),
-                ('b', "Remove backups…"),
-            ],
             Some("cache") => vec![('m', "Remove map cache…"), ('d', "Remove old downloads…")],
             Some("agent") => vec![('a', "Remove obsolete builds…")],
             _ => vec![],

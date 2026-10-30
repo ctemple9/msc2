@@ -446,6 +446,15 @@ result. No up-front Plan/Read move, test run, or release gate is implied.
 - **Batch:** P22.47 only.
 - **Commit:** `P22.47: clarify storage removal and repair folder controls`
 
+### P22.48 — Remove duplicate server removal rows
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui/storage.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Remove selectable Remove servers, Remove worlds, and Remove backups rows from Storage navigation. Retain their t/w/b shortcuts and footer labels.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, open Storage → This computer → Servers, confirm the three removal rows are absent and t/w/b still open their respective removal views. No tests run.
+- **Batch:** P22.48 only.
+- **Commit:** `P22.48: remove duplicate storage removal rows`
+
 ## macOS owner testing — 0.1.32
 
 **Started:** October 21, 2026

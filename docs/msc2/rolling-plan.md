@@ -94,6 +94,14 @@ The previous phase work is finished. The old Phase 16 acceptance packet and owne
 **Batch:** solo
 **Commit:** `P23.7: preview the agent status symbol`
 
+#### P23.8 — Correct the helmet silhouette preview
+**Status:** done; awaiting Cameron's design feedback
+**Files:** `docs/msc2/agent-indicator-preview.html`, `docs/msc2/rolling-plan.md`
+**What:** Replace the ring-shaped draft with a Minecraft-style helmet silhouette based on Cameron's reference image: broad crown, face opening, and two separate lower sides.
+**Verify:** Refresh `docs/msc2/agent-indicator-preview.html` in a browser.
+**Batch:** solo
+**Commit:** `P23.8: correct the helmet indicator silhouette`
+
 **Phase 22 disposition:** Cameron accepted the current TUI on 2026-10-30. Detailed P22 records and their original verification commands are in the archive.
 
 ## Archived owner-testing details

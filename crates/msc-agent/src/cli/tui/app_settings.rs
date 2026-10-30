@@ -510,6 +510,7 @@ impl AppSettingsUi {
                     .as_str()
                     .unwrap_or("Host reset started.")
                     .to_owned();
+                self.quit_after_action = true;
             }
             Err(error) => self.message = error.to_string(),
         }

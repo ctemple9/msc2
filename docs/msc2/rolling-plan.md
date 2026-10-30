@@ -590,6 +590,15 @@ result. No up-front Plan/Read move, test run, or release gate is implied.
 - **Batch:** P22.63 only.
 - **Commit:** `P22.63: activate highlighted server from manage sheet`
 
+### P22.64 — Exit the TUI after an accepted host reset
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui/app_settings.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Signal the existing TUI exit path after the agent accepts either host reset mode. Failed or rejected reset requests retain the sheet and error. Closing the TUI does not claim reset completion; deletion remains owned by the agent operation.
+- **Verify:** Run `cargo run -p msc-agent -- tui`. During the next intentionally requested host reset, confirm an accepted request closes the TUI and restores the terminal; a rejected request stays visible with its error. Do not reset data merely to verify this change. No reset or tests run by the implementing agent.
+- **Batch:** P22.64 only.
+- **Commit:** `P22.64: exit tui after host reset is accepted`
+
 ## macOS owner testing — 0.1.32
 
 **Started:** October 21, 2026

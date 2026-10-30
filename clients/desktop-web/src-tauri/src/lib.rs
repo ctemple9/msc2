@@ -817,7 +817,7 @@ async fn agent_service_status() -> Result<AgentServiceStatus, String> {
 
 #[tauri::command]
 fn agent_indicator_enabled() -> Result<bool, String> {
-    indicator_startup::enabled()
+    agent_indicator::is_running()
 }
 
 #[tauri::command]

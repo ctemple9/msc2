@@ -170,6 +170,14 @@ The helmet appears only while the local agent runs. A small companion process ow
 **Batch:** solo
 **Commit:** `P23.16: control the indicator from the local Agent page`
 
+#### P23.17 — Use one indicator toggle beside the service buttons
+**Status:** awaiting Cameron verification
+**Files:** `clients/desktop-web/src/lib/sections/setup/AgentSetupSection.svelte`, `clients/desktop-web/src-tauri/src/lib.rs`, `clients/desktop-web/src-tauri/src/agent_indicator.rs`, `docs/msc2/agent-indicator.md`, `docs/msc2/rolling-plan.md`
+**What:** Remove the separate indicator heading, explanatory paragraph, and checkbox. Put one Show/Hide indicator toggle beside Start/Stop agent and Repair agent. Check the companion's actual process lock so quitting its menu does not prevent restoring it from the button.
+**Verify:** `cd clients/desktop-web && npx tauri dev` — on the local Agent page, toggle the indicator on and off using the button beside Repair agent.
+**Batch:** solo
+**Commit:** `P23.17: simplify the agent indicator control`
+
 **Phase 22 disposition:** Cameron accepted the current TUI on 2026-10-30. Detailed P22 records and their original verification commands are in the archive.
 
 ## Archived owner-testing details

@@ -9,6 +9,22 @@ use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncWrite, AsyncWrite
 trait Connection: AsyncRead + AsyncWrite + Unpin + Send {}
 impl<T: AsyncRead + AsyncWrite + Unpin + Send> Connection for T {}
 
+pub(super) fn is_running() -> Result<bool, String> {
+    let path = super::agent_data_directory()?.join("agent-indicator.lock");
+    let Ok(file) = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(path)
+    else {
+        return Ok(false);
+    };
+    match fs2::FileExt::try_lock_exclusive(&file) {
+        Ok(()) => Ok(false),
+        Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => Ok(true),
+        Err(error) => Err(error.to_string()),
+    }
+}
+
 pub(super) fn stop() -> Result<(), String> {
     use std::io::Write;
     let directory = super::agent_data_directory()?;

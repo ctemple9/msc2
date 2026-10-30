@@ -262,11 +262,13 @@
     }
   }
 
-  async function setIndicator(enabled: boolean): Promise<void> {
+  async function toggleIndicator(): Promise<void> {
     if (!isLocalDesktopHost || indicatorBusy) return;
     indicatorBusy = true;
     try {
-      await (await getPlatform()).setAgentIndicatorEnabled?.(enabled);
+      const platform = await getPlatform();
+      const enabled = !((await platform.agentIndicatorEnabled?.()) ?? indicatorEnabled);
+      await platform.setAgentIndicatorEnabled?.(enabled);
       indicatorEnabled = enabled;
     } catch (error) {
       errorMessage = formatConnectionFailure(error, 'msc-agent');
@@ -470,28 +472,13 @@
               <Button disabled={busy || !status} onclick={() => void manage('repair')}
                 >Repair agent</Button
               >
+              {#if indicatorAvailable}
+                <Button disabled={indicatorBusy || busy} onclick={() => void toggleIndicator()}>
+                  {indicatorEnabled ? 'Hide indicator' : 'Show indicator'}
+                </Button>
+              {/if}
             </div>
             <p class="small-detail">{status?.detail ?? 'Checking the local agent service…'}</p>
-            {#if indicatorAvailable}
-              <h3>Agent indicator</h3>
-              <p class="small-detail">
-                Show the helmet in this computer’s system bar while the local agent runs.
-              </p>
-              <label
-                ><input
-                  type="checkbox"
-                  checked={indicatorEnabled}
-                  disabled={indicatorBusy}
-                  onchange={(event) => void setIndicator(event.currentTarget.checked)}
-                /> Enable agent indicator</label
-              >
-              <div class="actions">
-                <Button
-                  disabled={indicatorBusy || !indicatorEnabled}
-                  onclick={() => void setIndicator(true)}>Show indicator</Button
-                >
-              </div>
-            {/if}
           {/if}
         {:else}
           <p class="detail">

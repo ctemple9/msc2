@@ -518,6 +518,15 @@ result. No up-front Plan/Read move, test run, or release gate is implied.
 - **Batch:** P22.55 only.
 - **Commit:** `P22.55: show selected server chat in overview`
 
+### P22.56 — Cover console contents and edit server notes
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui.rs`; `crates/msc-agent/src/cli/tui/notes.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Clear the expanded console rectangle before drawing so underlying Notes and other content cannot bleed through. Add Overview n to edit the selected server's notes, with multiline entry, Ctrl+S/F2 save via the existing server-ID-bound notes API, Esc cancel, and visible save errors. Invalidate pending snapshot publication during editing; update the saved server record locally. Show the first note line on Overview without emitting embedded newlines into its layout.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, expand an empty console with c and confirm Notes is covered. Collapse, press n on Overview, enter multiline notes and save with Ctrl+S or F2. Reopen notes and confirm persisted content; Esc cancels changes. Switch servers and confirm notes remain separate. No tests run.
+- **Batch:** P22.56 only.
+- **Commit:** `P22.56: cover expanded console and edit server notes`
+
 ## macOS owner testing — 0.1.32
 
 **Started:** October 21, 2026

@@ -7,6 +7,7 @@ mod components;
 mod create;
 mod files;
 mod initiate;
+mod notes;
 mod performance;
 mod server_editor;
 mod settings;
@@ -107,6 +108,7 @@ struct ViewState<'a> {
     settings: &'a settings::SettingsUi,
     app_settings: &'a app_settings::AppSettingsUi,
     transfer: &'a transfer::TransferUi,
+    notes: Option<&'a notes::Editor>,
     files: &'a files::FilesUi,
     wizard: Option<&'a create::Wizard>,
     server_editor: Option<&'a server_editor::ServerEditor>,
@@ -383,6 +385,7 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
     let mut settings_ui = settings::SettingsUi::default();
     let mut app_settings_ui = app_settings::AppSettingsUi::default();
     let mut transfer_ui = transfer::TransferUi::default();
+    let mut notes_editor: Option<notes::Editor> = None;
     let mut files_ui = files::FilesUi::default();
     let mut wizard: Option<create::Wizard> = None;
     let mut server_editor: Option<server_editor::ServerEditor> = None;
@@ -438,6 +441,7 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
                 settings: &settings_ui,
                 app_settings: &app_settings_ui,
                 transfer: &transfer_ui,
+                notes: notes_editor.as_ref(),
                 files: &files_ui,
                 wizard: wizard.as_ref(),
                 server_editor: server_editor.as_ref(),
@@ -484,6 +488,13 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
             continue;
         };
         if key.kind != KeyEventKind::Press {
+            continue;
+        }
+        if let Some(editor) = &mut notes_editor {
+            snapshot_generation += 1;
+            if editor.handle(key, &mut snapshot).await {
+                notes_editor = None;
+            }
             continue;
         }
         if transfer_ui.open {
@@ -662,6 +673,18 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
             continue;
         }
         if workspace_open {
+            if key.code == KeyCode::Char('n') && tab_index == 0 {
+                if let Some(server) = snapshot.servers.as_ref().and_then(|servers| {
+                    servers
+                        .iter()
+                        .find(|s| Some(&s.id) == snapshot.active_server_id.as_ref())
+                }) {
+                    notes_editor = Some(notes::Editor::new(server));
+                } else {
+                    message = "Select a server before editing notes.".into();
+                }
+                continue;
+            }
             if key.code == KeyCode::Char('c') {
                 console_expanded = !console_expanded;
                 continue;
@@ -984,6 +1007,9 @@ fn draw(
         }
         view.app_settings.draw(out, width, height)?;
         view.transfer.draw(out, width, height)?;
+        if let Some(editor) = view.notes {
+            editor.draw(out, width, height)?;
+        }
         return out.flush();
     }
     for y in 2..height - 1 {
@@ -1311,6 +1337,9 @@ fn draw(
     }
     view.app_settings.draw(out, width, height)?;
     view.transfer.draw(out, width, height)?;
+    if let Some(editor) = view.notes {
+        editor.draw(out, width, height)?;
+    }
     out.flush()
 }
 
@@ -1727,7 +1756,14 @@ fn draw_workspace(
             &"─".repeat(main_w as usize),
             Color::DarkGrey,
         )?;
-        paint(out, main_x, notes_y, main_w, "NOTES", Color::DarkGrey)?;
+        paint(
+            out,
+            main_x,
+            notes_y,
+            main_w,
+            "NOTES [n Edit]",
+            Color::DarkGrey,
+        )?;
         paint(
             out,
             main_x + 2,
@@ -1737,7 +1773,7 @@ fn draw_workspace(
                 if server.notes.is_empty() {
                     "For this server · No notes yet"
                 } else {
-                    server.notes.as_str()
+                    server.notes.lines().next().unwrap_or("")
                 }
             }),
             Color::White,
@@ -1780,7 +1816,7 @@ fn draw_workspace(
                 .unwrap_or("No active world"),
             Color::White,
         )?;
-        paint(out, main_x, 17, main_w, "NOTES", Color::DarkGrey)?;
+        paint(out, main_x, 17, main_w, "NOTES [n Edit]", Color::DarkGrey)?;
         paint(
             out,
             main_x + 2,
@@ -1790,7 +1826,7 @@ fn draw_workspace(
                 if server.notes.is_empty() {
                     "For this server · No notes yet"
                 } else {
-                    server.notes.as_str()
+                    server.notes.lines().next().unwrap_or("")
                 }
             }),
             Color::White,
@@ -1927,6 +1963,16 @@ fn draw_workspace(
     };
     if console_expanded {
         let top = height.saturating_sub(11);
+        for row in top..height.saturating_sub(3) {
+            paint(
+                out,
+                main_x,
+                row,
+                main_w,
+                &" ".repeat(main_w as usize),
+                Color::Black,
+            )?;
+        }
         paint(
             out,
             main_x,
@@ -2006,7 +2052,7 @@ fn draw_workspace(
         main_x,
         height - 2,
         main_w,
-        "1–7 Switch tab   s Start/Stop   c Console   a Agents   m Manage   Esc Back",
+        "1–7 Switch tab   s Start/Stop   c Console   n Notes (Overview)   a Agents   m Manage   Esc Back",
         Color::DarkGrey,
     )?;
     Ok(())

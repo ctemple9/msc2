@@ -491,6 +491,15 @@ result. No up-front Plan/Read move, test run, or release gate is implied.
 - **Batch:** P22.52 only.
 - **Commit:** `P22.52: correct manage servers transfer hint`
 
+### P22.53 — Separate transfer import and export views
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui/transfer.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Begin with Export/Import choices. Export shows only save destination and Export. Import shows existing archive path, merge/replace explanation, and backup destination only for Replace All. Include full-path examples. Keep focus fixed during text editing; navigation skips hidden fields. Retain explicit transfer confirmation.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, open Manage → t. Choose Export and confirm only export fields appear. Esc returns to choices. Choose Import, toggle Merge/Replace, confirm backup path appears only for Replace and navigation skips hidden fields. Type a path and confirm arrow keys cannot switch fields while editing. No tests run.
+- **Batch:** P22.53 only.
+- **Commit:** `P22.53: separate import and export transfer views`
+
 ## macOS owner testing — 0.1.32
 
 **Started:** October 21, 2026

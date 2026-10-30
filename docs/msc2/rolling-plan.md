@@ -554,6 +554,15 @@ result. No up-front Plan/Read move, test run, or release gate is implied.
 - **Batch:** P22.59 only.
 - **Commit:** `P22.59: add console command palette to tui`
 
+### P22.60 — Add sidebar connection and directory shortcuts
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui.rs`; `crates/msc-agent/src/cli/tui/initiate.rs`; `crates/msc-agent/src/cli/tui/storage.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Add sidebar h How to connect and d Directory for the selected server. Reuse the initiation completion connection layout in a read-only summary with separate heading and current enabled-service lookups, without starting any initiation action or replacing a paused flow. Reuse folder-opening handling. Move paused-initiation discard to Shift+D to avoid the directory shortcut conflict. Recommend q as a future Quick Commands sheet scoped to the workspace; do not implement that unchosen flow.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, select a server and press h; confirm applicable local/public/Playit/broadcast connection rows and Enter/Esc close without starting/stopping anything. Press d and confirm the correct directory opens. With a paused initiation, confirm d still opens Directory and Shift+D retains the existing discard behavior. No tests run.
+- **Batch:** P22.60 only.
+- **Commit:** `P22.60: add sidebar connection and directory shortcuts`
+
 ## macOS owner testing — 0.1.32
 
 **Started:** October 21, 2026

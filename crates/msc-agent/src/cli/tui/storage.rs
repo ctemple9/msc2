@@ -584,7 +584,7 @@ fn removal_name(action: &str) -> &str {
         _ => "Remove items",
     }
 }
-async fn open_folder(path: &str) -> String {
+pub(super) async fn open_folder(path: &str) -> String {
     let path = std::path::PathBuf::from(path);
     let metadata = match std::fs::symlink_metadata(&path) {
         Ok(metadata) if !metadata.file_type().is_symlink() => metadata,

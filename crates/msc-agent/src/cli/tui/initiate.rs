@@ -29,6 +29,7 @@ enum Phase {
 
 pub(super) struct InitiateUi {
     server: ServerDto,
+    summary_only: bool,
     phase: Phase,
     eula_accepted: bool,
     operation_id: Option<String>,
@@ -50,6 +51,7 @@ impl InitiateUi {
     pub(super) fn new(server: ServerDto) -> Self {
         Self {
             server,
+            summary_only: false,
             phase: Phase::Prepare,
             eula_accepted: false,
             operation_id: None,
@@ -68,6 +70,13 @@ impl InitiateUi {
         }
     }
 
+    pub(super) async fn connection_summary(server: ServerDto) -> Self {
+        let mut summary = Self::new(server);
+        summary.summary_only = true;
+        summary.phase = Phase::Complete;
+        summary.refresh_connections().await;
+        summary
+    }
     pub(super) fn server_id(&self) -> &str {
         &self.server.id
     }
@@ -476,7 +485,15 @@ impl InitiateUi {
             x + 2,
             y + 1,
             w - 4,
-            &format!("INITIATE — {}", self.server.name),
+            &format!(
+                "{} — {}",
+                if self.summary_only {
+                    "HOW TO CONNECT"
+                } else {
+                    "INITIATE"
+                },
+                self.server.name
+            ),
             Color::White,
         )?;
         match self.phase {
@@ -639,7 +656,9 @@ impl InitiateUi {
                     x + 2,
                     y + 3,
                     w - 4,
-                    if self.safety_cap {
+                    if self.summary_only {
+                        "CONNECTION INFO"
+                    } else if self.safety_cap {
                         "FIRST START STOPPED AT SAFETY LIMIT"
                     } else {
                         "FIRST START COMPLETE"
@@ -655,7 +674,9 @@ impl InitiateUi {
                     x + 2,
                     y + 5,
                     w - 4,
-                    if self.safety_cap {
+                    if self.summary_only {
+                        "Use the applicable address below while this server is running."
+                    } else if self.safety_cap {
                         "The server stopped after 10 minutes. Check unresolved connections."
                     } else {
                         "Server files and connection choices are saved. The server is stopped."
@@ -720,7 +741,11 @@ impl InitiateUi {
                     x + 2,
                     y + 17,
                     w - 4,
-                    "Future starts are manual. Enter/Esc Done",
+                    if self.summary_only {
+                        "Console players: add the Xbox Broadcast gamertag as a friend. Enter/Esc Close"
+                    } else {
+                        "Future starts are manual. Enter/Esc Done"
+                    },
                     Color::DarkGrey,
                 )?;
             }

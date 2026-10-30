@@ -113,6 +113,7 @@ struct ViewState<'a> {
     notes: Option<&'a notes::Editor>,
     guides: &'a guides::Guides,
     palette: &'a palette::Palette,
+    connections: Option<&'a initiate::InitiateUi>,
     files: &'a files::FilesUi,
     wizard: Option<&'a create::Wizard>,
     server_editor: Option<&'a server_editor::ServerEditor>,
@@ -392,6 +393,7 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
     let mut notes_editor: Option<notes::Editor> = None;
     let mut guides_ui = guides::Guides::default();
     let mut palette_ui = palette::Palette::default();
+    let mut connections: Option<initiate::InitiateUi> = None;
     let mut files_ui = files::FilesUi::default();
     let mut wizard: Option<create::Wizard> = None;
     let mut server_editor: Option<server_editor::ServerEditor> = None;
@@ -450,6 +452,7 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
                 notes: notes_editor.as_ref(),
                 guides: &guides_ui,
                 palette: &palette_ui,
+                connections: connections.as_ref(),
                 files: &files_ui,
                 wizard: wizard.as_ref(),
                 server_editor: server_editor.as_ref(),
@@ -496,6 +499,12 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
             continue;
         };
         if key.kind != KeyEventKind::Press {
+            continue;
+        }
+        if connections.is_some() {
+            if matches!(key.code, KeyCode::Enter | KeyCode::Esc) {
+                connections = None;
+            }
             continue;
         }
         if palette_ui.open {
@@ -611,7 +620,7 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
                     workspace_open = true;
                     continue;
                 }
-                KeyCode::Char('d') => {
+                KeyCode::Char('D') => {
                     let id = initiate
                         .as_ref()
                         .expect("hidden initiation exists")
@@ -699,6 +708,23 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
             continue;
         }
         if workspace_open {
+            if matches!(key.code, KeyCode::Char('h' | 'd')) {
+                if let Some(server) = snapshot.servers.as_ref().and_then(|servers| {
+                    servers
+                        .iter()
+                        .find(|s| Some(&s.id) == snapshot.active_server_id.as_ref())
+                }) {
+                    if key.code == KeyCode::Char('h') {
+                        connections =
+                            Some(initiate::InitiateUi::connection_summary(server.clone()).await);
+                    } else {
+                        message = storage::open_folder(&server.directory).await;
+                    }
+                } else {
+                    message = "Select a server first.".into();
+                }
+                continue;
+            }
             if key.code == KeyCode::Char('p') && console_expanded {
                 palette_ui.open(&snapshot).await;
                 continue;
@@ -1039,6 +1065,9 @@ fn draw(
         view.transfer.draw(out, width, height)?;
         view.guides.draw(out, width, height)?;
         view.palette.draw(out, width, height)?;
+        if let Some(summary) = view.connections {
+            summary.draw(out, width, height)?;
+        }
         if let Some(editor) = view.notes {
             editor.draw(out, width, height)?;
         }
@@ -1097,7 +1126,7 @@ fn draw(
             .is_some_and(|flow| snapshot.active_server_id.as_deref() == Some(flow.server_id()))
     {
         paint(out, 2, 20, 18, "Resume init.   i", Color::Green)?;
-        paint(out, 2, 21, 18, "Discard setup  d", Color::White)?;
+        paint(out, 2, 21, 18, "Discard setup  D", Color::White)?;
     }
 
     let main_x = 24;
@@ -1371,6 +1400,9 @@ fn draw(
     view.transfer.draw(out, width, height)?;
     view.guides.draw(out, width, height)?;
     view.palette.draw(out, width, height)?;
+    if let Some(summary) = view.connections {
+        summary.draw(out, width, height)?;
+    }
     if let Some(editor) = view.notes {
         editor.draw(out, width, height)?;
     }
@@ -1432,11 +1464,13 @@ fn draw_workspace(
     )?;
     paint(out, 2, 10, 18, "Manage         m", Color::White)?;
     paint(out, 2, 12, 18, "Agents         a", Color::White)?;
+    paint(out, 2, 14, 18, "How to connect h", Color::White)?;
+    paint(out, 2, 15, 18, "Directory      d", Color::White)?;
     if hidden_initiate
         .is_some_and(|flow| snapshot.active_server_id.as_deref() == Some(flow.server_id()))
     {
         paint(out, 2, 16, 18, "Resume init.   i", Color::Green)?;
-        paint(out, 2, 17, 18, "Discard setup  d", Color::White)?;
+        paint(out, 2, 17, 18, "Discard setup  D", Color::White)?;
     }
 
     let main_x = 24;

@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MSC 2 agent indicator preview</title>
+  <style>
+    :root { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color: #eeeef0; background: #101013; }
+    * { box-sizing: border-box; }
+    body { max-width: 980px; margin: 0 auto; padding: 32px 20px 60px; }
+    h1 { font-size: 23px; margin: 0 0 8px; }
+    p { color: #aaaab2; line-height: 1.5; margin: 0 0 24px; }
+    h2 { font-size: 15px; font-weight: 600; margin: 30px 0 12px; }
+    .states { display: flex; flex-wrap: wrap; gap: 12px; }
+    .state { background: #1c1c21; border-radius: 10px; width: 190px; padding: 18px; }
+    .large { display: block; width: 48px; height: 48px; margin-bottom: 16px; color: #eeeef0; }
+    .state strong { display: block; font-size: 14px; }
+    .state span { color: #aaaab2; font-size: 12px; }
+    .bar { height: 32px; display: flex; align-items: center; justify-content: flex-end; gap: 18px; padding: 0 13px; margin-bottom: 12px; }
+    .mac { background: #e8e8ea; color: #27272b; border-radius: 7px; }
+    .windows { background: #24242a; color: #f4f4f5; border-radius: 7px; }
+    .linux { background: #33343a; color: #f4f4f5; border-radius: 7px; }
+    .bar svg { width: 18px; height: 18px; }
+    .clock { font-size: 12px; }
+    .bar-label { margin-right: auto; font-size: 12px; opacity: .75; }
+    .menu { width: 240px; background: #25252a; padding: 9px; border-radius: 8px; box-shadow: 0 8px 30px #0008; }
+    .menu div { padding: 8px 10px; font-size: 13px; }
+    .menu .status { color: #4dc778; font-weight: 600; }
+    .menu .separator { height: 1px; padding: 0; margin: 5px 8px; background: #ffffff26; }
+    .note { font-size: 12px; margin-top: 24px; }
+  </style>
+</head>
+<body>
+  <svg aria-hidden="true" width="0" height="0" style="position:absolute">
+    <!-- Pixel geometry follows the hood, face opening, and lower rim of MSC 2's existing helmet icon. -->
+    <symbol id="helmet-running" viewBox="0 0 16 16">
+      <path fill="currentColor" d="M5 1h6v1h2v2h1v9h-2v2H4v-2H2V4h1V2h2zm0 4v6h1v1h4v-1h1V5h-1V4H6v1z" fill-rule="evenodd"/>
+      <path fill="currentColor" d="M4 12h8v2H4z"/>
+    </symbol>
+    <symbol id="helmet-stopped" viewBox="0 0 16 16">
+      <path fill="currentColor" d="M5 1h6v1h2v2h1v9h-2v2H4v-2H2V4h1V2h2zm0 1v1H4v2H3v7h2v2h6v-2h2V5h-1V3h-1V2zm1 3h4v1h1v5h-1v1H6v-1H5V6h1z" fill-rule="evenodd"/>
+    </symbol>
+    <symbol id="helmet-unavailable" viewBox="0 0 16 16">
+      <path fill="currentColor" d="M5 1h6v1h2v2h1v9h-2v2H4v-2H2V4h1V2h2zm0 4v6h1v1h4v-1h1V5h-1V4H6v1z" fill-rule="evenodd"/>
+      <path fill="currentColor" d="M4 12h8v2H4z"/>
+      <path fill="#e24b4a" d="m2 13 11-11 1 1L3 14z"/>
+    </symbol>
+  </svg>
+
+  <h1>Agent indicator</h1>
+  <p>Proposed 16-pixel helmet symbol, derived from MSC 2's app icon. This is the symbol the separate agent-status companion would show while the desktop window is closed.</p>
+
+  <h2>States at enlarged size</h2>
+  <div class="states">
+    <div class="state"><svg class="large" aria-hidden="true"><use href="#helmet-running"/></svg><strong>Agent running</strong><span>Solid helmet</span></div>
+    <div class="state"><svg class="large" aria-hidden="true"><use href="#helmet-stopped"/></svg><strong>Agent stopped</strong><span>Helmet outline</span></div>
+    <div class="state"><svg class="large" aria-hidden="true"><use href="#helmet-unavailable"/></svg><strong>Status unavailable</strong><span>Helmet with slash</span></div>
+  </div>
+
+  <h2>At system-bar size</h2>
+  <div class="bar mac"><span class="bar-label">macOS menu bar</span><svg aria-label="Agent running"><use href="#helmet-running"/></svg><span class="clock">Fri 10:30 AM</span></div>
+  <div class="bar windows"><span class="bar-label">Windows notification area</span><svg aria-label="Agent running"><use href="#helmet-running"/></svg><span class="clock">10:30 AM</span></div>
+  <div class="bar linux"><span class="bar-label">Linux desktop tray, when available</span><svg aria-label="Agent running"><use href="#helmet-running"/></svg><span class="clock">10:30</span></div>
+
+  <h2>On click</h2>
+  <div class="menu"><div class="status">Agent running</div><div class="separator"></div><div>Open MSC 2</div><div>Quit indicator</div></div>
+  <p class="note">Preview only. The menu uses words for status; the symbol's shape also changes so colour is never the only cue. Quitting the indicator would not stop the agent.</p>
+</body>
+</html>

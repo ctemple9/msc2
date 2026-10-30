@@ -86,6 +86,14 @@ The previous phase work is finished. The old Phase 16 acceptance packet and owne
 **Batch:** solo
 **Commit:** `P23.6: clarify the host and control-device introduction`
 
+#### P23.7 — Preview the agent status symbol
+**Status:** done; awaiting Cameron's design feedback
+**Files:** `docs/msc2/agent-indicator-preview.html`, `docs/msc2/rolling-plan.md`
+**What:** Show the proposed helmet symbol in running, stopped, and unavailable states at real system-bar size, with a sample status menu. This is a design preview, not an installed indicator.
+**Verify:** Open `docs/msc2/agent-indicator-preview.html` in a browser.
+**Batch:** solo
+**Commit:** `P23.7: preview the agent status symbol`
+
 **Phase 22 disposition:** Cameron accepted the current TUI on 2026-10-30. Detailed P22 records and their original verification commands are in the archive.
 
 ## Archived owner-testing details

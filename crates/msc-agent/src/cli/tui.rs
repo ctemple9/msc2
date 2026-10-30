@@ -159,8 +159,14 @@ async fn load() -> Result<Snapshot, CliError> {
                     client.get_json::<WorldSlotsResponseDto>("/v1/worlds"),
                     client.get_json::<BackupsResponseDto>("/v1/backups"),
                     client.get_json::<BackupConfigResponseDto>("/v1/backups/config"),
-                    client.get_json::<ComponentsStatusDto>("/v1/components"),
-                    client.get_json::<AddonsResponseDto>("/v1/addons?local=true"),
+                    client.get_json_with_timeout::<ComponentsStatusDto>(
+                        "/v1/components",
+                        Duration::from_secs(30)
+                    ),
+                    client.get_json_with_timeout::<AddonsResponseDto>(
+                        "/v1/addons?local=true",
+                        Duration::from_secs(30)
+                    ),
                     client.get_json::<BroadcastJarStatusDto>("/v1/broadcast/jar-status"),
                     client.get_json::<SettingsResponseDto>("/v1/settings"),
                 );
@@ -802,6 +808,17 @@ async fn refresh(snapshot: &mut Snapshot, message: &mut String) {
                 next.active_server_running = snapshot.active_server_running;
                 if next.connection_error.is_none() {
                     next.connection_error = Some("Agent service is unavailable.".into());
+                }
+            }
+            if next.active_server_id == snapshot.active_server_id {
+                if next.components.is_none() || next.addons.is_none() {
+                    *message = "Component inventory refresh failed; keeping any previously loaded inventory. Shift+R retries.".into();
+                }
+                if next.components.is_none() {
+                    next.components = snapshot.components.take();
+                }
+                if next.addons.is_none() {
+                    next.addons = snapshot.addons.take();
                 }
             }
             *snapshot = next;

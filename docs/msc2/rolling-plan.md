@@ -455,6 +455,15 @@ result. No up-front Plan/Read move, test run, or release gate is implied.
 - **Batch:** P22.48 only.
 - **Commit:** `P22.48: remove duplicate storage removal rows`
 
+### P22.49 — Allow installed component inspection to finish
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Give component and local add-on inventory requests a 30-second response budget instead of five seconds. A read-only request confirmed the agent returns the installed Paper/Geyser/Floodgate versions with the longer budget. Preserve previously loaded inventory on a failed refresh only for the same selected server and show a retry message. Keep the offline add-on query.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, select test 9 and open Components. Confirm Paper 26.3/build 229 and installed plugin rows appear. Switch servers and confirm another server's inventory is never reused. Shift+R retries failed reads. No tests run.
+- **Batch:** P22.49 only.
+- **Commit:** `P22.49: allow component inventory requests to finish`
+
 ## macOS owner testing — 0.1.32
 
 **Started:** October 21, 2026

@@ -10,6 +10,7 @@ mod performance;
 mod server_editor;
 mod settings;
 mod storage;
+mod transfer;
 mod world_settings;
 mod worlds;
 
@@ -104,6 +105,7 @@ struct ViewState<'a> {
     components: &'a components::ComponentsUi,
     settings: &'a settings::SettingsUi,
     app_settings: &'a app_settings::AppSettingsUi,
+    transfer: &'a transfer::TransferUi,
     files: &'a files::FilesUi,
     wizard: Option<&'a create::Wizard>,
     server_editor: Option<&'a server_editor::ServerEditor>,
@@ -379,6 +381,7 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
     let mut components_ui = components::ComponentsUi::default();
     let mut settings_ui = settings::SettingsUi::default();
     let mut app_settings_ui = app_settings::AppSettingsUi::default();
+    let mut transfer_ui = transfer::TransferUi::default();
     let mut files_ui = files::FilesUi::default();
     let mut wizard: Option<create::Wizard> = None;
     let mut server_editor: Option<server_editor::ServerEditor> = None;
@@ -412,6 +415,7 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
                 components: &components_ui,
                 settings: &settings_ui,
                 app_settings: &app_settings_ui,
+                transfer: &transfer_ui,
                 files: &files_ui,
                 wizard: wizard.as_ref(),
                 server_editor: server_editor.as_ref(),
@@ -454,6 +458,10 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
             continue;
         };
         if key.kind != KeyEventKind::Press {
+            continue;
+        }
+        if transfer_ui.open {
+            transfer_ui.handle(key.code).await;
             continue;
         }
         if app_settings_ui.is_open() {
@@ -565,9 +573,7 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
                 KeyCode::Down => {
                     manage_selected = (manage_selected + 1).min(server_count.saturating_sub(1));
                 }
-                KeyCode::Char('t') => {
-                    message = "Transfer is not connected yet; no server was changed.".into()
-                }
+                KeyCode::Char('t') => transfer_ui.open = true,
                 KeyCode::Char('c') => {
                     wizard = Some(create::Wizard::new());
                     manage_open = false;
@@ -821,6 +827,10 @@ async fn refresh(snapshot: &mut Snapshot, message: &mut String) {
                     next.addons = snapshot.addons.take();
                 }
             }
+            if next.connection_error.is_none() && next.components.is_some() && next.addons.is_some()
+            {
+                *message = "TUI refreshed.".into();
+            }
             *snapshot = next;
         }
         Err(error) => *message = error.to_string(),
@@ -903,6 +913,7 @@ fn draw(
             initiate.draw(out, width, height)?;
         }
         view.app_settings.draw(out, width, height)?;
+        view.transfer.draw(out, width, height)?;
         return out.flush();
     }
     for y in 2..height - 1 {
@@ -1229,6 +1240,7 @@ fn draw(
         wizard.draw(out, width, height)?;
     }
     view.app_settings.draw(out, width, height)?;
+    view.transfer.draw(out, width, height)?;
     out.flush()
 }
 

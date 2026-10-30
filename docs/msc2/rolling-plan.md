@@ -473,6 +473,15 @@ result. No up-front Plan/Read move, test run, or release gate is implied.
 - **Batch:** P22.50 only.
 - **Commit:** `P22.50: make storage removal confirmations typeable`
 
+### P22.51 — Add Manage Servers transfer controls
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui.rs`; `crates/msc-agent/src/cli/tui/transfer.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Connect Manage Servers t to transfer import/export using the existing local CLI archive workflows. Support path entry, merge or replace-all import, required replacement backup path, and explicit confirmation. Existing archive validation, credential exclusion, and mutation permissions remain with the CLI/API. Confirm Shift+R reaches the reload path and add successful refresh feedback. Transfer command execution currently waits for the CLI to return.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, open Manage and press t. Export to a new archive path with e, finish editing with Enter, select Export and confirm y. Inspect the result. Import an intended transfer with i, choose merge or replace and provide a backup path for replace; confirm only when ready to modify the server set. Press Shift+R after closing to reload the server list. Confirm Shift+R refreshes the main workspace and reports successful completion. No tests run.
+- **Batch:** P22.51 only.
+- **Commit:** `P22.51: add manage servers transfer controls`
+
 ## macOS owner testing — 0.1.32
 
 **Started:** October 21, 2026

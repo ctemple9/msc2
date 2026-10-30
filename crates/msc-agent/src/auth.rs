@@ -1072,7 +1072,7 @@ pub(crate) async fn require_management_auth(
                     &msc_infrastructure::config_repository::default_app_config_path(),
                 )
             {
-                return crate::routes::lifecycle::error_response(
+                return error_response(
                     axum::http::StatusCode::CONFLICT,
                     "host_reset_pending",
                     "Host reset recovery is pending. Open Settings > Reset to retry or cancel before making changes.",
@@ -1439,10 +1439,6 @@ fn internal_error(message: String) -> Response {
         "internal_error",
         &format!("Authentication store error: {message}"),
     )
-}
-
-pub(crate) fn forbidden(code: &str, message: &str) -> Response {
-    error_response(StatusCode::FORBIDDEN, code, message)
 }
 
 pub(crate) fn constant_time_eq(left: &str, right: &str) -> bool {

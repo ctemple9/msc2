@@ -644,6 +644,15 @@ result. No up-front Plan/Read move, test run, or release gate is implied.
 - **Batch:** P22.69 only.
 - **Commit:** `P22.69: space server tabs across terminal width`
 
+### P22.70 — Review and clean Rust workspace build warnings
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** Agent auth, TUI and terrain modules; CLI service and provisioning test harnesses; `docs/msc2/build-warning-review.md`; `docs/msc2/archive/bedrock-direct-tiles.rs.txt`; `docs/msc2/rolling-plan.md`.
+- **What:** Trace all 24 agent compiler warnings and 11 production Clippy warnings. Archive the disconnected direct Bedrock tile backend and obsolete test while preserving the active saved-snapshot/conversion/shared-renderer path. Remove unused auth/query/helper code, narrow renderer method visibility, return converter status directly, and simplify flagged TUI code without changing its layout or controls. Fix stale test harness compilation and remove an unused fake transport. The review document records evidence, scope and cross-platform/runtime limits. No new tests, warning suppression, release gates or background-agent replacement.
+- **Verify:** `cargo build -p msc-agent` — should finish without warnings; `cargo check --workspace --all-targets` compiles test/example targets without running them; `cargo clippy --workspace --bins --lib -- -D warnings` checks production Rust. Owner can open the TUI and a saved Bedrock map for behavior verification.
+- **Batch:** P22.70 only.
+- **Commit:** `P22.70: remove obsolete code and clean workspace build warnings`
+
 ## macOS owner testing — 0.1.32
 
 **Started:** October 21, 2026

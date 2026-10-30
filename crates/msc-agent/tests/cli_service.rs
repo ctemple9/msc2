@@ -5,13 +5,7 @@ mod cli;
 use msc_infrastructure::service::{FakeServiceManager, ServiceManagerCommand};
 
 fn common() -> cli::CommonArgs {
-    cli::CommonArgs {
-        base_url: None,
-        host: "127.0.0.1".to_string(),
-        port: 48001,
-        token: None,
-        json: false,
-    }
+    cli::CommonArgs { json: false }
 }
 
 fn target() -> cli::service::ServiceTargetArgs {

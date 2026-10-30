@@ -140,6 +140,13 @@ impl ConsoleView {
     }
 }
 
+// Generation and server identity keep an old refresh from replacing a newer selection.
+type PendingRefresh = (
+    u64,
+    Option<String>,
+    tokio::task::JoinHandle<Result<Snapshot, CliError>>,
+);
+
 async fn load() -> Result<Snapshot, CliError> {
     let service = service::local_agent_status()?;
     let (servers, active_server_id, active_server_running, connection_error) =
@@ -424,11 +431,7 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
     let mut confirm_stop = false;
     let mut last_refresh = Instant::now();
     let mut snapshot_generation = 0u64;
-    let mut refresh_task: Option<(
-        u64,
-        Option<String>,
-        tokio::task::JoinHandle<Result<Snapshot, CliError>>,
-    )> = None;
+    let mut refresh_task: Option<PendingRefresh> = None;
     let mut last_initiate_poll = Instant::now();
 
     loop {
@@ -442,14 +445,14 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
             .as_ref()
             .is_some_and(|(_, _, task)| task.is_finished())
         {
-            if let Some((generation, server, task)) = refresh_task.take() {
-                if let Ok(result) = task.await {
-                    if generation == snapshot_generation && server == snapshot.active_server_id {
-                        apply_refresh(result, &mut snapshot, &mut message);
-                        worlds_ui.refreshed();
-                        components_ui.refreshed();
-                    }
-                }
+            if let Some((generation, server, task)) = refresh_task.take()
+                && let Ok(result) = task.await
+                && generation == snapshot_generation
+                && server == snapshot.active_server_id
+            {
+                apply_refresh(result, &mut snapshot, &mut message);
+                worlds_ui.refreshed();
+                components_ui.refreshed();
             }
             last_refresh = Instant::now();
         }
@@ -1161,22 +1164,7 @@ fn draw(
         Color::Grey,
     )?;
     if view.workspace_open {
-        draw_workspace(
-            out,
-            snapshot,
-            view.tab_index,
-            view.worlds,
-            view.performance,
-            view.components,
-            view.settings,
-            view.files,
-            view.message,
-            view.initiate.filter(|_| view.initiate_hidden),
-            view.console_expanded,
-            view.console_view,
-            width,
-            height,
-        )?;
+        draw_workspace(out, snapshot, view, width, height)?;
         if view.manage_open {
             draw_manage(
                 out,
@@ -1548,19 +1536,20 @@ fn draw(
 fn draw_workspace(
     out: &mut Stdout,
     snapshot: &Snapshot,
-    tab_index: usize,
-    worlds_ui: &worlds::WorldsUi,
-    performance_ui: &performance::PerformanceUi,
-    components_ui: &components::ComponentsUi,
-    settings_ui: &settings::SettingsUi,
-    files_ui: &files::FilesUi,
-    message: &str,
-    hidden_initiate: Option<&initiate::InitiateUi>,
-    console_expanded: bool,
-    console_view: &ConsoleView,
+    view: &ViewState<'_>,
     width: u16,
     height: u16,
 ) -> io::Result<()> {
+    let tab_index = view.tab_index;
+    let worlds_ui = view.worlds;
+    let performance_ui = view.performance;
+    let components_ui = view.components;
+    let settings_ui = view.settings;
+    let files_ui = view.files;
+    let message = view.message;
+    let hidden_initiate = view.initiate.filter(|_| view.initiate_hidden);
+    let console_expanded = view.console_expanded;
+    let console_view = view.console_view;
     let server = snapshot.active_server_id.as_deref().and_then(|id| {
         snapshot
             .servers

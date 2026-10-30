@@ -198,9 +198,6 @@ impl Drop for Renderer {
 pub(super) struct ArtifactQuery {
     dimension: String,
     path: String,
-    center_x: Option<i32>,
-    center_z: Option<i32>,
-    moving: Option<bool>,
 }
 
 pub(super) async fn artifact(
@@ -382,7 +379,7 @@ fn artifact_type(path: &str) -> Option<&'static str> {
 }
 
 impl RendererStore {
-    pub(super) fn fetch_visible(
+    fn fetch_visible(
         &self,
         server_id: &str,
         world: &Path,

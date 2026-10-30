@@ -740,10 +740,10 @@ fn render(v: &Value, out: &mut Vec<String>) {
         "escalationBullets",
         "unresolvedTokens",
     ] {
-        if let Some(value) = v.get(key) {
-            if !value.is_null() {
-                render(value, out);
-            }
+        if let Some(value) = v.get(key)
+            && !value.is_null()
+        {
+            render(value, out);
         }
     }
     for cause in array(&v["likelyCauses"]) {

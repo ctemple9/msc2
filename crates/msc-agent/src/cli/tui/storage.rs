@@ -145,36 +145,29 @@ impl StorageUi {
                     Some("succeeded" | "failed" | "cancelled")
                 ) {
                     self.operation = None;
-                    if cleanup {
-                        if let Ok(c) = SharedClient::connect_local().await {
-                            match c
-                                .get_json::<StorageReviewedResultDto>(&format!(
-                                    "/v1/host/storage/cleanups/{id}"
-                                ))
-                                .await
-                            {
-                                Ok(result) => {
-                                    self.results = result
-                                        .items
-                                        .iter()
-                                        .map(|item| {
-                                            format!(
-                                                "{}: {} — {}",
-                                                item.label, item.state, item.message
-                                            )
-                                        })
-                                        .collect();
-                                    self.message = result
-                                        .items
-                                        .iter()
-                                        .map(|i| {
-                                            format!("{}: {} — {}", i.label, i.state, i.message)
-                                        })
-                                        .collect::<Vec<_>>()
-                                        .join(" | ")
-                                }
-                                Err(e) => self.message = e.to_string(),
+                    if cleanup && let Ok(c) = SharedClient::connect_local().await {
+                        match c
+                            .get_json::<StorageReviewedResultDto>(&format!(
+                                "/v1/host/storage/cleanups/{id}"
+                            ))
+                            .await
+                        {
+                            Ok(result) => {
+                                self.results = result
+                                    .items
+                                    .iter()
+                                    .map(|item| {
+                                        format!("{}: {} — {}", item.label, item.state, item.message)
+                                    })
+                                    .collect();
+                                self.message = result
+                                    .items
+                                    .iter()
+                                    .map(|i| format!("{}: {} — {}", i.label, i.state, i.message))
+                                    .collect::<Vec<_>>()
+                                    .join(" | ")
                             }
+                            Err(e) => self.message = e.to_string(),
                         }
                     }
                     self.load().await;
@@ -311,18 +304,13 @@ impl StorageUi {
                 }
             }
             KeyCode::Char('x') => {
-                if let Some((id, _)) = &self.operation {
-                    if let Ok(c) = SharedClient::connect_local().await {
-                        if let Err(e) = c
-                            .post_json::<_, Value>(
-                                &format!("/v1/operations/{id}/cancel"),
-                                &json!({}),
-                            )
-                            .await
-                        {
-                            self.message = e.to_string();
-                        }
-                    }
+                if let Some((id, _)) = &self.operation
+                    && let Ok(c) = SharedClient::connect_local().await
+                    && let Err(e) = c
+                        .post_json::<_, Value>(&format!("/v1/operations/{id}/cancel"), &json!({}))
+                        .await
+                {
+                    self.message = e.to_string();
                 }
             }
             KeyCode::Char(' ') => {
@@ -330,18 +318,17 @@ impl StorageUi {
                     .candidates
                     .as_ref()
                     .and_then(|c| c.items.get(self.selected))
+                    && item.removable
                 {
-                    if item.removable {
-                        if self.chosen.contains(&item.id) {
-                            self.chosen.retain(|id| id != &item.id)
-                        } else {
-                            if self.candidates.as_ref().is_some_and(|c| {
-                                matches!(c.action.as_str(), "remove-server" | "remove-world")
-                            }) {
-                                self.chosen.clear();
-                            }
-                            self.chosen.push(item.id.clone());
+                    if self.chosen.contains(&item.id) {
+                        self.chosen.retain(|id| id != &item.id)
+                    } else {
+                        if self.candidates.as_ref().is_some_and(|c| {
+                            matches!(c.action.as_str(), "remove-server" | "remove-world")
+                        }) {
+                            self.chosen.clear();
                         }
+                        self.chosen.push(item.id.clone());
                     }
                 }
             }
@@ -509,18 +496,18 @@ impl StorageUi {
                     }
                 ));
             }
-            if self.path.len() == 1 {
-                if let Some(s) = self.inventory.as_ref().and_then(|i| i.snapshot.as_ref()) {
-                    for v in &s.volumes {
-                        lines.push(format!(
-                            "{} · {} available",
-                            v.label,
-                            v.available_bytes.map(size).unwrap_or("Unknown".into())
-                        ));
-                    }
-                    for issue in &s.issues {
-                        lines.push(format!("Coverage: {}", issue.reason));
-                    }
+            if self.path.len() == 1
+                && let Some(s) = self.inventory.as_ref().and_then(|i| i.snapshot.as_ref())
+            {
+                for v in &s.volumes {
+                    lines.push(format!(
+                        "{} · {} available",
+                        v.label,
+                        v.available_bytes.map(size).unwrap_or("Unknown".into())
+                    ));
+                }
+                for issue in &s.issues {
+                    lines.push(format!("Coverage: {}", issue.reason));
                 }
             }
         }

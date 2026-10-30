@@ -58,10 +58,10 @@ impl Palette {
                 }] == true
             })
             .collect();
-        if let Ok(client) = SharedClient::connect_local().await {
-            if let Ok(caps) = client.get_json::<Value>("/v1/capabilities").await {
-                self.caps = caps;
-            }
+        if let Ok(client) = SharedClient::connect_local().await
+            && let Ok(caps) = client.get_json::<Value>("/v1/capabilities").await
+        {
+            self.caps = caps;
         }
     }
     fn rows(&self) -> Vec<Value> {

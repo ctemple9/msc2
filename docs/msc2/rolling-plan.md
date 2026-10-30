@@ -509,6 +509,15 @@ result. No up-front Plan/Read move, test run, or release gate is implied.
 - **Batch:** P22.54 only.
 - **Commit:** `P22.54: refresh tui snapshots without blocking navigation`
 
+### P22.55 — Show the desktop chat feed in Overview
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui.rs`; `crates/msc-agent/src/cli/tui/chat.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Review desktop HomeSection, ChatCard and chatFeed parsing and mirror their console-tail source (200 lines), prefix removal, unsigned Java chat, advancement/challenge/goal, Java join/leave and Bedrock connection events. Render the latest three messages in chronological order with chat/event/advancement colors and meaningful empty/unavailable/stopped states. Ordinary console lines stay out of chat; Bedrock has connection events only. Replace both manual refresh pending messages with Refreshing…. No separate chat endpoint is introduced.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, open Overview for a running Java server, send an in-game chat message and trigger a join/leave or advancement; confirm matching desktop feed content after refresh. Confirm ordinary logs do not appear, switching server does not retain previous chat, Bedrock explains connection-only coverage, and stopped/empty states give a useful hint. Press Shift+R during an automatic refresh and confirm Refreshing… until completion. No tests run.
+- **Batch:** P22.55 only.
+- **Commit:** `P22.55: show selected server chat in overview`
+
 ## macOS owner testing — 0.1.32
 
 **Started:** October 21, 2026

@@ -2,6 +2,7 @@
 //! reads to the existing CLI paths.
 
 mod app_settings;
+mod chat;
 mod components;
 mod create;
 mod files;
@@ -226,7 +227,7 @@ async fn load() -> Result<Snapshot, CliError> {
     let console_lines = if active_server_id.is_some() {
         if let Ok(client) = SharedClient::connect_local().await {
             client
-                .get_json::<Vec<ConsoleLine>>("/v1/console/tail?n=40")
+                .get_json::<Vec<ConsoleLine>>("/v1/console/tail?n=200")
                 .await
                 .ok()
         } else {
@@ -615,10 +616,8 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
                             snapshot.active_server_id.clone(),
                             tokio::spawn(load()),
                         ));
-                        message = "Refreshing TUI…".into();
-                    } else {
-                        message = "TUI refresh is already running.".into();
                     }
+                    message = "Refreshing…".into();
                     manage_selected = manage_selected.min(
                         snapshot
                             .servers
@@ -742,10 +741,8 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
                             snapshot.active_server_id.clone(),
                             tokio::spawn(load()),
                         ));
-                        message = "Refreshing TUI…".into();
-                    } else {
-                        message = "TUI refresh is already running.".into();
                     }
+                    message = "Refreshing…".into();
                     last_refresh = Instant::now();
                 }
                 KeyCode::Char('S') => app_settings_ui.open().await,
@@ -793,10 +790,8 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
                         snapshot.active_server_id.clone(),
                         tokio::spawn(load()),
                     ));
-                    message = "Refreshing TUI…".into();
-                } else {
-                    message = "TUI refresh is already running.".into();
                 }
+                message = "Refreshing…".into();
                 last_refresh = Instant::now();
             }
             KeyCode::Char('?') => message = "Help screen is not connected yet.".into(),
@@ -1665,14 +1660,64 @@ fn draw_workspace(
                 Color::White,
             )?;
         }
-        paint(
-            out,
-            third_x + 2,
-            card_y + 3,
-            third_w - 4,
-            "Chat feed coming next",
-            Color::DarkGrey,
-        )?;
+        let chat: Vec<_> = snapshot
+            .console_lines
+            .as_ref()
+            .into_iter()
+            .flatten()
+            .filter_map(|line| chat::parse(&line.text))
+            .collect();
+        let visible = if server.is_some() { 3usize } else { 2 };
+        if chat.is_empty() {
+            let text = if server.is_none() {
+                "No server selected"
+            } else if snapshot.console_lines.is_none() {
+                "Chat feed unavailable; refresh to retry"
+            } else if server
+                .is_some_and(|server| server.server_type.eq_ignore_ascii_case("bedrock"))
+            {
+                "Bedrock: connection events only"
+            } else {
+                "No chat yet"
+            };
+            paint(
+                out,
+                third_x + 2,
+                card_y + 2,
+                third_w - 4,
+                text,
+                Color::DarkGrey,
+            )?;
+        } else {
+            for (index, text) in chat
+                .iter()
+                .skip(chat.len().saturating_sub(visible))
+                .enumerate()
+            {
+                paint(
+                    out,
+                    third_x + 2,
+                    card_y + 2 + index as u16,
+                    third_w - 4,
+                    &text.text,
+                    text.color,
+                )?;
+            }
+        }
+        if chat.is_empty() && server.is_some() && snapshot.console_lines.is_some() {
+            paint(
+                out,
+                third_x + 2,
+                card_y + 3,
+                third_w - 4,
+                if snapshot.active_server_running {
+                    "Player chat and events appear here."
+                } else {
+                    "Start the server to see live chat."
+                },
+                Color::DarkGrey,
+            )?;
+        }
         let notes_y = card_y + if server.is_some() { 8 } else { 7 };
         paint(
             out,

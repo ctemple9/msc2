@@ -71,11 +71,12 @@ The previous phase work is finished. The old Phase 16 acceptance packet and owne
 **Commit:** `P23.4: clarify download and source feature availability`
 
 #### P23.5 — Improve the contributor entry point
-**Status:** planned
+**Status:** done; verification waived by Cameron
 **Files:** `CONTRIBUTING.md`, `docs/msc2/rolling-plan.md`
-**What:** Add a concise repo map and build or launch instructions for the desktop app and agent, checked against the actual project scripts.
+**What:** Add a concise repo map and launch instructions for the desktop app and agent, checked against the actual project scripts and Tauri configuration.
 **Verify:** `git diff HEAD^ HEAD -- CONTRIBUTING.md`
 **Batch:** solo
+**Commit:** `P23.5: improve contributor entry point`
 
 **Phase 22 disposition:** Cameron accepted the current TUI on 2026-10-30. Detailed P22 records and their original verification commands are in the archive.
 

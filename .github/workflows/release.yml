@@ -36,7 +36,7 @@ jobs:
             tauri-bundles: dmg
             installer-extension: dmg
           - platform: macos-aarch64
-            os: macos-14
+            os: macos-15
             toolchain: 1.97.1
             rust-target: aarch64-apple-darwin
             tauri-bundles: dmg

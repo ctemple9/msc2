@@ -194,6 +194,14 @@ The helmet appears only while the local agent runs. A small companion process ow
 **Batch:** solo
 **Commit:** `P23.19: prepare v0.1.39 release`
 
+#### P23.20 — Replace the retiring Apple Silicon release runner
+**Status:** implemented; v0.1.39 recovery pending
+**Files:** `.github/workflows/release.yml`, `docs/msc2/rolling-plan.md`
+**What:** Change future Apple Silicon release builds from macos-14 to macos-15. The v0.1.39 Apple Silicon job was canceled before receiving a runner during GitHub's scheduled macos-14 brownout; all three other platforms uploaded artifacts successfully. Preserve the immutable v0.1.39 tag. Its one targeted Apple Silicon retry uses the original tagged workflow outside the brownout window, before the runner's November 2 retirement, reusing the successful platform artifacts and allowing publication to proceed. No test, lint, or other gates added.
+**Verify:** `gh run view 41134932773 --json status,conclusion,jobs`
+**Batch:** solo
+**Commit:** `P23.20: replace the retiring Apple Silicon release runner`
+
 **Phase 22 disposition:** Cameron accepted the current TUI on 2026-10-30. Detailed P22 records and their original verification commands are in the archive.
 
 ## Archived owner-testing details

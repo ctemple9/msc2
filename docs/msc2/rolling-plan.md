@@ -39,21 +39,7 @@ The previous phase work is finished. The old Phase 16 acceptance packet and owne
 
 ### Repository presentation polish
 
-#### P23.1 — Correct stale public documentation claims
-**Status:** done; Cameron waived verification for the presentation polish steps
-**Files:** `README.md`, `CONTRIBUTING.md`, `docs/msc2/rolling-plan.md`
-**What:** Align the map availability statement with the published v0.1.38 release and remove the contributing guide's claim that pull requests run an active CI workflow.
-**Verify:** `rg -n 'saved-terrain maps are included|Saved-terrain maps are included|Pull requests do not currently run|v0.1.18 release|CI workflow describes' README.md CONTRIBUTING.md`
-**Batch:** solo
-**Commit:** `P23.1: correct stale public documentation claims`
-
-#### P23.2 — Shorten and structure the README
-**Status:** done; verification waived by Cameron
-**Files:** `README.md`, `docs/msc2/rolling-plan.md`
-**What:** Keep the first-use path and current capabilities easy to scan; move historical release detail behind existing release-note links without losing important support limits. Removed the older release-by-release narrative while retaining the current platform, security, update, and macOS repair guidance.
-**Verify:** `git diff HEAD^ HEAD -- README.md`
-**Batch:** solo
-**Commit:** `P23.2: shorten README release history`
+Completed P23.1–P23.2 and P23.4–P23.10 records are in the [archive](rolling-plan-archive.md#phase-23--completed-presentation-and-indicator-planning-steps). Original statuses and verification notes are preserved there.
 
 #### P23.3 — Add current product screenshots
 **Status:** deferred; Cameron will add screenshots later
@@ -62,65 +48,9 @@ The previous phase work is finished. The old Phase 16 acceptance packet and owne
 **Verify:** `git diff HEAD^ HEAD -- README.md`
 **Batch:** solo
 
-#### P23.4 — Clarify published versus source-only features
-**Status:** done; verification waived by Cameron
-**Files:** `README.md`, `docs/msc2/rolling-plan.md`
-**What:** Group current-release availability notes so readers can tell what the download contains and what requires a source build. Put the published/source distinction beside installation and remove scattered version notes from feature descriptions.
-**Verify:** `rg -n 'published|source|release|TUI' README.md`
-**Batch:** solo
-**Commit:** `P23.4: clarify download and source feature availability`
-
-#### P23.5 — Improve the contributor entry point
-**Status:** done; verification waived by Cameron
-**Files:** `CONTRIBUTING.md`, `docs/msc2/rolling-plan.md`
-**What:** Add a concise repo map and launch instructions for the desktop app and agent, checked against the actual project scripts and Tauri configuration.
-**Verify:** `git diff HEAD^ HEAD -- CONTRIBUTING.md`
-**Batch:** solo
-**Commit:** `P23.5: improve contributor entry point`
-
-#### P23.6 — Clarify the host and control-device introduction
-**Status:** done; verification waived by Cameron
-**Files:** `README.md`, `docs/msc2/rolling-plan.md`
-**What:** Address readers who are new to MSC 2 in the host and control-device explanation.
-**Verify:** `rg -n 'If you are new to MSC 2' README.md`
-**Batch:** solo
-**Commit:** `P23.6: clarify the host and control-device introduction`
-
-#### P23.7 — Preview the agent status symbol
-**Status:** done; awaiting Cameron's design feedback
-**Files:** `docs/msc2/agent-indicator-preview.html`, `docs/msc2/rolling-plan.md`
-**What:** Show the proposed helmet symbol in running, stopped, and unavailable states at real system-bar size, with a sample status menu. This is a design preview, not an installed indicator.
-**Verify:** Open `docs/msc2/agent-indicator-preview.html` in a browser.
-**Batch:** solo
-**Commit:** `P23.7: preview the agent status symbol`
-
-#### P23.8 — Correct the helmet silhouette preview
-**Status:** done; awaiting Cameron's design feedback
-**Files:** `docs/msc2/agent-indicator-preview.html`, `docs/msc2/rolling-plan.md`
-**What:** Replace the ring-shaped draft with a Minecraft-style helmet silhouette based on Cameron's reference image: broad crown, face opening, and two separate lower sides.
-**Verify:** Refresh `docs/msc2/agent-indicator-preview.html` in a browser.
-**Batch:** solo
-**Commit:** `P23.8: correct the helmet indicator silhouette`
-
-#### P23.9 — Show the indicator only while the agent runs
-**Status:** done; verification waived by Cameron
-**Files:** `docs/msc2/agent-indicator-preview.html`, `docs/msc2/rolling-plan.md`
-**What:** Remove stopped and unavailable symbol variants from the preview. Show an empty system-bar position when the agent is stopped or its status cannot be confirmed.
-**Verify:** Refresh `docs/msc2/agent-indicator-preview.html` in a browser.
-**Batch:** solo
-**Commit:** `P23.9: show the indicator only while the agent runs`
-
 ### Agent running indicator
 
 The helmet appears only while the local agent runs. A small companion process owns the graphical icon in the signed-in user's session; the agent continues to work on headless hosts without it. The companion receives local agent lifecycle state through an event-driven connection, not periodic HTTP health checks. Losing the connection removes the icon. Only the desktop package registers the companion at login.
-
-#### P23.10 — Plan the agent running indicator
-**Status:** done; implementation pending
-**Files:** `docs/msc2/rolling-plan.md`
-**What:** Record the agent-owned status channel, separate user-session indicator, and per-platform startup and packaging work as bounded steps.
-**Verify:** `sed -n '/### Agent running indicator/,/Phase 22 disposition/p' docs/msc2/rolling-plan.md`
-**Batch:** solo
-**Commit:** `P23.10: plan the agent running indicator`
 
 #### P23.11 — Add the local agent lifecycle channel
 **Status:** awaiting Cameron verification
@@ -201,6 +131,14 @@ The helmet appears only while the local agent runs. A small companion process ow
 **Verify:** `gh run view 41134932773 --json status,conclusion,jobs`
 **Batch:** solo
 **Commit:** `P23.20: replace the retiring Apple Silicon release runner`
+
+#### P23.21 — Archive recently completed steps
+**Status:** documentation cleanup prepared; awaiting Cameron verification
+**Files:** `docs/msc2/rolling-plan.md`, `docs/msc2/rolling-plan-archive.md`
+**What:** Move the nine steps explicitly marked done (P23.1–P23.2 and P23.4–P23.10) into the archive without changing their records. Keep deferred screenshots, steps awaiting verification, and pending release work in the rolling plan.
+**Verify:** `git show --stat --oneline HEAD && git show --format= -- docs/msc2/rolling-plan.md docs/msc2/rolling-plan-archive.md` — confirm the nine completed records moved intact and unfinished work remains visible.
+**Batch:** solo
+**Commit:** `P23.21: archive recently completed rolling plan steps`
 
 **Phase 22 disposition:** Cameron accepted the current TUI on 2026-10-30. Detailed P22 records and their original verification commands are in the archive.
 

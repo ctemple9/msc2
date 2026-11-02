@@ -35,6 +35,15 @@ This table is the quick map; detailed steps and historical findings are linked f
 
 ## Current work
 
+### P23.24 — Prepare and publish v0.1.41
+
+**Status:** prepared; publication pending; physical verification deferred
+**Files:** agent and desktop version manifests and lockfiles; `clients/desktop-web/src/lib/bundle-identity.ts`; `README.md`; `docs/msc2/release/v0.1.41.md`; `docs/msc2/rolling-plan.md`
+**What:** Publish the next immutable tag at Cameron's request, including the renderer header-padding fix and P23.23's bounded retry of Apple's explicit ticket-stapling connection failure. All three other platform builds passed in v0.1.40; Intel passed build and notarization before the transport failure. Retain all nine artifacts, checksums, signed update metadata and macOS signing requirements. No tests run. This is a new full platform build and may take roughly 40 minutes; external Apple availability remains uncertain.
+**Verify:** `gh release view v0.1.41 --json url,isPrerelease,assets` — confirm the complete published artifact set and metadata; Cameron will verify map behavior later.
+**Batch:** solo
+**Commit:** `P23.24: prepare v0.1.41 release`
+
 ### P23.23 — Retry interrupted Apple disk-image ticket stapling
 
 **Status:** awaiting Cameron verification

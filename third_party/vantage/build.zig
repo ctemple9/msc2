@@ -22,6 +22,9 @@ pub fn build(b: *std.Build) void {
             .link_libc = true,
         }),
     });
+    // codesign adds a load command on Intel macOS. Without reserved header
+    // space it overwrites the beginning of __text (libdeflate_crc32).
+    if (target.result.os.tag == .macos) exe.headerpad_size = 4096;
     exe.root_module.addOptions("build_options", options);
     // Intel macOS has crashed inside libdeflate's Adler-32 check while
     // inflating converted Bedrock regions. Use the system zlib decoder there.

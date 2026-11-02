@@ -35,6 +35,16 @@ This table is the quick map; detailed steps and historical findings are linked f
 
 ## Current work
 
+### P18.100 — Preserve renderer code during macOS signing
+
+**Status:** awaiting Cameron verification
+**Files:** `third_party/vantage/build.zig`; `docs/msc2/rolling-plan.md`
+**What:** Reserve 4096 bytes of Mach-O header padding on macOS. The November 2 Intel crash report shows signing metadata overwriting the entry instructions of `libdeflate_crc32`, reached while reading the world's spawn. Re-signing a temporary copy of the locally installed renderer reproduced an eight-byte overwrite at the beginning of `__text`: the load commands grew from ending at 0x7d8 to 0x7e8, while code began at 0x7e0. The local executable UUID differs from the supplied report, so this reproduces the packaging defect rather than identifies that exact artifact. Fix the executable layout rather than bypass another checksum function; retain existing decompression behavior and world files. No tests or release workflow gates added.
+**Verify:** `python3 tools/release/stage-vantage.py --platform macos-x86_64 --output-dir /private/tmp/msc-renderer-headerpad` — package the corrected renderer in the next signed Intel candidate, open the same ATM10 map, and confirm startup succeeds without a new vantage crash report. Local build and before/after signing inspection are recorded in the implementation handoff; world verification remains Cameron's.
+**Batch:** solo
+**Commit:** `P18.100: reserve renderer header space for macos signing`
+**Local checks:** Intel `zig build -Doptimize=ReleaseFast`, Zig formatting and `git diff --check` passed. With padding, code begins at 0x17e0; ad hoc hardened-runtime signing grows load commands from 0x7d8 to 0x7e8 and preserves all 1,509,856 instruction bytes. Strict signature verification passed. Developer ID packaging and the ATM10 map remain owner verification; no tests run.
+
 The previous phase work is finished. The old Phase 16 acceptance packet and owner-testing findings remain in the archive as historical records; their earlier pending statuses describe the state when recorded, not the current work list.
 
 ### Repository presentation polish

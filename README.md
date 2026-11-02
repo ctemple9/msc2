@@ -22,7 +22,7 @@ host.
 
 ## Download and install
 
-Download [MSC 2 v0.1.39](https://github.com/ctemple9/msc2/releases/tag/v0.1.39)
+Download [MSC 2 v0.1.40](https://github.com/ctemple9/msc2/releases/tag/v0.1.40)
 and choose the file for your computer. The desktop app includes the agent.
 
 - **Mac:** Open the `.dmg` and drag MSC 2 to Applications.
@@ -33,11 +33,11 @@ and choose the file for your computer. The desktop app includes the agent.
 
 Update the macOS or Windows desktop app from its built-in updater. Update Linux
 packages with `apt` or `dnf`. For a headless install, run `msc update check`,
-then `msc update install --release-id 0.1.39`.
+then `msc update install --release-id 0.1.40`.
 
 ### What is in the download?
 
-The v0.1.39 download includes the desktop app, host-local CLI and full-screen
+The v0.1.40 download includes the desktop app, host-local CLI and full-screen
 `msc tui`, saved-terrain maps, and the server-management features below.
 The TUI runs locally on the agent host or through an SSH login to it.
 
@@ -298,21 +298,21 @@ Swift is used for the macOS Bedrock runtime.
 
 ## Current release and support
 
-The latest published build is [MSC 2 v0.1.39](https://github.com/ctemple9/msc2/releases/tag/v0.1.39),
+The latest published build is [MSC 2 v0.1.40](https://github.com/ctemple9/msc2/releases/tag/v0.1.40),
 a prerelease. There is no stable release yet. Download the
 platform-specific installer or archive from that release page and verify its
 entry in `SHA256SUMS` before installing. The Phase 16 acceptance record
 (P16.29) is still open; this prerelease has not passed the full physical
 release acceptance gate.
 
-Read the [v0.1.39 release notes](docs/msc2/release/v0.1.39.md) for the latest
+Read the [v0.1.40 release notes](docs/msc2/release/v0.1.40.md) for the latest
 fixes and the [release history](docs/msc2/release/) for earlier changes. On
 Intel macOS, use **Repair agent** after installing the updated app to register
 its matching agent and Bedrock helper before the next Bedrock start. Existing
 root-owned Bedrock data still requires a one-time ownership repair.
 
 **macOS 0.1.25/0.1.26:** stop the Minecraft server, quit MSC 2, manually install
-v0.1.39 from its disk image, and repair the agent once. The older updater's helper
+v0.1.40 from its disk image, and repair the agent once. The older updater's helper
 contains the rollback bug; subsequent updates can use the corrected updater.
 
 | Installation | Published platform and architecture | Supported control surface |

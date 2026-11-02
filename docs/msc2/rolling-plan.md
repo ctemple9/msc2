@@ -35,6 +35,15 @@ This table is the quick map; detailed steps and historical findings are linked f
 
 ## Current work
 
+### P23.22 — Prepare and publish v0.1.40
+
+**Status:** prepared; publication pending; Cameron will test later
+**Files:** agent and desktop version manifests and lockfiles; `clients/desktop-web/src/lib/bundle-identity.ts`; `README.md`; `docs/msc2/release/v0.1.40.md`; `docs/msc2/rolling-plan.md`
+**What:** Align release identities at 0.1.40 and publish a new immutable tag containing P18.100's renderer signing-space correction and the supported Apple Silicon runner change. Preserve the build-only workflow, nine artifacts, checksums and signed update metadata. No tests run; physical map verification is deferred at Cameron's direction.
+**Verify:** `gh release view v0.1.40 --json url,isPrerelease,assets` — confirm all nine desktop/headless artifacts, SHA256SUMS and signed update metadata are published, then test the ATM10 map later.
+**Batch:** solo
+**Commit:** `P23.22: prepare v0.1.40 renderer fix release`
+
 ### P18.100 — Preserve renderer code during macOS signing
 
 **Status:** awaiting Cameron verification

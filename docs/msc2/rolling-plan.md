@@ -35,6 +35,15 @@ This table is the quick map; detailed steps and historical findings are linked f
 
 ## Current work
 
+### P23.23 — Retry interrupted Apple disk-image ticket stapling
+
+**Status:** awaiting Cameron verification
+**Files:** `.github/workflows/release.yml`; `docs/msc2/rolling-plan.md`
+**What:** Inspect all four v0.1.40 jobs: Linux, Windows and Apple Silicon succeeded; Intel passed build, signing and notarization but failed stapling when Apple's ticket service lost its network connection (NSURLErrorDomain -1005, exit 68). Apply the existing validation retry policy to the earlier staple operation: at most three attempts, ten seconds apart, only for the explicit connection-loss diagnostic. Preserve the original failure status on exhaustion or any other error. Keep all signature, notarization, artifact and metadata requirements unchanged. No tests or new gates added. A rerun of v0.1.40 uses its original immutable workflow, not this correction.
+**Verify:** `git show -- .github/workflows/release.yml` — confirm only the staple command gains the existing narrowly scoped retry policy; the next corrected-workflow release must finish publication with all nine assets and signed metadata.
+**Batch:** solo
+**Commit:** `P23.23: retry interrupted apple ticket stapling`
+
 ### P23.22 — Prepare and publish v0.1.40
 
 **Status:** prepared; publication pending; Cameron will test later

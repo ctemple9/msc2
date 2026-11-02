@@ -232,7 +232,24 @@ jobs:
           if result.get("status") != "Accepted":
               sys.exit(1)
           '
-          xcrun stapler staple "$dmg"
+          # Apple can accept the submission before its ticket lookup loses
+          # the connection. Retry that transport failure, not signing errors.
+          stapler_attempt=1
+          while true; do
+            if stapler_output="$(xcrun stapler staple "$dmg" 2>&1)"; then
+              printf '%s\n' "$stapler_output"
+              break
+            else
+              stapler_status=$?
+              printf '%s\n' "$stapler_output" >&2
+              if (( stapler_attempt >= 3 )) || ! grep -Eqi 'Code=-1005|network connection was lost' <<< "$stapler_output"; then
+                exit "$stapler_status"
+              fi
+              echo "Apple ticket lookup lost its network connection; retrying stapling ($((stapler_attempt + 1))/3)." >&2
+              stapler_attempt=$((stapler_attempt + 1))
+              sleep 10
+            fi
+          done
 
       - name: Verify macOS app signature and notarization
         if: startsWith(matrix.platform, 'macos-')

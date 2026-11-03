@@ -2,6 +2,19 @@
 
 Implemented steps awaiting verification were marked Done and moved to [the archive](rolling-plan-archive.md) at Cameron's direction on 2026-10-08. Planned work, pending publications and independent phase acceptance remain below.
 
+### P12.251 — Explain cleanup after incomplete Playit setup
+
+**Status:** Implemented; awaiting Cameron's verification. Owner authorized this recovery message after reviewing the Windows first-start failure records.
+**Files:** `clients/desktop-web/src/lib/sections/server-editor/PlayitSetupSheet.svelte`, its `model.ts`, `clients/desktop-web/tests/playit/playit-setup.test.ts`, this plan.
+**What:** Explain that incomplete setup may leave Playit agents/tunnels behind; direct the user through Reset local setup, website cleanup of only the failed attempt's resources, and returning to setup. Keep Reset accessible despite stale credential status, show the original error, and carry the website reminder through reset completion. Incorrect credentials, banned accounts and two-factor sign-in failures retain their existing handling. Generic provider failures are treated conservatively because operation polling may miss the claim stage. MSC never deletes cloud resources. Read `antiAIslop.md`; reuse existing sheet typography, buttons and spacing.
+**Verify:** `npm --prefix clients/desktop-web run check`
+**Batch:** P12.251 only.
+**Commit:** `P12.251: explain cleanup after incomplete playit setup`
+
+**Essential test:** Extend the existing Playit unit file with one controlled-input case protecting cleanup classification: partial-setup errors require guidance even if polling missed progress, while rejected sign-in does not prompt cloud cleanup. No network, timers or environment dependencies; expected runtime under one second. Test execution remains Cameron's responsibility.
+
+**Checks:** Frontend type-check and production build passed (existing warnings outside the changed files); changed frontend files formatted. Rust formatting passed and agent Clippy completed with existing Windows warnings. No tests run. Visual verification remains Cameron's; no release or installed-app update performed.
+
 ### P16.43 — Plan a complete Windows MSI refinement
 
 **Status:** Plan written; awaiting Cameron's review. PLAN scope: review the entire MSI process and propose improvements after the owner reported a briefly blank opening page (2026-10-07).

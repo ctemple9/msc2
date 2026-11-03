@@ -147,6 +147,29 @@ export function playitSetupError(error: unknown): string {
   return raw || 'Playit setup did not complete. Check the agent and try again.';
 }
 
+/** Generic provider failures can follow a successful claim even when polling
+ * missed its progress update. Treat them as potentially partial setup. */
+export function playitSetupNeedsCleanup(
+  code: string | null | undefined,
+  progress: PlayitSetupProgressKey,
+): boolean {
+  if (['incorrect_credentials', 'account_banned', 'two_factor_required'].includes(code ?? ''))
+    return false;
+  return (
+    progress !== 'signing_in' ||
+    [
+      'playit_api_error',
+      'agent_not_found',
+      'playit_helper_start_failed',
+      'tunnel_missing',
+      'tunnel_mismatch',
+      'existing_agent_credential_required',
+      'credential_store_failed',
+      'public_addresses_unavailable',
+    ].includes(code ?? '')
+  );
+}
+
 export type PlayitSetupAccepted = {
   result: string;
   operationId: string;

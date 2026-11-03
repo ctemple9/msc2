@@ -4,11 +4,24 @@ import broadcastSource from '../../src/lib/sections/server-editor/BroadcastTab.s
 import {
   PLAYIT_SETUP_STEPS,
   playitSetupError,
+  playitSetupNeedsCleanup,
   playitSetupProgressForStatus,
   playitSetupStepsForMode,
 } from '../../src/lib/sections/server-editor/model';
 
 describe('native Playit setup sheet', () => {
+  it('offers cleanup for partial setup without treating rejected sign-in as partial setup', () => {
+    for (const code of ['playit_helper_start_failed', 'tunnel_missing', 'playit_api_error']) {
+      expect(playitSetupNeedsCleanup(code, 'signing_in')).toBe(true);
+    }
+    for (const code of ['incorrect_credentials', 'account_banned', 'two_factor_required']) {
+      expect(playitSetupNeedsCleanup(code, 'signing_in')).toBe(false);
+      expect(playitSetupNeedsCleanup(code, 'waiting_for_agent')).toBe(false);
+    }
+    expect(playitSetupNeedsCleanup('rate_limited', 'signing_in')).toBe(false);
+    expect(playitSetupNeedsCleanup('rate_limited', 'creating_or_reusing_java_tunnel')).toBe(true);
+  });
+
   it('keeps the account flow agent-owned and credential-free after submission', () => {
     expect(sheetSource).toContain('serverEditorPaths.playitSetup');
     expect(sheetSource).toContain('serverEditorPaths.playitReset');

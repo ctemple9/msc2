@@ -13,6 +13,7 @@
   import {
     PLAYIT_SETUP_STEPS,
     playitSetupError,
+    playitSetupNeedsCleanup,
     playitSetupProgressForStatus,
     playitSetupStepsForMode,
     pollOperation,
@@ -58,6 +59,7 @@
   let error = '';
   let resetMessage = '';
   let cancelRequested = false;
+  let needsCleanup = false;
   let setupSteps: readonly PlayitSetupStep[] = PLAYIT_SETUP_STEPS;
 
   $: setupSteps = playitSetupStepsForMode(voiceOnly);
@@ -101,6 +103,7 @@
     statusLine = 'Signing in…';
     progressKey = 'signing_in';
     cancelRequested = false;
+    needsCleanup = false;
     onAttempted();
     phase = 'submitting';
 
@@ -128,6 +131,7 @@
         statusLine = operation.statusLine ?? 'Playit setup cancelled.';
         phase = 'cancelled';
       } else {
+        needsCleanup = playitSetupNeedsCleanup(operation?.error?.code, progressKey);
         error = playitSetupError(
           operation?.error?.message ??
             'Playit setup did not complete. Check the agent and try again.',
@@ -136,6 +140,7 @@
       }
     } catch (caught) {
       error = playitSetupError(caught);
+      needsCleanup = progressKey !== 'signing_in';
       phase = 'failed';
     }
   }
@@ -204,38 +209,65 @@
     <div class="stack">
       <div>
         <p class="msc2-type-overline">Native setup</p>
-        <h2>{context === 'initiation' ? 'Finish the transport setup' : 'No key to copy'}</h2>
-        <p class="copy">{intro}</p>
+        <h2>
+          {needsCleanup
+            ? 'Playit setup couldn’t finish'
+            : context === 'initiation'
+              ? 'Finish the transport setup'
+              : 'No key to copy'}
+        </h2>
+        {#if needsCleanup}
+          <p class="copy">
+            Setup may have created an agent or tunnels in your Playit account. MSC couldn’t complete
+            setup. The error below is the detail available from this attempt.
+          </p>
+          <ol class="copy recovery-steps">
+            <li>Click <strong>Reset local setup</strong> below.</li>
+            <li>
+              Sign in at playit.gg and delete any agent or tunnels created by this failed attempt.
+            </li>
+            <li>Return here and try setup again.</li>
+          </ol>
+          <p class="copy">
+            Reset only clears MSC’s saved Playit configuration. MSC cannot delete agents or tunnels
+            from your Playit account.
+          </p>
+          <Button variant="secondary" onclick={() => void openAccountPage()}>Open playit.gg</Button>
+        {:else}
+          <p class="copy">{intro}</p>
+        {/if}
       </div>
 
-      <div class="fields">
-        <label>
-          <span>Email</span>
-          <Field bind:value={email} type="email" placeholder="you@example.com" />
-        </label>
-        <label>
-          <span>Password</span>
-          <Field bind:value={password} type="password" placeholder="Playit password" />
-        </label>
-      </div>
+      {#if !needsCleanup}
+        <div class="fields">
+          <label>
+            <span>Email</span>
+            <Field bind:value={email} type="email" placeholder="you@example.com" />
+          </label>
+          <label>
+            <span>Password</span>
+            <Field bind:value={password} type="password" placeholder="Playit password" />
+          </label>
+        </div>
 
-      <a
-        class="account-link"
-        href="https://playit.gg/account"
-        target="_blank"
-        rel="noopener noreferrer"
-        onclick={(event) => {
-          event.preventDefault();
-          void openAccountPage();
-        }}
-      >
-        Create a free Playit account
-      </a>
+        <a
+          class="account-link"
+          href="https://playit.gg/account"
+          target="_blank"
+          rel="noopener noreferrer"
+          onclick={(event) => {
+            event.preventDefault();
+            void openAccountPage();
+          }}
+        >
+          Create a free Playit account
+        </a>
 
-      <p class="warning" role="note">
-        Accounts protected by two-factor authentication cannot be completed in this native flow yet.
-        If Playit asks for a second factor, no changes will be made.
-      </p>
+        <p class="warning" role="note">
+          Accounts protected by two-factor authentication cannot be completed in this native flow
+          yet. If Playit asks for a second factor, no changes will be made.
+        </p>
+      {/if}
 
       {#if phase === 'failed'}
         <p class="error" role="alert">{error}</p>
@@ -244,18 +276,18 @@
       {/if}
 
       <div class="actions">
-        {#if playit?.hasSecretKey}
+        {#if playit?.hasSecretKey || needsCleanup}
           <Button variant="destructive" size="sm" onclick={beginReset}>Reset local setup…</Button>
         {/if}
         <span class="action-spacer"></span>
         <Button variant="secondary" onclick={onClose}>Cancel</Button>
-        <Button
-          variant="primary"
-          disabled={!api || !email.trim() || !password}
-          onclick={() => void submit()}
-        >
-          {phase === 'failed' ? 'Try again' : submitLabel}
-        </Button>
+        {#if !needsCleanup}<Button
+            variant="primary"
+            disabled={!api || !email.trim() || !password}
+            onclick={() => void submit()}
+          >
+            {phase === 'failed' ? 'Try again' : submitLabel}
+          </Button>{/if}
       </div>
     </div>
   {:else if phase === 'submitting' || phase === 'progress'}
@@ -370,9 +402,23 @@
       <StatusDot tone="warn" label="Not configured" />
       <p class="copy">{resetMessage}</p>
       <p class="copy quiet">Your Playit account, agent, and cloud tunnels were left untouched.</p>
+      {#if needsCleanup}
+        <p class="copy">
+          Before trying again, sign in at playit.gg and delete any agent or tunnels created by the
+          failed attempt. Leave your other Playit connections in place.
+        </p>
+        <Button variant="secondary" onclick={() => void openAccountPage()}>Open playit.gg</Button>
+      {/if}
       <div class="actions">
         <span class="action-spacer"></span>
         <Button variant="secondary" onclick={onClose}>Close</Button>
+        <Button
+          variant="primary"
+          onclick={() => {
+            needsCleanup = false;
+            retry();
+          }}>Return to setup</Button
+        >
       </div>
     </div>
   {/if}
@@ -399,6 +445,12 @@
   .copy.quiet {
     margin: 0;
     color: var(--msc2-text-tertiary);
+  }
+  .recovery-steps {
+    padding-left: 20px;
+  }
+  .recovery-steps li + li {
+    margin-top: 6px;
   }
   .fields {
     display: flex;

@@ -1,4 +1,4 @@
-name: Recover v0.1.42 Apple Silicon release
+name: Recover v0.1.43 Apple Silicon release
 
 on:
   workflow_dispatch:
@@ -6,14 +6,14 @@ on:
 # One-time recovery: build the missing Apple Silicon payload from the unchanged
 # release tag, then combine it with this run's verified Intel/Windows/Linux assets.
 env:
-  RELEASE_TAG: v0.1.42
+  RELEASE_TAG: v0.1.43
 
 permissions:
   contents: read
   actions: read
 
 concurrency:
-  group: beta-release-recovery-v0.1.42
+  group: beta-release-recovery-v0.1.43
   cancel-in-progress: false
 
 jobs:
@@ -37,7 +37,7 @@ jobs:
       - name: Check out source
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          ref: v0.1.42
+          ref: v0.1.43
 
       - name: Install Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
@@ -170,6 +170,14 @@ jobs:
             }
 
           echo "APPLE_API_KEY_PATH=$api_key_path" >> "$GITHUB_ENV"
+
+      - name: Install isolated renderer compiler
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          compiler_root="$RUNNER_TEMP/msc2-renderer-compiler"
+          python3 -m pip install --disable-pip-version-check --no-deps --only-binary=:all: --upgrade --target "$compiler_root" ziglang==0.16.0
+          echo "MSC2_ZIG_BIN=$compiler_root/ziglang/zig" >> "$GITHUB_ENV"
 
       - name: Stage the matching Tauri agent payload
         if: matrix.platform != 'windows-x86_64'
@@ -358,7 +366,7 @@ jobs:
           if-no-files-found: error
 
   publish:
-    name: Publish v0.1.42
+    name: Publish v0.1.43
     if: needs.build.result == 'success'
     needs: [build]
     runs-on: ubuntu-latest
@@ -370,7 +378,7 @@ jobs:
       - name: Check out source
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          ref: v0.1.42
+          ref: v0.1.43
 
       - name: Wait for retained platform artifacts
         timeout-minutes: 30
@@ -378,10 +386,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -Eeuo pipefail
-          while [[ "$(gh run view 41551215711 --json status --jq .status)" != completed ]]; do
+          while [[ "$(gh run view 41602854205 --json status --jq .status)" != completed ]]; do
             sleep 30
           done
-          gh run view 41551215711 --json headSha,jobs > "$RUNNER_TEMP/retained-builds.json"
+          gh run view 41602854205 --json headSha,jobs > "$RUNNER_TEMP/retained-builds.json"
           python3 - "$RUNNER_TEMP/retained-builds.json" "$(git rev-parse HEAD)" <<'PYTHON'
           import json, sys
           result = json.load(open(sys.argv[1]))
@@ -395,7 +403,7 @@ jobs:
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           github-token: ${{ github.token }}
-          run-id: 41551215711
+          run-id: 41602854205
           pattern: beta-*
           path: target/release-downloads
           merge-multiple: false
@@ -506,8 +514,8 @@ jobs:
       - name: Publish GitHub prerelease
         uses: softprops/action-gh-release@da05d552573ad5aba039eaac05058a918a7bf631 # v2.2.2
         with:
-          tag_name: v0.1.42
-          name: MSC 2 v0.1.42
+          tag_name: v0.1.43
+          name: MSC 2 v0.1.43
           prerelease: true
           draft: false
           generate_release_notes: false

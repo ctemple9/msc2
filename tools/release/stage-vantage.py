@@ -38,14 +38,18 @@ def zig_binary() -> Path:
         cached = ROOT / "target" / "toolchains" / f"ziglang-{ZIG_VERSION}"
         name = "zig.exe" if os.name == "nt" else "zig"
         candidate = cached / "ziglang" / name
+        # Cached package directories can survive after the executable is lost.
+        # pip needs --upgrade to replace those directories rather than skip them.
         if not candidate.is_file():
             cached.mkdir(parents=True, exist_ok=True)
             subprocess.run(
                 [sys.executable, "-m", "pip", "install", "--disable-pip-version-check",
-                 "--no-deps", "--only-binary=:all:", "--target", str(cached),
+                 "--no-deps", "--only-binary=:all:", "--upgrade", "--target", str(cached),
                  f"ziglang=={ZIG_VERSION}"],
                 check=True,
             )
+        if not candidate.is_file():
+            raise SystemExit(f"Zig installation did not restore the compiler: {candidate}")
     actual = subprocess.check_output([str(candidate), "version"], text=True).strip()
     if actual != ZIG_VERSION:
         raise SystemExit(f"renderer requires Zig {ZIG_VERSION}; found {actual}")

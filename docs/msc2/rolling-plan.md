@@ -254,3 +254,15 @@ Detailed records for Findings 5, 9, 10, 15 and 26, plus P16.97, P16.101, and P16
 **Commit:** `P23.27: merge windows fixes and release v0.1.43`
 
 **Merge/release checks:** Preserved all three original local fix commits and remote main. Resolved API generation, Java editor comments, service-status/indicator and documentation conflicts; Java is D-044 because remote D-043 restores the TUI. Frontend type-check/build, locked Cargo metadata, formatting and agent Clippy passed with existing warnings. The TUI Java editor now also targets its named server. No test suites or full local renderer build ran. Windows CPU-target change is build-only and physical acceptance remains pending.
+
+
+### P23.28 - Recover Apple Silicon compiler installation for v0.1.43
+
+**Status:** Prepared; recovery publication requested, owner verification pending.
+**Files:** tools/release/stage-vantage.py; .github/workflows/release-recovery.yml; this plan.
+**What:** All original run 41602854205 jobs except Apple Silicon succeeded. Apple Silicon lost the cached Zig executable, then pip skipped replacing existing target directories, leaving no compiler. Repair future installations with --upgrade and a missing-compiler diagnostic. Adapt the existing build-only recovery to the immutable v0.1.43 tag and original run: install the exact Zig 0.16.0 wheel into an isolated runner-temp directory and supply the existing MSC2_ZIG_BIN override, then build only Apple Silicon. Retain source-SHA/job-success checks before reusing Intel/Windows/Linux artifacts, complete nine-package assembly, checksums, macOS signing/notarization/stapling and signed update metadata. No tag movement, test suites or additional release gates. Expected 15-25 minutes; Apple service availability remains external.
+**Verify:** `gh release view v0.1.43 --json url,isPrerelease,assets`
+**Batch:** P23.28 only.
+**Commit:** `P23.28: recover apple silicon renderer compiler`
+
+**Checks:** Reviewed every original platform conclusion and the failed compiler-install log. Python source syntax and recovery workflow references inspected; source checkout and retained artifacts must resolve to the same v0.1.43 commit. No tests run. Recovery overrides only the compiler location, not release application source.

@@ -1916,6 +1916,7 @@
     },
     "/v1/config/java-runtime": {
       "get": {
+        "parameters": [{"name": "serverId", "in": "query", "required": false, "description": "Explicit Java server ID. Omit for the host fallback. Empty executablePath clears the server override; java explicitly selects PATH.", "schema": {"type": "string"}}],
         "summary": "Get the global Java executable path override",
         "responses": {
           "200": {
@@ -1932,6 +1933,7 @@
         "x-permission-category": "none"
       },
       "post": {
+        "parameters": [{"name": "serverId", "in": "query", "required": false, "description": "Explicit Java server ID. Omit for the host fallback. Empty executablePath clears the server override; java explicitly selects PATH.", "schema": {"type": "string"}}],
         "summary": "Set the global Java executable path override",
         "requestBody": {
           "required": true,

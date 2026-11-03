@@ -1,28 +1,6 @@
 <script lang="ts">
-  // Ports PreferencesJavaSection (MSCSettingsSections.swift:4-108) --
-  // executable path, extra JVM flags, Detect
-  // (JavaRuntimeManager.detectInstalledJavaRuntimes ->
-  // JavaRuntimePickerSheet/-Row), Install Java... (JavaInstaller's
-  // Minecraft-framed major picker -> Adoptium Temurin download) -- as a
-  // Server Editor tab per the 2026-08-27 "Java tab decision" recorded at
-  // the top of rolling-plan.md: the value (`AppConfig.javaPath`/
-  // `extraFlags`) is genuinely host-wide, edited here only because a Java
-  // server is the moment it's actually relevant. Per Cameron's 2026-08-27
-  // review, the tab carries no host-wide-warning banner -- the path and
-  // flags sections speak for themselves.
-  //
-  // MSC 1's installer downloads a macOS .pkg for a human to double-click.
-  // MSC 2 installs Java itself (D-006's P7.1 addendum) via
-  // POST /v1/java-runtimes/install{major}, which always returns an
-  // operationId -- polled the same way VersionPickerSheet.svelte polls a
-  // version change. The four offered majors (25/21/17/8) are kept in the
-  // shared JavaInstallSheet so the same installer surface can be used during
-  // server creation recovery.
-  //
-  // The executable path and extra-flags fields save independently (each
-  // its own Field + Save), so `POST /v1/config/java-runtime` had to stop
-  // unconditionally applying `executablePath` (previously defaulting to
-  // "java" when absent) -- see that route's own comment.
+  // The editor targets this server explicitly, including when it is not
+  // active. Older servers inherit the host default until a path is saved.
   import { onMount } from 'svelte';
   import Sheet from '../../components/base/Sheet.svelte';
   import Card from '../../components/base/Card.svelte';
@@ -38,6 +16,9 @@
 
   export let api: ScreenApi | undefined = undefined;
   export let canControl = true;
+  export let serverId: string;
+
+  $: javaConfigPath = `${serverEditorPaths.javaConfig}?serverId=${encodeURIComponent(serverId)}`;
 
   let platformKind: PlatformKind | null = null;
   let currentPath = 'java';
@@ -65,20 +46,14 @@
     await loadConfig();
   });
 
-  // SetupIntro.svelte's probeJava/browseJava treat the bare 'java' sentinel
-  // (PATH lookup) as an empty executablePath on the wire -- mirrored here so
-  // this field and the setup wizard's field behave identically.
+  // Keep PATH selection explicit; an empty field restores the host default.
   function normalizeForSave(path: string): string {
     const trimmed = path.trim();
-    return trimmed === 'java' ? '' : trimmed;
+    return trimmed;
   }
 
   async function loadConfig(): Promise<void> {
-    const config = await call<Schema['JavaConfigResponseDTO']>(
-      api,
-      {},
-      serverEditorPaths.javaConfig,
-    );
+    const config = await call<Schema['JavaConfigResponseDTO']>(api, {}, javaConfigPath);
     currentPath = config.executablePath?.trim() || 'java';
     pathDraft = currentPath;
     currentFlags = config.extraFlags?.trim() ?? '';
@@ -87,11 +62,9 @@
 
   async function saveExecutablePath(path: string, successMessage: string): Promise<boolean> {
     try {
-      const result = await mutate<Schema['JavaConfigResponseDTO']>(
-        api,
-        serverEditorPaths.javaConfig,
-        { executablePath: normalizeForSave(path) },
-      );
+      const result = await mutate<Schema['JavaConfigResponseDTO']>(api, javaConfigPath, {
+        executablePath: normalizeForSave(path),
+      });
       currentPath = result.executablePath?.trim() || 'java';
       pathDraft = currentPath;
       notice = successMessage;
@@ -113,11 +86,9 @@
     if (!flagsDirty || savingFlags) return;
     savingFlags = true;
     try {
-      const result = await mutate<Schema['JavaConfigResponseDTO']>(
-        api,
-        serverEditorPaths.javaConfig,
-        { extraFlags: flagsDraft.trim() },
-      );
+      const result = await mutate<Schema['JavaConfigResponseDTO']>(api, javaConfigPath, {
+        extraFlags: flagsDraft.trim(),
+      });
       currentFlags = result.extraFlags?.trim() ?? '';
       flagsDraft = currentFlags;
       notice = 'Java arguments saved.';
@@ -225,7 +196,10 @@
         onclick={() => (showInstallPicker = true)}>Install Java…</Button
       >
     </div>
-    <p class="hint">Java servers require JDK 21 or later.</p>
+    <p class="hint">
+      Used by this server. Leave the path blank to use the host default, or enter java to use PATH.
+      The required Java version depends on the Minecraft version.
+    </p>
   </section>
 
   <section class="zone">
@@ -245,8 +219,8 @@
       </div>
     </Card>
     <p class="hint">
-      Optional flags passed to Java when starting servers. Leave blank unless you know what you're
-      doing (e.g. GC tuning flags).
+      Optional flags passed to Java when starting this server. Leave blank unless you know what
+      you're doing (e.g. GC tuning flags).
     </p>
   </section>
 </div>

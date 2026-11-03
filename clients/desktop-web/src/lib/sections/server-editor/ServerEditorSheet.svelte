@@ -8,7 +8,7 @@
   //
   // A third tab, Java, was added by P12.12a (see rolling-plan.md's
   // "Java tab decision" note) -- shown only for Java servers, since the
-  // host-wide Java executable it edits is only relevant there.
+  // server-specific Java executable it edits is only relevant there.
   import Sheet from '../../components/base/Sheet.svelte';
   import SegmentedControl from '../../components/base/SegmentedControl.svelte';
   import GeneralTab from './GeneralTab.svelte';
@@ -114,7 +114,7 @@
           onRequestActivate={requestActivate}
         />
       {:else}
-        <JavaTab {api} {canControl} />
+        <JavaTab {api} {canControl} serverId={currentServer.id} />
       {/if}
     </div>
   </div>

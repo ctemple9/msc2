@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: 4e125d3c8563b6d7d50a2c6a71795389d390937da7ab600f1c634cad1dc19328
+// Contract SHA-256: 7d34d902ee27ff5c9246e2d4f591fd0e2926c85708d15f971a73b11043f768da
 
 export interface paths {
   '/v1/active-server': {
@@ -1763,7 +1763,10 @@ export interface paths {
     /** Get the global Java executable path override */
     get: {
       parameters: {
-        query?: never;
+        query?: {
+          /** @description Explicit Java server ID. Omit for the host fallback. Empty executablePath clears the server override; java explicitly selects PATH. */
+          serverId?: string;
+        };
         header?: never;
         path?: never;
         cookie?: never;
@@ -1785,7 +1788,10 @@ export interface paths {
     /** Set the global Java executable path override */
     post: {
       parameters: {
-        query?: never;
+        query?: {
+          /** @description Explicit Java server ID. Omit for the host fallback. Empty executablePath clears the server override; java explicitly selects PATH. */
+          serverId?: string;
+        };
         header?: never;
         path?: never;
         cookie?: never;

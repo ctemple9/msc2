@@ -3,20 +3,10 @@ import type { Schema, ScreenApi } from '../shared/types';
 // Real, frozen routes this sheet is built against. `rename`/`delete`/`eula`
 // take an explicit serverId (docs/msc2/api-contract/openapi.json), so they
 // work on any server card regardless of which one is currently active.
-// Everything else here -- RAM, broadcast, Playit, and DuckDNS --
-// has no serverId parameter at all: crates/msc-agent/src/routes/networking.rs
-// and routes/servers.rs's `/v1/config/ram` both resolve a single agent-wide
-// `state.active_server()`, so a mutation always lands on whichever server is
-// currently active, never the target this sheet was opened for if that
-// differs. GeneralTab/BroadcastTab gate those specific blocks on `isActive`
-// and offer the same "Set as Active" action ManageSheet's row menu already
-// exposes, rather than silently mutating the wrong server or switching the
-// active server behind the caller's back.
-//
-// The three java* routes below are a third category: no serverId, but also
-// no active-server resolution -- `AppConfig.javaPath` is host-wide config,
-// the same value regardless of which server (if any) is active. JavaTab
-// reads/writes it unconditionally, with no `isActive` gate.
+// Active-server-only routes below are gated by their callers. Java runtime
+// discovery/install remains host-owned; JavaTab adds an explicit serverId to
+// javaConfig so editing another server cannot change the active server or
+// the host default (D-043).
 export const serverEditorPaths = {
   rename: '/v1/servers/rename',
   xboxBroadcast: '/v1/servers/xbox-broadcast',

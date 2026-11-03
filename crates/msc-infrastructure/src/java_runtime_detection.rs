@@ -151,6 +151,16 @@ fn java_executable_in_home(fs: &dyn FileSystem, home: &Path) -> Option<PathBuf> 
         })
 }
 
+/// Windows accepts either separator and ignores path case. Keep the display
+/// path intact while collapsing equivalent discovery roots.
+pub fn java_executable_identity(path: &str) -> String {
+    if cfg!(windows) || (path.as_bytes().get(1) == Some(&b':')) {
+        path.replace('/', "\\").to_lowercase()
+    } else {
+        path.to_owned()
+    }
+}
+
 fn insert_runtime(
     fs: &dyn FileSystem,
     runtimes: &mut BTreeMap<String, DetectedJavaRuntime>,
@@ -160,13 +170,14 @@ fn insert_runtime(
         return;
     };
     let executable_path = java_path.to_string_lossy().into_owned();
-    if runtimes.contains_key(&executable_path) {
+    let identity = java_executable_identity(&executable_path);
+    if runtimes.contains_key(&identity) {
         return;
     }
     let home_path = home.to_string_lossy().into_owned();
     let major_version = infer_java_major_version(&home_path);
     runtimes.insert(
-        executable_path.clone(),
+        identity,
         DetectedJavaRuntime {
             name: java_runtime_display_name(home),
             executable_path,

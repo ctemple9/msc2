@@ -220,7 +220,8 @@ pub fn recommended_option(minecraft_version: Option<&str>) -> JavaInstallOption 
 /// (`AppViewModel+ServerCreation.swift:144`): a create call's explicit
 /// per-call override wins over the app-wide default. MSC 1 has no
 /// persisted per-server java path — this override is scoped to one create
-/// call, not saved for later starts of that server.
+/// call, not saved for later starts of that server. MSC 2 D-043 now saves
+/// an explicit create-time selection on the created server.
 pub fn resolve_create_time_java_path<'a>(
     create_request_java_path: Option<&'a str>,
     global_config_java_path: &'a str,

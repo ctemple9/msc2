@@ -522,6 +522,9 @@ pub struct ConfigServer {
     pub bedrock_docker_image: Option<String>,
     pub bedrock_version: Option<String>,
 
+    /// Missing on older servers: inherit the host default.
+    pub java_path: Option<String>,
+    pub java_extra_flags: Option<String>,
     pub java_flavor: JavaServerFlavor,
     pub minecraft_version: Option<String>,
     pub loader_version: Option<String>,
@@ -599,6 +602,8 @@ impl ConfigServer {
             bedrock_docker_image: None,
             bedrock_version: None,
 
+            java_path: None,
+            java_extra_flags: None,
             java_flavor: JavaServerFlavor::Paper,
             minecraft_version: None,
             loader_version: None,
@@ -782,6 +787,8 @@ impl ConfigServer {
             server_type,
             bedrock_docker_image,
             bedrock_version,
+            java_path: opt_str(v, "java_path")?,
+            java_extra_flags: opt_str(v, "java_extra_flags")?,
             java_flavor,
             minecraft_version,
             loader_version,
@@ -893,6 +900,8 @@ impl ConfigServer {
         insert_str(&mut m, "server_type", self.server_type.raw_value());
         insert_opt_str(&mut m, "bedrock_docker_image", &self.bedrock_docker_image);
 
+        insert_opt_str(&mut m, "java_path", &self.java_path);
+        insert_opt_str(&mut m, "java_extra_flags", &self.java_extra_flags);
         insert_str(&mut m, "java_flavor", self.java_flavor.raw_value());
         insert_opt_str(&mut m, "minecraft_version", &self.minecraft_version);
         insert_opt_str(&mut m, "loader_version", &self.loader_version);

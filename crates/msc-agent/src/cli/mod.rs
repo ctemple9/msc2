@@ -772,10 +772,17 @@ pub enum VersionCommand {
 pub enum JavaCommand {
     /// List Java runtimes detected on this host.
     List,
-    /// Show the global Java executable path override.
-    Get,
-    /// Set the global Java executable path override.
-    Set { path: String },
+    /// Show a server's Java selection, or the host default without --server.
+    Get {
+        #[arg(long)]
+        server: Option<String>,
+    },
+    /// Set a server's Java selection, or the host default without --server.
+    Set {
+        path: String,
+        #[arg(long)]
+        server: Option<String>,
+    },
     /// Install a Java runtime this agent manages itself. Always
     /// operation-backed (no synchronous variant).
     Install {
@@ -4640,6 +4647,16 @@ fn print_versions(response: &VersionsResponseDto) {
     }
 }
 
+fn java_config_path(server_id: Option<&str>) -> String {
+    match server_id {
+        Some(id) => format!(
+            "/v1/config/java-runtime?serverId={}",
+            encode_uri_component(id)
+        ),
+        None => "/v1/config/java-runtime".to_owned(),
+    }
+}
+
 async fn run_java(common: CommonArgs, command: JavaCommand) -> Result<(), CliError> {
     let client = ApiClient::connect_local().await?;
     match command {
@@ -4663,9 +4680,9 @@ async fn run_java(common: CommonArgs, command: JavaCommand) -> Result<(), CliErr
             }
             Ok(())
         }
-        JavaCommand::Get => {
-            let response: JavaConfigResponseDto =
-                client.get_json("/v1/config/java-runtime").await?;
+        JavaCommand::Get { server } => {
+            let path = java_config_path(server.as_deref());
+            let response: JavaConfigResponseDto = client.get_json(&path).await?;
             if common.json {
                 print_json(&response)?;
             } else {
@@ -4676,13 +4693,13 @@ async fn run_java(common: CommonArgs, command: JavaCommand) -> Result<(), CliErr
             }
             Ok(())
         }
-        JavaCommand::Set { path } => {
+        JavaCommand::Set { path, server } => {
+            let endpoint = java_config_path(server.as_deref());
             let body = JavaConfigSetRequestDto {
                 executable_path: Some(path),
                 extra_flags: None,
             };
-            let response: JavaConfigResponseDto =
-                client.post_json("/v1/config/java-runtime", &body).await?;
+            let response: JavaConfigResponseDto = client.post_json(&endpoint, &body).await?;
             if common.json {
                 print_json(&response)?;
             } else {

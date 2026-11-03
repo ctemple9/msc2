@@ -649,10 +649,14 @@ pub async fn create(
     let enable_playit = body.enable_playit.unwrap_or(false);
     let enable_voice_chat = body.enable_voice_chat.unwrap_or(false);
     let enable_xbox_broadcast = body.enable_xbox_broadcast.unwrap_or(false);
-    let java_path = body
+    let java_path_override = body
         .java_path
+        .as_deref()
+        .map(str::trim)
+        .filter(|path| !path.is_empty())
+        .map(str::to_owned);
+    let java_path = java_path_override
         .clone()
-        .filter(|p| !p.trim().is_empty())
         .unwrap_or_else(|| cfg.java_path.clone());
     let accept_eula = body.accept_eula.unwrap_or(false);
     let check_addon_updates = body.check_addon_updates.unwrap_or(false);
@@ -686,6 +690,7 @@ pub async fn create(
                 initial_world_profile,
                 default_banner_color_hex,
                 java_path,
+                java_path_override,
                 accept_eula,
                 check_addon_updates,
                 home_dir,
@@ -851,6 +856,7 @@ fn run_create_server(
     initial_world_profile: Option<WorldProfile>,
     default_banner_color_hex: String,
     java_path: String,
+    java_path_override: Option<String>,
     accept_eula: bool,
     check_addon_updates: bool,
     home_dir: PathBuf,
@@ -866,10 +872,8 @@ fn run_create_server(
         );
         return;
     }
-    // The selected runtime belongs to this create operation only. Do not
-    // overwrite AppConfig.java_path here: another server may still need the
-    // host's existing default, and Java selection is now explicit in the
-    // creation flow.
+    // Persist this operation's runtime on the new server, without changing
+    // the host default used by other servers.
     let now = iso8601_now();
     let request = NewServerRequest {
         name: &safe_name,
@@ -963,6 +967,7 @@ fn run_create_server(
                 let pack_summary = pack_summary(&created_from_pack.pack_report);
                 let mut created = created_from_pack.created;
                 let created_server_id = created.config.id.clone();
+                created.config.java_path = java_path_override.clone();
                 created.config.check_addon_updates = check_addon_updates;
                 if !unresolved_files.is_empty() {
                     pending_modpack_imports.insert(
@@ -1060,6 +1065,7 @@ fn run_create_server(
             }
 
             let java_compatibility_warning = created.java_compatibility_warning.clone();
+            created.config.java_path = java_path_override.clone();
             created.config.check_addon_updates = check_addon_updates;
             finish_created_server(
                 &state,

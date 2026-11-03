@@ -926,3 +926,8 @@ family.
 ### Phase 18 integrated disposition (2026-10-02)
 
 The feasibility and provisional guardrails above are retained as historical design inputs. Current implementation/owner observations, saved-terrain and player freshness distinctions, tile residency bounds, measured local costs and deferred compatibility checks are consolidated in [Phase 18 map acceptance](phase18-map-acceptance.md). Live BDS map capture now uses the proven console hold/query/copy/resume boundary against a private snapshot. The configured 512 MiB tile budget is not a measured whole-process RSS limit. Standard dimensions have representative evidence; missing saved Nether chunks and ungenerated ATM10 custom dimensions remain named limits. Cameron directed all Phase 18 steps to Done; independent gate review and exact release-artifact acceptance are not implied.
+
+
+### Server Java selection (D-043, owner amendment 2026-11-03)
+
+A ConfigServer may persist java_path and java_extra_flags. Missing values inherit the corresponding AppConfig defaults for backward compatibility. Creation saves an explicit Java selection; normal starts and installer-based version changes resolve the server selection first. The server editor supplies an explicit serverId query to GET/POST /v1/config/java-runtime; omitting serverId retains host-default access. An empty server executable override restores inheritance, while java explicitly uses PATH. Native terrain renderers are independent executables and do not use this Java setting.

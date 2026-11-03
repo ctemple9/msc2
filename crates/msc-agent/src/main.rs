@@ -438,7 +438,8 @@ fn build_app_with_auth_and_worlds(
         )
         .route(
             "/config/java-runtime",
-            get(routes::versions::get_java_config).post(routes::versions::set_java_config),
+            get(routes::versions::get_scoped_java_config)
+                .post(routes::versions::set_scoped_java_config),
         )
         .route(
             "/config/servers-root",

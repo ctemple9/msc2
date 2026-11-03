@@ -156,8 +156,8 @@ For each user task, terminal output must identify the target and result; `--json
 | POST `/v1/backups/config` | Update auto-backup configuration | Existing: `msc backup config` | `settings` | active server / capability |
 | GET `/v1/config/host-setup` | Get whether one-time setup is complete for this agent host | Existing: `msc config host-setup` | `none` | host |
 | POST `/v1/config/host-setup/complete` | Mark one-time setup complete for this agent host | Existing: `msc config complete-host-setup` | `settings` | host |
-| GET `/v1/config/java-runtime` | Get the global Java executable path override | Existing: `msc java get/set` | `none` | host; Java |
-| POST `/v1/config/java-runtime` | Set the global Java executable path override | Existing: `msc java get/set` | `settings` | host; Java |
+| GET `/v1/config/java-runtime` | Get a server Java executable selection or the host default | Existing: `msc java get/set` | `none` | host; Java |
+| POST `/v1/config/java-runtime` | Set a server Java executable selection or the host default | Existing: `msc java get/set` | `settings` | host; Java |
 | GET `/v1/config/servers-root` | Get the folder where this agent stores servers | Existing: `msc config servers-root` | `none` | host |
 | POST `/v1/config/servers-root` | Set the folder where this agent stores servers | Existing: `msc config set-servers-root` | `settings` | host |
 | GET `/v1/config/curseforge` | Get whether this agent has a CurseForge API key | Existing: `msc config curseforge` | `none` | host |
@@ -344,3 +344,5 @@ its selected local or remote agent.
 |---|---|---|---|
 | POST `/v1/host/storage/preview` | `msc storage preview` | admin | host |
 | POST `/v1/host/storage/cleanup` | `msc storage cleanup --preview-token <TOKEN>` | admin | host |
+
+Java selection amendment (D-043, 2026-11-03): `msc java get --server <id>` and `msc java set <path> --server <id>` target that server explicitly; omit `--server` to read/change the host fallback. An empty server path restores inheritance.

@@ -22,6 +22,20 @@ mod support;
 use msc_domain::app_config_schema::{AppConfig, ConfigServer, RemoteApiSharedAccessEntry};
 use support::Fixture;
 
+#[test]
+fn server_java_override_survives_config_round_trip() {
+    let mut server = ConfigServer::new("a", "A", "/a", "/a/paper.jar", 1.0, 2.0);
+    server.java_path = Some("C:/java25/bin/java.exe".into());
+    server.java_extra_flags = Some("-XX:+UseG1GC".into());
+    let decoded = ConfigServer::decode(&server.encode()).unwrap();
+    assert_eq!(decoded.java_path, server.java_path);
+    assert_eq!(decoded.java_extra_flags, server.java_extra_flags);
+    let mut legacy = server.encode();
+    legacy.as_object_mut().unwrap().remove("java_path");
+    legacy.as_object_mut().unwrap().remove("java_extra_flags");
+    assert_eq!(ConfigServer::decode(&legacy).unwrap().java_path, None);
+}
+
 fn load(case: &str) -> Fixture {
     support::load(support::fixtures_dir().join(format!("config-roundtrip/{case}.json")))
 }

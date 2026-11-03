@@ -2,6 +2,21 @@
 
 Implemented steps awaiting verification were marked Done and moved to [the archive](rolling-plan-archive.md) at Cameron's direction on 2026-10-08. Planned work, pending publications and independent phase acceptance remain below.
 
+### P12.252 — Persist server Java selections and deduplicate Windows runtimes
+
+**Status:** Implemented; awaiting Cameron's verification. Owner approved per-server Java ownership on 2026-11-03 after Java 25 selected during Paper creation reverted to the host's Java 21.
+**Files:** Server configuration schema and focused round-trip test; agent creation, lifecycle, version/config routes, main routing and CLI; runtime detection and focused identity test; server Java editor and route-model comments; API contract/generated client; decision D-043, engineering/CLI docs and this plan.
+**What:** Persist explicit creation-time Java selections per server. Resolve saved server Java before the host fallback for launches and installer-based version changes; read the latest saved selection at start so a settings edit does not depend on restarting MSC. Scope the Java editor's executable and arguments to its explicit server ID. Empty server path restores host inheritance; explicit java means PATH. Keep unscoped API/CLI access for the host default and add msc java get/set --server <id>. Preserve old configurations through missing optional fields; do not invent historical server selections. Compare Windows executable identities without separator/case differences while preserving Unix path case and displayed executable paths. Owner decision D-043 supersedes previous host-wide editor notes. Read antiAIslop.md; retain the existing editor layout.
+**Verify:** `cargo clippy -p msc-agent --bin msc --no-deps`
+**Batch:** P12.252 only.
+**Commit:** `P12.252: persist server java selections`
+
+**Essential tests:** Three controlled cases protect server-override serialization/backward compatibility, isolated server settings and reset-to-inheritance/unknown-ID refusal, and Windows path identity with Unix case preservation. These cover concrete bugs without live Java, downloads, timers or physical-platform assumptions; expected combined runtime under one second. Added to existing test files; no test suites executed.
+
+**Checks:** Frontend type-check and production build; Rust formatting and agent Clippy; domain configuration and infrastructure detection regression-source compilation. Existing warnings remain outside changed code. An exploratory broad agent test-source compilation encountered unrelated stale CommonArgs fields in tests/cli_service.rs; this is not a passing suite claim. The targeted agent test-profile type-check passed. No installation, release, or live Java configuration changes performed.
+
+**Renderer diagnosis (owner-authorized single startup check):** The installed Windows Vantage 0.15.1 crashed using a temporary world assembled from the existing prepared region cache and a copy of level.dat; no live world writes. Exit 3221225501 (0xC000001D, illegal instruction), no stderr/stdout. Windows Application events show the same fault offset 0x1766da for the owner's attempts at 01:54:40/01:54:54 and the diagnostic at 02:00:44. At that RVA the installed PE contains bytes 0f 38 cc ee (SHA256MSG1), pointing to an incompatible CPU instruction in the native Windows renderer; this is independent of the server JDK. The diagnostic folder remains at %TEMP%/msc2-renderer-diagnostic-pw2new2s. Renderer source, arguments, binaries and all platform release pins remain unchanged in this Java fix. macOS/Linux renderer execution was not verified on this Windows host. A compatible Windows renderer build is still required; this step does not claim to repair that separate native crash. Opcode reference: Intel's SHA Extension Definitions, https://www.intel.com/content/dam/develop/external/us/en/documents/intel-sha-extensions-white-paper-402097.pdf.
+
 ### P12.251 — Explain cleanup after incomplete Playit setup
 
 **Status:** Implemented; awaiting Cameron's verification. Owner authorized this recovery message after reviewing the Windows first-start failure records.

@@ -478,7 +478,7 @@ pub async fn change_version(
     };
 
     let cfg = state.app_config_snapshot();
-    let java_path = cfg.java_path.clone();
+    let java_path = server.java_path.clone().unwrap_or(cfg.java_path.clone());
     let version_id = body.version_id.clone();
     let loader_version = body.loader_version.clone();
     let server_dir = PathBuf::from(&server.server_dir);
@@ -801,10 +801,10 @@ pub async fn java_runtimes(State(state): State<LifecycleRoutesState>) -> Respons
         // A manually selected executable may live outside the standard JDK
         // folders. Keep it in the response so the same real `java -version`
         // probe used for discovered runtimes can verify the user's choice.
-        if !detected
-            .iter()
-            .any(|runtime| runtime.executable_path == configured_path)
-        {
+        if !detected.iter().any(|runtime| {
+            java_runtime_detection::java_executable_identity(&runtime.executable_path)
+                == java_runtime_detection::java_executable_identity(&configured_path)
+        }) {
             let configured = Path::new(&configured_path);
             detected.push(DetectedJavaRuntime {
                 name: "Configured Java".to_string(),
@@ -868,6 +868,100 @@ fn detected_runtime_to_dto(runtime: DetectedJavaRuntime) -> JavaRuntimeDto {
 }
 
 // ---------- GET/POST /v1/config/java-runtime ----------
+
+#[derive(Default, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct JavaConfigQuery {
+    pub server_id: Option<String>,
+}
+
+pub async fn get_scoped_java_config(
+    State(state): State<LifecycleRoutesState>,
+    Query(query): Query<JavaConfigQuery>,
+) -> Response {
+    let Some(id) = query.server_id else {
+        return get_java_config(State(state)).await;
+    };
+    let cfg = state.app_config_snapshot();
+    let Some(server) = cfg.servers.iter().find(|server| server.id == id) else {
+        return error_response(
+            StatusCode::NOT_FOUND,
+            "server_not_found",
+            "Server not found.",
+        );
+    };
+    if server.server_type != ServerType::Java {
+        return invalid_body("not_supported", "Java settings require a Java server.");
+    }
+    axum::Json(JavaConfigResponseDto {
+        executable_path: Some(server.java_path.clone().unwrap_or(cfg.java_path)),
+        extra_flags: Some(server.java_extra_flags.clone().unwrap_or(cfg.extra_flags)),
+    })
+    .into_response()
+}
+
+pub async fn set_scoped_java_config(
+    State(state): State<LifecycleRoutesState>,
+    Query(query): Query<JavaConfigQuery>,
+    Extension(credential): Extension<AuthenticatedCredential>,
+    body: Result<axum::Json<JavaConfigSetRequestDto>, JsonRejection>,
+) -> Response {
+    let Some(id) = query.server_id else {
+        return set_java_config(State(state), Extension(credential), body).await;
+    };
+    if let Some(response) = require_permission(&credential, PermissionCategoryDto::Settings) {
+        return response;
+    }
+    let axum::Json(body) = match body {
+        Ok(body) => body,
+        Err(_) => return invalid_body("invalid_json", "Request body must be valid JSON."),
+    };
+    let result = state.try_mutate_config(|config| {
+        let server = config
+            .servers
+            .iter_mut()
+            .find(|server| server.id == id)
+            .ok_or((
+                StatusCode::NOT_FOUND,
+                "server_not_found",
+                "Server not found.",
+            ))?;
+        if server.server_type != ServerType::Java {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                "not_supported",
+                "Java settings require a Java server.",
+            ));
+        }
+        if let Some(path) = body.executable_path.as_deref() {
+            // Empty means inherit; explicit `java` means use PATH for this server.
+            server.java_path = (!path.trim().is_empty()).then(|| path.trim().to_owned());
+        }
+        if let Some(flags) = body.extra_flags.as_deref() {
+            server.java_extra_flags = Some(flags.trim().to_owned());
+        }
+        Ok(())
+    });
+    match result {
+        Ok(()) => {
+            get_scoped_java_config(
+                State(state),
+                Query(JavaConfigQuery {
+                    server_id: Some(id),
+                }),
+            )
+            .await
+        }
+        Err(TryMutateError::Domain((status, code, message))) => {
+            error_response(status, code, message)
+        }
+        Err(TryMutateError::Save(error)) => error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "set_failed",
+            &error.to_string(),
+        ),
+    }
+}
 
 pub async fn get_java_config(State(state): State<LifecycleRoutesState>) -> Response {
     let cfg = state.app_config_snapshot();
@@ -1342,6 +1436,51 @@ mod tests {
             .await
             .unwrap();
         String::from_utf8(bytes.to_vec()).unwrap()
+    }
+
+    #[tokio::test]
+    async fn server_java_selection_is_isolated_and_can_inherit_again() {
+        use msc_domain::app_config_schema::ConfigServer;
+        let state = route_state();
+        state
+            .try_mutate_config(|config| {
+                config.java_path = "host-java".into();
+                config.servers = vec![
+                    ConfigServer::new("a", "A", "/a", "/a/paper.jar", 1.0, 2.0),
+                    ConfigServer::new("b", "B", "/b", "/b/paper.jar", 1.0, 2.0),
+                ];
+                Ok::<_, ()>(())
+            })
+            .unwrap();
+        for (path, expected) in [("java25", "java25"), ("", "host-java")] {
+            let response = set_scoped_java_config(
+                State(state.clone()),
+                Query(JavaConfigQuery {
+                    server_id: Some("a".into()),
+                }),
+                Extension(admin_credential()),
+                Ok(axum::Json(JavaConfigSetRequestDto {
+                    executable_path: Some(path.into()),
+                    extra_flags: None,
+                })),
+            )
+            .await;
+            assert_eq!(response.status(), StatusCode::OK);
+            let body: serde_json::Value =
+                serde_json::from_str(&response_body(response).await).unwrap();
+            assert_eq!(body["executablePath"], expected);
+            let config = state.app_config_snapshot();
+            assert_eq!(config.java_path, "host-java");
+            assert_eq!(config.servers[1].java_path, None);
+        }
+        let response = get_scoped_java_config(
+            State(state),
+            Query(JavaConfigQuery {
+                server_id: Some("missing".into()),
+            }),
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
     }
 
     #[tokio::test]

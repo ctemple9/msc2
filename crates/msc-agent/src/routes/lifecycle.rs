@@ -2033,17 +2033,20 @@ impl LifecycleRoutesState {
             Some(active.as_str().to_string()),
             "Starting Java server.",
         )?;
-        // P7.31: resolve the effective Java executable and run the
-        // required-major guard before spawning it, the start-time
-        // counterpart to `create_install_step_server`'s own create-time
-        // guard call. Global `cfg.java_path` only -- MSC 1 has no
-        // persisted per-server override to resolve here (see
-        // `msc_domain::java_runtime::resolve_create_time_java_path`'s own
-        // doc); `MSC2_JAVA_PATH` stays a same-priority override on top of
-        // it so `tools/phase5/cli-smoke.sh`'s fake-java test hook keeps
-        // working unchanged.
-        let configured_java_path = self.app_config_snapshot().java_path;
+        // Old configurations inherit the host default; explicit selections
+        // remain attached to the server across agent restarts.
+        let cfg = self.app_config_snapshot();
+        let saved = cfg.servers.iter().find(|server| server.id == registered.id);
+        let configured_java_path = saved
+            .and_then(|server| server.java_path.clone())
+            .unwrap_or(cfg.java_path);
         let java_path = std::env::var("MSC2_JAVA_PATH").unwrap_or(configured_java_path);
+        let mut registered = registered;
+        registered.java_extra_flags = Some(
+            saved
+                .and_then(|server| server.java_extra_flags.clone())
+                .unwrap_or(cfg.extra_flags),
+        );
         let probe =
             java_runtime_detection::run_java_version_probe(self.process_supervisor(), &java_path);
         if let Err(unusable) = msc_domain::java_runtime::evaluate_java_runtime_guard(
@@ -4227,7 +4230,11 @@ fn build_launch_request(
             ))
         })?;
 
-        let mut arguments = jvm_flags(registered.min_ram_gb, registered.max_ram_gb, "");
+        let mut arguments = jvm_flags(
+            registered.min_ram_gb,
+            registered.max_ram_gb,
+            registered.java_extra_flags.as_deref().unwrap_or(""),
+        );
         arguments.push(format!("@{args_file}"));
         arguments.push("nogui".to_string());
         if java_bonus_chest(registered) {
@@ -4254,7 +4261,7 @@ fn build_launch_request(
         jar_path,
         registered.min_ram_gb,
         registered.max_ram_gb,
-        "",
+        registered.java_extra_flags.as_deref().unwrap_or(""),
     );
     let mut command = build_paper_launch_command(&StdJavaLaunchFileSystem, &request)
         .map_err(|error| LifecycleError::Process(error.to_string()))?;

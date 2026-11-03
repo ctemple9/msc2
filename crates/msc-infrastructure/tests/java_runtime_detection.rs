@@ -24,6 +24,21 @@ use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 
+#[test]
+fn windows_java_paths_share_an_identity_across_separator_and_case_variants() {
+    use msc_infrastructure::java_runtime_detection::java_executable_identity;
+    assert_eq!(
+        java_executable_identity("C:/Users/Cameron/java25/bin/java.exe"),
+        java_executable_identity(r"c:\Users\Cameron\java25\bin\java.exe")
+    );
+    if !cfg!(windows) {
+        assert_ne!(
+            java_executable_identity("/opt/Java/bin/java"),
+            java_executable_identity("/opt/java/bin/java")
+        );
+    }
+}
+
 struct Fixture {
     input: Value,
     expected: Value,

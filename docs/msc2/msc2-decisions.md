@@ -70,6 +70,7 @@ Every entry records **Origin** (where the idea came from), **Approved by**, and 
 | D-040 | Host-local CLI access and service control | **Approved** | 2026-09-29 |
 | D-041 | CLI task coverage and two intentional API-only tasks | **Approved** | 2026-09-29 |
 | D-042 | Retire modded map repair and private client capture | **Approved** | 2026-10-06 |
+| D-043 | Server-specific Java selection; host default is fallback only | **Approved** | 2026-11-03 |
 
 ---
 
@@ -1361,3 +1362,14 @@ Recorded because each produced a confident wrong answer, and each is the kind of
 | 1.3 | 2026-07-29 | Third Codex review: symbol-ledger contradiction removed everywhere; Phase 0 scoped to what MSC 1 can demonstrate and split from per-domain characterization; product permissions description corrected to name scoped tokens; D-024 (power management, two policies) and D-025 (service identity and privilege boundaries, Open) added; unmeasured memory figure and the "can never drift" claim softened. |
 | 1.2 | 2026-07-29 | Second Codex review: D-011/D-021/D-023 promoted to Approved with `msc2.md` as origin; D-006 restated as baseline + extension + correction; symbol-ledger overclaim corrected; LaunchDaemon and headless sidecar specified; capability-exception path tightened. |
 | 1.1 | 2026-07-29 | Codex review incorporated. Added Origin / Approved by / Approval date to all entries and split *Approved* from *Proposed*. Corrected D-019 (MSC 1's permission model is richer than stated). Expanded D-011 to tri-platform headless. Expanded D-012 with the six unspecified auth areas. Corrected the "no cloud" principle in D-015. Removed sequencing from D-016 to `msc2-port-plan.md` and relaxed the extraction rule. Added D-021 (resource efficiency), D-022 (separate compatibility matrices), D-023 (capability matrix). |
+
+
+## D-043 — Java selection belongs to each server
+
+**Status:** Approved · **Origin:** Owner · **Approved by:** Cameron Temple · **Date:** 2026-11-03
+
+**Decision.** Java selected during server creation is saved on that server and used for subsequent starts and installer-based version changes. The server editor changes the named server, even when another server is active. The host Java setting remains only a default for servers without an explicit selection. Existing configurations without a per-server selection retain their previous host fallback; do not guess a historical creation-time choice. Server Java arguments are saved alongside its executable selection. A blank server executable override restores inheritance; an explicit `java` uses PATH.
+
+**Reason.** The owner observed that creating Paper with downloaded Java 25 silently reverted to the host's Java 21. The create-only selection and host-wide Java editor do not express the intended server-specific ownership. This owner amendment supersedes earlier host-wide Java editor notes.
+
+**API/CLI.** `GET/POST /v1/config/java-runtime?serverId=<id>` targets a specific Java server. Omitting the ID retains the host-default contract. `msc java get/set --server <id>` provides the same explicit scope.

@@ -28,15 +28,36 @@
   const minimumSupportedJavaMajor = 8;
 
   const pageMeta = [
-    { title: 'First-time Setup', subtitle: 'Let’s get Minecraft Server Controller configured.' },
-    { title: 'Server Type', subtitle: 'Choose which platform you’ll host servers on.' },
-    { title: 'Server Setup', subtitle: 'Where your servers live and how to run them.' },
-    { title: 'playit.gg', subtitle: 'Optional · Let friends join without port forwarding.' },
+    {
+      title: 'First-time Setup',
+      subtitle: 'Let’s get Minecraft Server Controller configured.',
+      optional: false,
+    },
+    {
+      title: 'Server Type',
+      subtitle: 'Choose which platform you’ll host servers on.',
+      optional: false,
+    },
+    {
+      title: 'Server Setup',
+      subtitle: 'Where your servers live and how to run them.',
+      optional: false,
+    },
+    {
+      title: 'playit.gg',
+      subtitle: 'Let friends join without port forwarding.',
+      optional: true,
+    },
     {
       title: 'Xbox Broadcast',
-      subtitle: 'Optional · Console players see your server in Friends.',
+      subtitle: 'Console players see your server in Friends.',
+      optional: true,
     },
-    { title: 'You’re All Set', subtitle: 'Create your first server to get started.' },
+    {
+      title: 'You’re All Set',
+      subtitle: 'Create your first server to get started.',
+      optional: false,
+    },
   ] as const;
 
   let setupPage = 0;
@@ -391,7 +412,11 @@
         {setupPage === 5 ? 'Setup complete' : `Step ${setupPage + 1} of 6`}
       </p>
       <h2 id={headingId} class="setup-title">{pageMeta[setupPage].title}</h2>
-      <p class="setup-subtitle">{pageMeta[setupPage].subtitle}</p>
+      <p class="setup-subtitle">
+        {#if pageMeta[setupPage].optional}
+          <span class="optional-label">Optional</span><span aria-hidden="true"> · </span>
+        {/if}{pageMeta[setupPage].subtitle}
+      </p>
     </header>
   {:else}
     <h3 id={headingId} class="setup-title compact-title">
@@ -417,16 +442,25 @@
           <p class="msc2-type-overline">What you’ll do</p>
           <ol class="preview-steps">
             <li>
-              <strong>Choose a platform</strong>
-              <span>Pick Java or Bedrock for your servers.</span>
+              <strong>Choose what to host</strong>
+              <span>
+                Select Java, Bedrock, or both. Bedrock is available when the selected host can run
+                it.
+              </span>
             </li>
             <li>
-              <strong>Set up the host</strong>
-              <span>Choose where servers live and how they run.</span>
+              <strong>Set up your host</strong>
+              <span>
+                Choose where your server files live. For Java, select an installed runtime or install
+                one. Bedrock uses MSC’s built-in runtime.
+              </span>
             </li>
             <li>
-              <strong>Review access</strong>
-              <span>Look over optional playit.gg and Xbox Broadcast setup.</span>
+              <strong>Review ways for players to join</strong>
+              <span>
+                playit.gg can let friends join without port forwarding. Xbox Broadcast helps console
+                players find your server. Both are optional and can be set up later.
+              </span>
             </li>
           </ol>
           <p class="hint">You can change these choices later.</p>
@@ -656,9 +690,15 @@
             onclick={(event) => openExternalLink(event, 'https://playit.gg/login')}
             >Sign up at playit.gg →</a
           >
+          <p class="hint warn">
+            I ran into this while testing MSC: adding another MSC agent to a Playit account that
+            already had one failed. If your free account is already at its agent or tunnel limit,
+            review it before continuing; you may need to remove unused resources to make room for
+            MSC.
+          </p>
           <p class="hint">
-            Free accounts include 1 agent and up to 3 tunnels. You can sign in after your first
-            server is created.
+            MSC shares one Java tunnel across your Java servers and one Bedrock tunnel across your
+            Bedrock servers. Servers of the same type use the same Playit address.
           </p>
         </Card>
         <p class="setup-note">You can skip this step and set it up later.</p>
@@ -842,6 +882,10 @@
     color: var(--msc2-text-secondary);
     font-size: 13px;
   }
+  .optional-label {
+    color: var(--msc2-status-warn);
+    font-weight: 500;
+  }
   .setup-page {
     display: flex;
     flex-direction: column;
@@ -909,17 +953,17 @@
     margin: 0;
   }
   .preview-steps {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 16px;
     margin: 0;
-    padding: 0 0 0 18px;
+    padding: 0 0 0 23px;
     color: var(--msc2-text-secondary);
-    font-size: 12px;
-    line-height: 1.45;
+    font-size: 13px;
+    line-height: 1.5;
   }
   .preview-steps li {
-    padding-left: 2px;
+    padding-left: 7px;
+  }
+  .preview-steps li + li {
+    margin-top: 22px;
   }
   .preview-steps li::marker {
     color: var(--msc2-text-tertiary);
@@ -933,7 +977,7 @@
     font-weight: 500;
   }
   .preview-steps span {
-    margin-top: 3px;
+    margin-top: 4px;
     color: var(--msc2-text-tertiary);
   }
   .type-grid {
@@ -1213,9 +1257,8 @@
     .type-grid {
       grid-template-columns: 1fr;
     }
-    .preview-steps {
-      grid-template-columns: 1fr;
-      gap: 8px;
+    .preview-steps li + li {
+      margin-top: 16px;
     }
     .field-row {
       flex-wrap: wrap;

@@ -290,3 +290,82 @@ fn stopped_sidecar_can_be_reprovisioned_for_a_retry() {
     runtime.provision(provision_request()).unwrap();
     assert_eq!(runtime.state(), BedrockRuntimeState::Provisioned);
 }
+
+#[test]
+fn sidecar_command_preserves_events_before_its_acknowledgement() {
+    let mut transport = FakeTransport::default();
+    transport.response(SidecarFrame::Provisioned {
+        ok: true,
+        reason: None,
+    });
+    transport.response(SidecarFrame::Started {
+        accepted: true,
+        reason: None,
+    });
+    transport.response(frame_from_fixture("ready-round-trip"));
+    let mut runtime = SidecarRuntime::new(transport);
+    runtime.provision(provision_request()).unwrap();
+    runtime.start(start_request()).unwrap();
+    runtime.poll_event().unwrap();
+    runtime.transport_mut().response(SidecarFrame::ConsoleLine {
+        line: "world time".into(),
+    });
+    runtime.transport_mut().response(SidecarFrame::Metrics {
+        cpu_percent: Some(12.5),
+        ram_used_mb: None,
+        ram_max_mb: None,
+    });
+    runtime
+        .transport_mut()
+        .response(SidecarFrame::CommandResult {
+            ok: true,
+            reason: None,
+        });
+    runtime.command("time query daytime").unwrap();
+    assert_eq!(runtime.state(), BedrockRuntimeState::Running);
+    assert_eq!(
+        runtime.poll_event().unwrap(),
+        Some(BedrockRuntimeEvent::ConsoleLine("world time".into()))
+    );
+    assert!(matches!(
+        runtime.poll_event().unwrap(),
+        Some(BedrockRuntimeEvent::Metrics(_))
+    ));
+    // The acknowledgement was consumed by command(), not left for the event pump.
+    runtime.transport_mut().response(SidecarFrame::ConsoleLine {
+        line: "next line".into(),
+    });
+    assert_eq!(
+        runtime.poll_event().unwrap(),
+        Some(BedrockRuntimeEvent::ConsoleLine("next line".into()))
+    );
+}
+
+#[test]
+fn sidecar_start_preserves_readiness_before_its_acknowledgement() {
+    let mut transport = FakeTransport::default();
+    transport.response(SidecarFrame::Provisioned {
+        ok: true,
+        reason: None,
+    });
+    transport.response(SidecarFrame::ConsoleLine {
+        line: "starting".into(),
+    });
+    transport.response(frame_from_fixture("ready-round-trip"));
+    transport.response(SidecarFrame::Started {
+        accepted: true,
+        reason: None,
+    });
+    let mut runtime = SidecarRuntime::new(transport);
+    runtime.provision(provision_request()).unwrap();
+    runtime.start(start_request()).unwrap();
+    assert_eq!(
+        runtime.poll_event().unwrap(),
+        Some(BedrockRuntimeEvent::ConsoleLine("starting".into()))
+    );
+    assert!(matches!(
+        runtime.poll_event().unwrap(),
+        Some(BedrockRuntimeEvent::Ready { .. })
+    ));
+    assert_eq!(runtime.state(), BedrockRuntimeState::Running);
+}

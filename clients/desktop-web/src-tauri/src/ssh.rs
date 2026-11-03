@@ -261,6 +261,7 @@ pub fn ssh_tunnel_start(
     manager: tauri::State<'_, SshTunnelManager>,
     request: SshTunnelRequest,
 ) -> Result<SshTunnelStatus, String> {
+    let _authorization_change = crate::native_transfer::changing_authorization(&request.host_id);
     manager.start(request)
 }
 
@@ -277,6 +278,7 @@ pub fn ssh_tunnel_retry(
     manager: tauri::State<'_, SshTunnelManager>,
     host_id: String,
 ) -> Result<SshTunnelStatus, String> {
+    let _authorization_change = crate::native_transfer::changing_authorization(host_id.trim());
     manager.retry(host_id.trim())
 }
 
@@ -285,6 +287,7 @@ pub fn ssh_tunnel_stop(
     manager: tauri::State<'_, SshTunnelManager>,
     host_id: String,
 ) -> Result<SshTunnelStatus, String> {
+    let _authorization_change = crate::native_transfer::changing_authorization(host_id.trim());
     manager.stop(host_id.trim())
 }
 
@@ -493,6 +496,22 @@ fn run_remote_pairing_command(
     request: &SshPairingRequest,
     known_hosts_path: &Path,
 ) -> Result<std::process::Output, String> {
+    let output = run_pairing_executable(request, known_hosts_path, "msc")?;
+    // Non-login macOS SSH shells can omit the installer's command directory.
+    // Retry only command lookup failures, never a pairing/authentication failure.
+    if output.status.code() == Some(127)
+        && classify_ssh_failure(&clean_output(&output.stderr)).0 == "msc-agent"
+    {
+        return run_pairing_executable(request, known_hosts_path, "/usr/local/bin/msc");
+    }
+    Ok(output)
+}
+
+fn run_pairing_executable(
+    request: &SshPairingRequest,
+    known_hosts_path: &Path,
+    executable: &str,
+) -> Result<std::process::Output, String> {
     let mut command = ssh_command(
         request.ssh_port,
         &request.username,
@@ -503,7 +522,7 @@ fn run_remote_pairing_command(
     )?;
     command
         .arg(&request.ssh_host)
-        .args(["msc", "pairing", "create"])
+        .args([executable, "pairing", "create"])
         .args(["--client-kind", "desktop", "--json"])
         .stdin(Stdio::null())
         .stdout(Stdio::piped())

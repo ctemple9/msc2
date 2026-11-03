@@ -138,10 +138,14 @@ fn playit_status_and_actions_cannot_return_the_secret_key() {
         playit_enabled: true,
         is_running: true,
         has_secret_key: true,
+        agent_id: Some("agent-id".into()),
         java_address: Some("join.example.joinmc.link".into()),
         bedrock_address: None,
         voice_address: None,
         voice_chat_enabled: false,
+        uses_java_tunnel: true,
+        uses_bedrock_tunnel: false,
+        uses_voice_tunnel: false,
         note: Some("Waiting for Playit tunnels.".into()),
     })
     .unwrap();

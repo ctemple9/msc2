@@ -14,6 +14,8 @@
 
   export let api: ScreenApi;
   export let agentReady = false;
+  export let onResetRecovery: () => void = () => {};
+  let resetRecovery = false;
 
   let onboarding: OnboardingGuide | null = null;
   let ready = false;
@@ -24,7 +26,8 @@
   };
 
   $: stage = firstLaunchStage(state);
-  $: onboardingOpen = agentReady && ready && onboarding !== null && stage !== 'complete';
+  $: onboardingOpen =
+    agentReady && ready && !resetRecovery && onboarding !== null && stage !== 'complete';
   $: tourSteps = onboarding ? applicableTourSteps(onboarding.steps, $tourServerContext) : [];
 
   function setPageScrollLocked(locked: boolean): void {
@@ -78,12 +81,15 @@
     if (!agentReady) return;
     const load = async () => {
       try {
-        const [loadedOnboarding, hostSetup] = await Promise.all([
+        const [loadedOnboarding, hostSetup, reset] = await Promise.all([
           api.get<OnboardingGuide>('/v1/guides/onboarding'),
           api.get<{ complete: boolean }>('/v1/config/host-setup'),
+          api.get<{ state: string }>('/v1/host/reset').catch(() => null),
         ]);
         onboarding = loadedOnboarding;
         state = readState(hostSetup.complete);
+        resetRecovery = reset?.state === 'blocked' || reset?.state === 'pending';
+        if (resetRecovery) onResetRecovery();
       } catch {
         // A pre-P11.24 agent does not serve guide data yet. The regular client
         // remains usable rather than inventing local onboarding prose.
@@ -93,14 +99,26 @@
     };
     void load();
     const onRestart = () => restart();
+    const refreshRecovery = () => {
+      void api
+        .get<{ state: string }>('/v1/host/reset')
+        .then((reset) => {
+          resetRecovery = reset.state === 'blocked' || reset.state === 'pending';
+        })
+        .catch(() => {});
+    };
     window.addEventListener('msc:restart-tour', onRestart);
-    return () => window.removeEventListener('msc:restart-tour', onRestart);
+    window.addEventListener('msc:reset-recovery-closed', refreshRecovery);
+    return () => {
+      window.removeEventListener('msc:restart-tour', onRestart);
+      window.removeEventListener('msc:reset-recovery-closed', refreshRecovery);
+    };
   });
 
   onDestroy(() => setPageScrollLocked(false));
 </script>
 
-{#if agentReady && ready && onboarding}
+{#if agentReady && ready && onboarding && !resetRecovery}
   {#if stage === 'setup'}
     <div class="gate-backdrop" role="presentation">
       <section

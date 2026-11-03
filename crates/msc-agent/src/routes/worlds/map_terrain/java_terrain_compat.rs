@@ -1,44 +1,30 @@
 //! Private, read-only compatibility copy for Java's 26.x dimension layout.
-use std::collections::HashMap;
-use std::fs;
+use std::collections::{HashMap, HashSet};
+use std::fs::{self, OpenOptions};
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
+use std::sync::{Condvar, Mutex};
+use std::time::Instant;
 
 use fastnbt::Value;
 use flate2::{Compression, read::GzDecoder, read::ZlibDecoder, write::ZlibEncoder};
+use fs2::FileExt;
+use sha2::{Digest, Sha256};
+use uuid::Uuid;
 
 const SECTOR: usize = 4096;
 const MAX_REGION_BYTES: u64 = 256 * 1024 * 1024;
 const MAX_CHUNK_BYTES: usize = 32 * 1024 * 1024;
 
-pub(super) fn staging_estimate(world: &Path, dimension: &str) -> io::Result<u64> {
-    let relative = match dimension {
-        "minecraft:overworld" => "dimensions/minecraft/overworld/region",
-        "minecraft:the_nether" => "dimensions/minecraft/the_nether/region",
-        "minecraft:the_end" => "dimensions/minecraft/the_end/region",
-        _ => return Ok(0),
-    };
-    let mut source = world.to_path_buf();
-    for segment in Path::new(relative).components() {
-        source.push(segment);
-        match fs::symlink_metadata(&source) {
-            Ok(meta) if meta.file_type().is_dir() => {}
-            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(0),
-            Err(error) => return Err(error),
-            _ => return Err(invalid("Java dimension path is not a regular directory")),
-        }
-    }
-    // Reserve one working copy. Recompression growth is checked using the
-    // actual normalized size before every write, rather than doubling all
-    // regions and refusing worlds that already fit on disk.
-    crate::map_staging::estimate_tree(&source)
-}
-
 pub(super) fn prepare(
+    server_id: &str,
     world: &Path,
+    source_world: &Path,
     dimension: &str,
     cache: &Path,
-    progress: &impl Fn(usize, usize),
+    progress: &(impl Fn(usize, usize) + Sync),
+    server_running: &(impl Fn() -> bool + Sync),
 ) -> io::Result<PathBuf> {
     let (modern, legacy) = match dimension {
         "minecraft:overworld" => ("dimensions/minecraft/overworld/region", "region"),
@@ -62,8 +48,18 @@ pub(super) fn prepare(
     if !fs::symlink_metadata(&level)?.file_type().is_file() {
         return Err(invalid("Java level.dat is not a regular file"));
     }
-    let estimate = crate::map_staging::estimate_tree(&source)?;
-    crate::map_staging::ensure_space(cache, estimate.saturating_add(64 * 1024 * 1024))?;
+    let persistent = persistent_regions(server_id, source_world, dimension)?;
+    let lock_path = persistent.join("lock");
+    regular_or_missing(&lock_path)?;
+    let lock = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .open(lock_path)?;
+    lock.lock_exclusive()?;
+    let region_cache = persistent.join("regions");
+    safe_directory(&region_cache)?;
     let staged = cache.join("world");
     let target = staged.join(legacy);
     fs::create_dir_all(&target)?;
@@ -76,25 +72,319 @@ pub(super) fn prepare(
         }
     }
     let total = regions.len();
+    let conversion_started = Instant::now();
+    let source_bytes = regions
+        .iter()
+        .filter_map(|entry| entry.metadata().ok().map(|metadata| metadata.len()))
+        .sum::<u64>();
     progress(0, total);
-    for (index, entry) in regions.into_iter().enumerate() {
-        let path = entry.path();
-        let name = entry.file_name();
-        if !name.to_string_lossy().ends_with(".mca") || !entry.file_type()?.is_file() {
-            continue;
+    let available_cores = std::thread::available_parallelism().map_or(1, usize::from);
+    let memory_budget_mib =
+        msc_infrastructure::conversion_resources::available_heap_mib().unwrap_or(1024);
+    let available_disk = fs2::available_space(cache).unwrap_or(0);
+    let disk_worker_budget = if available_disk == 0 {
+        1
+    } else {
+        (available_disk.saturating_sub(msc_infrastructure::conversion_resources::DISK_RESERVE)
+            / (512 * 1024 * 1024))
+            .max(1) as usize
+    };
+    let max_workers = available_cores
+        .min((memory_budget_mib / 1024).max(1) as usize)
+        .min(disk_worker_budget)
+        .min(4);
+    let next_region = AtomicUsize::new(0);
+    let completed = AtomicUsize::new(0);
+    let failed = AtomicBool::new(false);
+    let output_bytes = AtomicU64::new(0);
+    let reused = AtomicUsize::new(0);
+    let retained = Mutex::new(HashSet::new());
+    let first_error = Mutex::new(None);
+    let active_workers = Mutex::new(0usize);
+    let worker_changed = Condvar::new();
+    let server_throttle_logged = AtomicBool::new(false);
+    let target = target.as_path();
+
+    eprintln!(
+        "Java map: converting {total} regions with pool capacity {max_workers} ({available_cores} logical cores; {memory_budget_mib} MiB memory budget; {available_disk} bytes available on staging volume; concurrency limited to one while server runs)"
+    );
+    std::thread::scope(|scope| {
+        for _ in 0..max_workers {
+            scope.spawn(|| loop {
+                if failed.load(Ordering::Acquire) {
+                    break;
+                }
+                let index = next_region.fetch_add(1, Ordering::Relaxed);
+                let Some(entry) = regions.get(index) else {
+                    break;
+                };
+                let mut active = active_workers.lock().expect("worker gate poisoned");
+                loop {
+                    if failed.load(Ordering::Acquire) {
+                        return;
+                    }
+                    let running = server_running();
+                    if running && max_workers > 1 {
+                        if !server_throttle_logged.swap(true, Ordering::AcqRel) {
+                            eprintln!(
+                                "Java map: server started during conversion; limiting new region work to one worker"
+                            );
+                        }
+                    } else if !running {
+                        server_throttle_logged.store(false, Ordering::Release);
+                    }
+                    let limit = if running { 1 } else { max_workers };
+                    if *active < limit {
+                        *active += 1;
+                        break;
+                    }
+                    let (next, _) = worker_changed
+                        .wait_timeout(active, std::time::Duration::from_millis(250))
+                        .expect("worker gate poisoned");
+                    active = next;
+                }
+                drop(active);
+
+                let result = convert_region(entry, target, &region_cache, index);
+                let mut active = active_workers.lock().expect("worker gate poisoned");
+                *active -= 1;
+                worker_changed.notify_all();
+                drop(active);
+                match result {
+                    Ok((bytes, hit, name)) => {
+                        output_bytes.fetch_add(bytes, Ordering::Relaxed);
+                        if hit { reused.fetch_add(1, Ordering::Relaxed); }
+                        retained.lock().expect("cache names poisoned").insert(name);
+                        let done = completed.fetch_add(1, Ordering::AcqRel) + 1;
+                        progress(done, total);
+                    }
+                    Err(error) => {
+                        failed.store(true, Ordering::Release);
+                        if let Ok(mut first) = first_error.lock()
+                            && first.is_none()
+                        {
+                            *first = Some(error);
+                        }
+                        worker_changed.notify_all();
+                        break;
+                    }
+                }
+            });
         }
-        if entry.metadata()?.len() > MAX_REGION_BYTES {
-            return Err(io::Error::other(
-                "Java region exceeds the terrain renderer limit",
+    });
+    if let Some(error) = first_error
+        .into_inner()
+        .map_err(|_| io::Error::other("Java region conversion error state was poisoned"))?
+    {
+        return Err(error);
+    }
+    let retained = retained
+        .into_inner()
+        .map_err(|_| io::Error::other("Java cache names were poisoned"))?;
+    for entry in fs::read_dir(&region_cache)? {
+        let entry = entry?;
+        let name = entry.file_name();
+        if !retained.contains(&name) && entry.file_type()?.is_file() {
+            fs::remove_file(entry.path())?;
+        }
+    }
+    eprintln!(
+        "Java map: prepared {total} compatible region files ({} reused; {} converted; {source_bytes} source bytes; {} staged bytes) in {:.1}s",
+        reused.load(Ordering::Relaxed),
+        total.saturating_sub(reused.load(Ordering::Relaxed)),
+        output_bytes.load(Ordering::Relaxed),
+        conversion_started.elapsed().as_secs_f64()
+    );
+    Ok(staged)
+}
+
+fn convert_region(
+    entry: &fs::DirEntry,
+    target: &Path,
+    region_cache: &Path,
+    index: usize,
+) -> io::Result<(u64, bool, std::ffi::OsString)> {
+    let name = entry.file_name();
+    if !name.to_string_lossy().ends_with(".mca") || !entry.file_type()?.is_file() {
+        return Err(invalid("Java region is not a regular file"));
+    }
+    if entry.metadata()?.len() > MAX_REGION_BYTES {
+        return Err(io::Error::other(
+            "Java region exceeds the terrain renderer limit",
+        ));
+    }
+    let raw = fs::read(entry.path())?;
+    let digest = format!("{:x}", Sha256::digest(&raw));
+    let cached_name = std::ffi::OsString::from(format!("{}-{digest}.mca", name.to_string_lossy()));
+    let cached = region_cache.join(&cached_name);
+    let valid = fs::symlink_metadata(&cached)
+        .is_ok_and(|meta| meta.file_type().is_file() && meta.len() >= (2 * SECTOR) as u64);
+    let bytes = if valid {
+        fs::metadata(&cached)?.len()
+    } else {
+        if let Ok(meta) = fs::symlink_metadata(&cached) {
+            if !meta.file_type().is_file() {
+                return Err(invalid("Java region cache contains an unsafe entry"));
+            }
+            fs::remove_file(&cached)?;
+        }
+        let normalized = normalize_region(&raw)?;
+        crate::map_staging::ensure_space(region_cache, normalized.len() as u64 + 64 * 1024 * 1024)?;
+        let temporary = region_cache.join(format!(
+            ".region-{}-{index}-{}.tmp",
+            std::process::id(),
+            Uuid::new_v4()
+        ));
+        let result: io::Result<u64> = (|| {
+            let mut output = OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&temporary)?;
+            output.write_all(&normalized)?;
+            output.sync_all()?;
+            fs::rename(&temporary, &cached)?;
+            Ok(normalized.len() as u64)
+        })();
+        if result.is_err() {
+            let _ = fs::remove_file(&temporary);
+        }
+        result?
+    };
+    // Renderer staging holds its own link, so later cache pruning cannot
+    // change the bytes under an active renderer.
+    fs::hard_link(&cached, target.join(name))?;
+    Ok((bytes, valid, cached_name))
+}
+
+fn persistent_regions(
+    server_id: &str,
+    source_world: &Path,
+    dimension: &str,
+) -> io::Result<PathBuf> {
+    let canonical = source_world.canonicalize()?;
+    let mut hasher = Sha256::new();
+    hasher.update(server_id.as_bytes());
+    hasher.update([0]);
+    hasher.update(canonical.to_string_lossy().as_bytes());
+    hasher.update([0]);
+    hasher.update(dimension.as_bytes());
+    let root = msc_infrastructure::config_repository::default_app_data_dir().join("map-cache");
+    safe_directory(&root)?;
+    let version = root.join("java-compatible-v1");
+    safe_directory(&version)?;
+    let world = version.join(format!("{:x}", hasher.finalize()));
+    safe_directory(&world)?;
+    let identity = world.join("identity");
+    regular_or_missing(&identity)?;
+    let expected = format!("{server_id}\n{}\n{dimension}\n", canonical.display());
+    match fs::read_to_string(&identity) {
+        Ok(actual) if actual == expected => {}
+        Ok(_) => {
+            return Err(invalid(
+                "Java region cache identity does not match this world",
             ));
         }
-        let raw = fs::read(path)?;
-        let normalized = normalize_region(&raw)?;
-        crate::map_staging::ensure_space(cache, normalized.len() as u64 + 64 * 1024 * 1024)?;
-        fs::write(target.join(name), normalized)?;
-        progress(index + 1, total);
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            let mut file = OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&identity)?;
+            file.write_all(expected.as_bytes())?;
+            file.sync_all()?;
+        }
+        Err(error) => return Err(error),
     }
-    Ok(staged)
+    Ok(world)
+}
+
+pub(super) fn persistent_tiles(
+    server_id: &str,
+    source_world: &Path,
+    dimension: &str,
+    assets: &Path,
+) -> io::Result<(PathBuf, String)> {
+    persistent_tiles_for_edition(server_id, source_world, dimension, assets, "java")
+}
+
+pub(super) fn persistent_tiles_for_edition(
+    server_id: &str,
+    source_world: &Path,
+    dimension: &str,
+    assets: &Path,
+    edition: &str,
+) -> io::Result<(PathBuf, String)> {
+    let canonical = source_world.canonicalize()?;
+    let mut hasher = Sha256::new();
+    let canonical_text = canonical.to_string_lossy();
+    let assets_text = assets.to_string_lossy();
+    for part in [
+        server_id,
+        canonical_text.as_ref(),
+        dimension,
+        assets_text.as_ref(),
+    ] {
+        hasher.update(part.as_bytes());
+        hasher.update([0]);
+    }
+    if edition != "java" {
+        hasher.update(edition.as_bytes());
+        hasher.update([0]);
+    }
+    let key = format!("{:x}", hasher.finalize());
+    let root = msc_infrastructure::config_repository::default_app_data_dir().join("map-cache");
+    safe_directory(&root)?;
+    let version = root.join("java-tiles-v1");
+    safe_directory(&version)?;
+    let world = version.join(&key);
+    safe_directory(&world)?;
+    Ok((world, key))
+}
+
+pub(super) fn tile_cache_budget_mib(cache: &Path) -> Option<u64> {
+    let text = fs::read_to_string(cache.join("pre-render-budget-mib")).ok()?;
+    text.trim()
+        .parse::<u64>()
+        .ok()
+        .filter(|n| (4096..=65536).contains(n))
+}
+
+pub(super) fn set_tile_cache_budget_mib(cache: &Path, mib: u64) -> io::Result<()> {
+    if !(4096..=65536).contains(&mib) {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "cache budget must be 4096–65536 MiB",
+        ));
+    }
+    let target = cache.join("pre-render-budget-mib");
+    let temporary = cache.join(".pre-render-budget-mib.tmp");
+    fs::write(&temporary, mib.to_string())?;
+    fs::rename(temporary, target)
+}
+
+fn safe_directory(path: &Path) -> io::Result<()> {
+    match fs::symlink_metadata(path) {
+        Ok(meta) if meta.file_type().is_dir() => Ok(()),
+        Ok(_) => Err(invalid("Java region cache path is not a regular directory")),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            fs::create_dir(path)?;
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                fs::set_permissions(path, fs::Permissions::from_mode(0o700))?;
+            }
+            Ok(())
+        }
+        Err(error) => Err(error),
+    }
+}
+
+fn regular_or_missing(path: &Path) -> io::Result<()> {
+    match fs::symlink_metadata(path) {
+        Ok(meta) if meta.file_type().is_file() => Ok(()),
+        Ok(_) => Err(invalid("Java region cache contains an unsafe file")),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error),
+    }
 }
 
 fn invalid(message: &'static str) -> io::Error {
@@ -153,13 +443,15 @@ fn normalize_region(region: &[u8]) -> io::Result<Vec<u8>> {
         }
         let mut chunk: Value =
             fastnbt::from_bytes(&decoded).map_err(|_| invalid("Java chunk NBT is invalid"))?;
-        if normalize_chunk(&mut chunk) {
+        let (compressed, output_compression) = if normalize_chunk(&mut chunk) {
             decoded = fastnbt::to_bytes(&chunk)
                 .map_err(|_| invalid("Could not encode Java chunk NBT"))?;
-        }
-        let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
-        encoder.write_all(&decoded)?;
-        let compressed = encoder.finish()?;
+            let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
+            encoder.write_all(&decoded)?;
+            (encoder.finish()?, 2)
+        } else {
+            (payload.to_vec(), compression)
+        };
         let record_len = compressed.len() + 5;
         let needed = record_len.div_ceil(SECTOR);
         if needed > 255 {
@@ -174,7 +466,7 @@ fn normalize_region(region: &[u8]) -> io::Result<Vec<u8>> {
         output[entry + 2] = new_offset as u8;
         output[entry + 3] = needed as u8;
         output.extend_from_slice(&((compressed.len() + 1) as u32).to_be_bytes());
-        output.push(2);
+        output.push(output_compression);
         output.extend_from_slice(&compressed);
         output.resize(output.len().div_ceil(SECTOR) * SECTOR, 0);
     }

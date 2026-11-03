@@ -92,6 +92,9 @@
   let statsBusy = false;
 
   let status: AgentServiceStatus | undefined;
+  let indicatorEnabled = true;
+  let indicatorBusy = false;
+  let indicatorAvailable = false;
   let busy = false;
   let errorMessage = '';
   let pairingCode = '';
@@ -104,7 +107,11 @@
   let openingServerId = '';
   let serviceError = '';
   const serviceMonitor = createServiceStatusMonitor(
-    async () => (await getPlatform()).agentServiceStatus(),
+    async () => {
+      const platform = await getPlatform();
+      const nextStatus = await platform.agentServiceStatus();
+      return nextStatus;
+    },
     (nextStatus) => {
       status = nextStatus;
       serviceError = '';
@@ -234,6 +241,36 @@
     serviceError = '';
   }
 
+  $: if (isLocalDesktopHost && active) void refreshIndicator();
+  async function refreshIndicator(): Promise<void> {
+    const requestedHost = hostId;
+    try {
+      const platform = await getPlatform();
+      const enabled = (await platform.agentIndicatorEnabled?.()) ?? true;
+      if (active && isLocalDesktopHost && hostId === requestedHost) {
+        indicatorAvailable = !!platform.setAgentIndicatorEnabled;
+        indicatorEnabled = enabled;
+      }
+    } catch (error) {
+      errorMessage = formatConnectionFailure(error, 'msc-agent');
+    }
+  }
+
+  async function toggleIndicator(): Promise<void> {
+    if (!isLocalDesktopHost || indicatorBusy) return;
+    indicatorBusy = true;
+    try {
+      const platform = await getPlatform();
+      const enabled = !((await platform.agentIndicatorEnabled?.()) ?? indicatorEnabled);
+      await platform.setAgentIndicatorEnabled?.(enabled);
+      indicatorEnabled = enabled;
+    } catch (error) {
+      errorMessage = formatConnectionFailure(error, 'msc-agent');
+    } finally {
+      indicatorBusy = false;
+    }
+  }
+
   async function manage(action: AgentServiceAction): Promise<void> {
     if (busy || !isLocalDesktopHost) return;
     busy = true;
@@ -332,7 +369,7 @@
 <div class="agent-home">
   <header class="home-heading">
     <p class="msc2-type-overline">MSC 2</p>
-    <h1>Agents</h1>
+    <h1>Manage Agents</h1>
     <p>
       {readiness === 'ready'
         ? 'Manage the MSC Agent here.'
@@ -441,6 +478,11 @@
               <Button disabled={busy} onclick={() => void serviceMonitor.refresh()}
                 >Refresh status</Button
               >
+              {#if indicatorAvailable}
+                <Button disabled={indicatorBusy || busy} onclick={() => void toggleIndicator()}>
+                  {indicatorEnabled ? 'Hide indicator' : 'Show indicator'}
+                </Button>
+              {/if}
             </div>
             <p class="small-detail" role="status">
               {serviceError || status?.detail || 'Checking the local agent service…'}

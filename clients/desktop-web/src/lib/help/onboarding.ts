@@ -5,6 +5,13 @@ import { writable } from 'svelte/store';
 /** The current guided-tour card, shared with UI that needs tour-only limits. */
 export const activeTourStep = writable<string | null>(null);
 
+/** Actions shown in the app header while the guided-tour card is hidden. */
+export const hiddenTourActions = writable<{
+  showTip: () => void;
+  skip: () => void;
+  skipLabel: string;
+} | null>(null);
+
 /**
  * Java selection is a required interruption of Configure's Continue action.
  * The tour reads this synchronously while handling that same click, so it

@@ -1,6 +1,8 @@
 //! P8.24: add-on, catalog, client-export, modpack, and shared staging
 //! routes wired to the real Phase 8 application services.
 
+pub(crate) mod storage_cleanup;
+
 use std::collections::{BTreeMap, HashMap};
 use std::fs::OpenOptions;
 use std::io::Read;
@@ -52,6 +54,11 @@ use crate::routes::lifecycle::{
 use crate::routes::worlds::{
     StagedDownload, StagedUpload, StagingStore, now_unix, staging_root, unix_to_iso8601,
 };
+
+#[cfg(unix)]
+pub(crate) mod local_source;
+#[path = "components/native_upload.rs"]
+pub(crate) mod native_upload;
 
 const MAX_STAGED_UPLOAD_BYTES: u64 = 10 * 1024 * 1024 * 1024;
 const MAX_LOCAL_ADDON_UPLOAD_BYTES: u64 = 512 * 1024 * 1024;
@@ -241,6 +248,9 @@ struct ModrinthCatalogFile {
 pub fn router(state: ComponentsRoutesState) -> Router {
     Router::new()
         .route("/staged-uploads", post(begin_staged_upload))
+        .route("/staged-uploads/stream", post(native_upload::admit))
+        .route("/staged-uploads/:id/stream", put(native_upload::receive))
+        .route("/staged-uploads/:id/status", get(native_upload::status))
         .route(
             "/staged-uploads/:id",
             put(upload_staged_bytes)
@@ -251,7 +261,10 @@ pub fn router(state: ComponentsRoutesState) -> Router {
             "/staged-uploads/:id/chunks",
             put(upload_staged_chunk).route_layer(DefaultBodyLimit::max(STAGED_UPLOAD_CHUNK_BYTES)),
         )
-        .route("/staged-downloads/:id", get(download_staged_bytes))
+        .route(
+            "/staged-downloads/:id",
+            get(download_staged_bytes).delete(cancel_staged_download),
+        )
         .route("/addons", get(get_addons))
         .route("/catalog/search", get(search_catalog))
         .route("/catalog/datapacks", get(search_datapacks))
@@ -452,22 +465,55 @@ fn component_rows(server: &msc_domain::app_config_schema::ConfigServer) -> Vec<C
             note: None,
         });
     } else if server.server_type == ServerType::Java {
-        let installed_label = match (&server.minecraft_version, &server.server_build) {
-            (Some(version), Some(build)) => Some(format!("{version} · {build}")),
-            (Some(version), None) => Some(version.clone()),
-            (None, Some(build)) => Some(build.clone()),
-            (None, None) => None,
+        let configured = Path::new(&server.paper_jar_path);
+        let jar_path = if configured.is_absolute() {
+            configured.to_path_buf()
+        } else {
+            Path::new(&server.server_dir).join(configured)
         };
+        let installed = !server.paper_jar_path.is_empty() && jar_path.is_file();
+        let detected = if installed {
+            msc_infrastructure::java_jar_metadata::inspect(&jar_path)
+        } else {
+            Default::default()
+        };
+        let config_matches = detected
+            .minecraft_version
+            .as_ref()
+            .is_none_or(|version| server.minecraft_version.as_ref() == Some(version));
+        let version = installed
+            .then(|| {
+                detected
+                    .minecraft_version
+                    .or_else(|| server.minecraft_version.clone())
+            })
+            .flatten();
+        let build = installed
+            .then(|| {
+                detected.build.or_else(|| {
+                    config_matches
+                        .then(|| server.server_build.clone())
+                        .flatten()
+                })
+            })
+            .flatten();
+        let installed_label = installed.then(|| match (&version, &build) {
+            (Some(version), Some(build)) => format!("{version} · {build}"),
+            (Some(version), None) => version.clone(),
+            (None, Some(build)) => format!("Version unknown · {build}"),
+            (None, None) => "Installed · version unknown".into(),
+        });
         rows.push(ComponentStatusDto {
             name: server.java_flavor.raw_value().to_string(),
-            installed_build: None,
+            installed_build: build.as_deref().and_then(|build| build.parse().ok()),
             latest_build: None,
-            installed_version: server.minecraft_version.clone(),
-            latest_version: server.minecraft_version.clone(),
-            is_up_to_date: true,
+            installed_version: version,
+            latest_version: None,
+            is_up_to_date: false,
             installed_label,
             updatable: Some(true),
-            note: None,
+            // Local presence/version detection is not an online update check.
+            note: installed.then(|| "Installed".into()),
         });
         // Geyser and Floodgate are managed compatibility helpers, not
         // catalog add-ons. Keep a row even when one is absent so Components
@@ -661,11 +707,25 @@ pub async fn begin_staged_upload(
         Err(_) => return invalid_body("invalid_json", "Request body must be valid JSON."),
     };
 
+    if matches!(
+        body.purpose,
+        StagedUploadPurposeDto::RawServerArchive
+            | StagedUploadPurposeDto::RawServerFolder
+            | StagedUploadPurposeDto::MscTransferArchive
+    ) {
+        return invalid_body(
+            "native_transport_required",
+            "Server sources require negotiated native staging.",
+        );
+    }
     let max_bytes = match body.purpose {
         StagedUploadPurposeDto::WorldImport
         | StagedUploadPurposeDto::ActiveWorldReplace
         | StagedUploadPurposeDto::WorldThumbnail => MAX_STAGED_UPLOAD_BYTES,
-        StagedUploadPurposeDto::ModpackArchive => MAX_STAGED_UPLOAD_BYTES,
+        StagedUploadPurposeDto::ModpackArchive
+        | StagedUploadPurposeDto::RawServerArchive
+        | StagedUploadPurposeDto::RawServerFolder
+        | StagedUploadPurposeDto::MscTransferArchive => MAX_STAGED_UPLOAD_BYTES,
         StagedUploadPurposeDto::AddonLocalFile => MAX_LOCAL_ADDON_UPLOAD_BYTES,
         StagedUploadPurposeDto::CurseforgeManualFile
         | StagedUploadPurposeDto::ModpackUnresolvedFile => {
@@ -723,6 +783,7 @@ pub async fn begin_staged_upload(
     state.staging.uploads.lock().unwrap().insert(
         id.clone(),
         StagedUpload {
+            native_guard: None,
             purpose: body.purpose,
             file_name: body.file_name.clone(),
             operation_id: body.operation_id.clone(),
@@ -759,6 +820,13 @@ pub async fn upload_staged_bytes(
     AxumPath(id): AxumPath<String>,
     body: Bytes,
 ) -> Response {
+    if state.staging.native.contains(&id) {
+        return error_response(
+            StatusCode::CONFLICT,
+            "native_upload",
+            "Use the native stream endpoint.",
+        );
+    }
     let entry = { state.staging.uploads.lock().unwrap().get(&id).cloned() };
     let Some(entry) = entry else {
         return error_response(
@@ -1002,6 +1070,9 @@ pub async fn cancel_staged_upload(
     Extension(credential): Extension<AuthenticatedCredential>,
     AxumPath(id): AxumPath<String>,
 ) -> Response {
+    if state.staging.native.contains(&id) {
+        return native_upload::cancel(&state, &credential, &id).await;
+    }
     let mut uploads = state.staging.uploads.lock().unwrap();
     if let Some(entry) = uploads.get(&id) {
         match std::fs::remove_file(&entry.path) {
@@ -1029,42 +1100,357 @@ pub async fn cancel_staged_upload(
     response
 }
 
+async fn reap_downloads(state: &ComponentsRoutesState) {
+    let expired = {
+        let downloads = state.staging.downloads.lock().unwrap();
+        downloads
+            .iter()
+            .filter(|(_, entry)| now_unix() > entry.expires_at_unix)
+            .map(|(id, _)| id.clone())
+            .collect::<Vec<_>>()
+    };
+    let mut candidates = Vec::new();
+    for id in expired {
+        if let Some(entry) = state.staging.downloads.lock().unwrap().remove(&id) {
+            candidates.push((id, entry.owner, entry.path));
+        }
+    }
+    candidates.extend(
+        state
+            .staging
+            .active_downloads
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|(_, entry)| *entry.done.borrow())
+            .map(|(id, entry)| (id.clone(), entry.owner.clone(), entry.path.clone())),
+    );
+    for (id, owner, path) in candidates {
+        match tokio::fs::remove_file(&path).await {
+            Ok(()) => {
+                state.staging.active_downloads.lock().unwrap().remove(&id);
+                record_download_cleanup(&state.staging, &id, &owner);
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                state.staging.active_downloads.lock().unwrap().remove(&id);
+                record_download_cleanup(&state.staging, &id, &owner);
+            }
+            Err(_) => {
+                let (done, _) = tokio::sync::watch::channel(true);
+                state.staging.active_downloads.lock().unwrap().insert(
+                    id,
+                    super::worlds::ActiveDownload {
+                        owner,
+                        path,
+                        cancel: Default::default(),
+                        done,
+                    },
+                );
+            }
+        }
+    }
+}
+fn record_download_cleanup(staging: &StagingStore, id: &str, owner: &str) {
+    let mut terminal = staging.completed_downloads.lock().unwrap();
+    if terminal.len() >= 64
+        && let Some(oldest) = terminal
+            .iter()
+            .min_by_key(|(_, (_, time))| *time)
+            .map(|(id, _)| id.clone())
+    {
+        terminal.remove(&oldest);
+    }
+    terminal.insert(
+        id.to_string(),
+        (owner.to_string(), std::time::Instant::now()),
+    );
+}
+pub async fn cancel_staged_download(
+    State(state): State<ComponentsRoutesState>,
+    AxumPath(id): AxumPath<String>,
+    Extension(credential): Extension<AuthenticatedCredential>,
+) -> Response {
+    let (entry, active) = {
+        let mut downloads = state.staging.downloads.lock().unwrap();
+        let active = state.staging.active_downloads.lock().unwrap();
+        if downloads
+            .get(&id)
+            .is_some_and(|entry| entry.owner != credential.credential_id)
+            || active
+                .get(&id)
+                .is_some_and(|entry| entry.owner != credential.credential_id)
+        {
+            return error_response(
+                StatusCode::NOT_FOUND,
+                "not_found",
+                "Unknown staged download.",
+            );
+        }
+        (downloads.remove(&id), active.get(&id).cloned())
+    };
+    let path = if let Some(entry) = entry {
+        entry.path
+    } else if let Some(active) = active {
+        active
+            .cancel
+            .store(true, std::sync::atomic::Ordering::Release);
+        let mut done = active.done.subscribe();
+        while !*done.borrow_and_update() {
+            if done.changed().await.is_err() {
+                break;
+            }
+        }
+        active.path
+    } else {
+        return if state
+            .staging
+            .completed_downloads
+            .lock()
+            .unwrap()
+            .get(&id)
+            .is_some_and(|(owner, _)| owner == &credential.credential_id)
+        {
+            StatusCode::NO_CONTENT.into_response()
+        } else {
+            error_response(
+                StatusCode::NOT_FOUND,
+                "download_unavailable",
+                "No record can confirm cleanup of this download.",
+            )
+        };
+    };
+    match tokio::fs::remove_file(path).await {
+        Ok(()) => {
+            state.staging.active_downloads.lock().unwrap().remove(&id);
+            record_download_cleanup(&state.staging, &id, &credential.credential_id);
+            StatusCode::NO_CONTENT.into_response()
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            state.staging.active_downloads.lock().unwrap().remove(&id);
+            record_download_cleanup(&state.staging, &id, &credential.credential_id);
+            StatusCode::NO_CONTENT.into_response()
+        }
+        Err(_) => error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "download_cleanup",
+            "Staged download cleanup could not be confirmed.",
+        ),
+    }
+}
+
 pub async fn download_staged_bytes(
     State(state): State<ComponentsRoutesState>,
     AxumPath(id): AxumPath<String>,
+    Extension(credential): Extension<AuthenticatedCredential>,
+    auth: Option<Extension<crate::auth::AuthState>>,
 ) -> Response {
-    let entry = { state.staging.downloads.lock().unwrap().remove(&id) };
-    let Some(entry) = entry else {
+    use super::worlds::ActiveDownload;
+    use tokio::io::{AsyncReadExt, AsyncSeekExt};
+    let Ok(permit) = state.staging.transfer_slots.clone().try_acquire_owned() else {
         return error_response(
-            StatusCode::NOT_FOUND,
-            "not_found",
-            "Unknown staged download.",
+            StatusCode::TOO_MANY_REQUESTS,
+            "stream_capacity",
+            "Both native transfer slots are active.",
         );
     };
+    let (entry, active) = {
+        let mut downloads = state.staging.downloads.lock().unwrap();
+        if downloads
+            .get(&id)
+            .is_some_and(|entry| entry.owner != credential.credential_id)
+        {
+            return error_response(
+                StatusCode::NOT_FOUND,
+                "not_found",
+                "Unknown staged download.",
+            );
+        }
+        if !downloads.contains_key(&id) {
+            return error_response(
+                StatusCode::NOT_FOUND,
+                "not_found",
+                "Unknown staged download.",
+            );
+        }
+        if state
+            .staging
+            .active_downloads
+            .lock()
+            .unwrap()
+            .values()
+            .any(|entry| entry.owner == credential.credential_id && !*entry.done.borrow())
+        {
+            return error_response(
+                StatusCode::TOO_MANY_REQUESTS,
+                "stream_capacity",
+                "A download is already active for this credential.",
+            );
+        }
+        let Some(entry) = downloads.remove(&id) else {
+            return error_response(
+                StatusCode::NOT_FOUND,
+                "not_found",
+                "Unknown staged download.",
+            );
+        };
+        let (done, _) = tokio::sync::watch::channel(false);
+        let active = ActiveDownload {
+            path: entry.path.clone(),
+            owner: entry.owner.clone(),
+            cancel: Default::default(),
+            done,
+        };
+        state
+            .staging
+            .active_downloads
+            .lock()
+            .unwrap()
+            .insert(id.clone(), active.clone());
+        (entry, active)
+    };
+    struct DownloadGuard {
+        id: String,
+        active: ActiveDownload,
+        staging: StagingStore,
+        _permit: tokio::sync::OwnedSemaphorePermit,
+    }
+    impl Drop for DownloadGuard {
+        fn drop(&mut self) {
+            match std::fs::remove_file(&self.active.path) {
+                Ok(()) => {
+                    self.staging
+                        .active_downloads
+                        .lock()
+                        .unwrap()
+                        .remove(&self.id);
+                    record_download_cleanup(&self.staging, &self.id, &self.active.owner);
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                    self.staging
+                        .active_downloads
+                        .lock()
+                        .unwrap()
+                        .remove(&self.id);
+                    record_download_cleanup(&self.staging, &self.id, &self.active.owner);
+                }
+                Err(_) => {} // Keep the failed path accounted for and retryable by DELETE.
+            }
+            self.active.done.send_replace(true);
+        }
+    }
+    let guard = DownloadGuard {
+        id,
+        active,
+        staging: state.staging,
+        _permit: permit,
+    };
     if now_unix() > entry.expires_at_unix {
-        let _ = std::fs::remove_file(&entry.path);
         return error_response(
             StatusCode::CONFLICT,
             "staged_download_expired",
             "This staged download has expired.",
         );
     }
-    match std::fs::read(&entry.path) {
-        Ok(bytes) => {
-            let _ = std::fs::remove_file(&entry.path);
-            (
-                StatusCode::OK,
-                [(axum::http::header::CONTENT_TYPE, "application/octet-stream")],
-                bytes,
-            )
-                .into_response()
+    let file = match tokio::fs::File::open(&entry.path).await {
+        Ok(file) => file,
+        Err(_) => {
+            return error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "download_read",
+                "Could not open staged download.",
+            );
         }
-        Err(_) => error_response(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "internal_error",
-            "Could not read staged download.",
-        ),
+    };
+    struct DownloadFile {
+        file: tokio::fs::File,
+        guard: DownloadGuard,
     }
+    let mut source = DownloadFile { file, guard };
+    let size = match source.file.metadata().await {
+        Ok(meta) => meta.len(),
+        Err(_) => {
+            return error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "download_read",
+                "Could not inspect staged download.",
+            );
+        }
+    };
+    source.file.set_max_buf_size(256 * 1024);
+    let identity = crate::auth::StreamAuthentication { credential };
+    let permitted = |source: &DownloadFile| {
+        !source
+            .guard
+            .active
+            .cancel
+            .load(std::sync::atomic::Ordering::Acquire)
+            && auth
+                .as_ref()
+                .is_none_or(|Extension(auth)| auth.stream_retains_permissions(&identity))
+    };
+    let mut hash = Sha256::new();
+    let mut buffer = vec![0; 256 * 1024];
+    loop {
+        if !permitted(&source) {
+            return error_response(
+                StatusCode::CONFLICT,
+                "download_cancelled",
+                "Download cancelled or authorization changed.",
+            );
+        }
+        let count = match source.file.read(&mut buffer).await {
+            Ok(n) => n,
+            Err(_) => {
+                return error_response(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "download_read",
+                    "Could not verify staged download.",
+                );
+            }
+        };
+        if count == 0 {
+            break;
+        }
+        hash.update(&buffer[..count]);
+    }
+    let digest = format!("{:x}", hash.finalize());
+    if source.file.seek(std::io::SeekFrom::Start(0)).await.is_err() {
+        return error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "download_read",
+            "Could not reopen staged download.",
+        );
+    }
+    let stream = futures_util::stream::try_unfold(
+        (source, 0u64, auth, identity),
+        move |(mut source, offset, auth, identity)| async move {
+            if source
+                .guard
+                .active
+                .cancel
+                .load(std::sync::atomic::Ordering::Acquire)
+                || auth
+                    .as_ref()
+                    .is_some_and(|Extension(auth)| !auth.stream_retains_permissions(&identity))
+            {
+                return Err(std::io::Error::other("download cancelled"));
+            }
+            if offset == size {
+                return Ok::<_, std::io::Error>(None);
+            }
+            let mut block = vec![0; (size - offset).min(256 * 1024) as usize];
+            source.file.read_exact(&mut block).await?;
+            let next = offset + block.len() as u64;
+            Ok(Some((block, (source, next, auth, identity))))
+        },
+    );
+    Response::builder()
+        .status(StatusCode::OK)
+        .header(axum::http::header::CONTENT_TYPE, "application/octet-stream")
+        .header(axum::http::header::CONTENT_LENGTH, size)
+        .header("X-MSC-SHA256", digest)
+        .body(axum::body::Body::from_stream(stream))
+        .expect("valid download headers")
 }
 
 pub async fn get_components(
@@ -1078,8 +1464,18 @@ pub async fn get_components(
         })
         .into_response();
     };
+    let components = match tokio::task::spawn_blocking(move || component_rows(&server)).await {
+        Ok(components) => components,
+        Err(_) => {
+            return error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "component_inspection_failed",
+                "Could not inspect installed server components.",
+            );
+        }
+    };
     Json(ComponentsStatusDto {
-        components: component_rows(&server),
+        components,
         restart_required_to_apply: false,
     })
     .into_response()
@@ -1386,7 +1782,7 @@ pub async fn get_catalog_project_versions(
 
 pub async fn get_client_export(
     State(state): State<ComponentsRoutesState>,
-    Extension(_credential): Extension<AuthenticatedCredential>,
+    Extension(credential): Extension<AuthenticatedCredential>,
     Query(query): Query<ClientExportQuery>,
 ) -> Response {
     let Some(server) = state.lifecycle.active_config_server() else {
@@ -1494,6 +1890,7 @@ pub async fn get_client_export(
             state.staging.downloads.lock().unwrap().insert(
                 id.clone(),
                 StagedDownload {
+                    owner: credential.credential_id.clone(),
                     expires_at_unix: now_unix() + STAGING_TTL_SECONDS,
                     path,
                 },
@@ -1555,6 +1952,17 @@ pub async fn install_component(
     };
 
     let result = if let Some(staged_upload_id) = body.staged_upload_id.as_deref() {
+        if !state
+            .staging
+            .native
+            .target_matches(staged_upload_id, &server.id)
+        {
+            return error_response(
+                StatusCode::CONFLICT,
+                "target_mismatch",
+                "Upload belongs to a different server.",
+            );
+        }
         let entry = state
             .staging
             .uploads
@@ -1578,12 +1986,26 @@ pub async fn install_component(
                 "Unknown or already-redeemed staged upload.",
             );
         }
-        let filename = entry
-            .path
-            .file_name()
-            .and_then(|name| name.to_str())
-            .unwrap_or("uploaded.jar")
-            .to_string();
+        let filename = if entry.native_guard.is_some() {
+            let Some(name) = entry
+                .file_name
+                .as_deref()
+                .filter(|name| name.to_ascii_lowercase().ends_with(".jar"))
+            else {
+                return invalid_body(
+                    "invalid_file_name",
+                    "Choose a JAR file for this add-on install.",
+                );
+            };
+            name.to_string()
+        } else {
+            entry
+                .path
+                .file_name()
+                .and_then(|name| name.to_str())
+                .unwrap_or("uploaded.jar")
+                .to_string()
+        };
         let installed = addons::install_from_staged_local_jar(
             &StdFileSystem,
             Path::new(&server.server_dir),
@@ -2280,6 +2702,10 @@ pub async fn inspect_modpack(
         }
     };
     let operation_id = format!("inspect-{}", Uuid::new_v4());
+    let lease = state
+        .staging
+        .native
+        .inspection_lease(&body.staged_upload_id, &credential);
     let inspection = match modpacks::inspect_staged_archive(
         &StdFileSystem,
         &transport,
@@ -2289,8 +2715,15 @@ pub async fn inspect_modpack(
         &operation_id,
     ) {
         Ok(inspection) => inspection,
-        Err(error) => return invalid_body("invalid_body", &error.to_string()),
+        Err(error) => {
+            drop(lease);
+            if state.staging.native.contains(&body.staged_upload_id) {
+                let _ = native_upload::cancel(&state, &credential, &body.staged_upload_id).await;
+            }
+            return invalid_body("invalid_body", &error.to_string());
+        }
     };
+    drop(lease);
     let response = modpack_inspection_response(&inspection);
     let _ = std::fs::remove_dir_all(&inspection.staged_dir);
     audit(
@@ -2417,6 +2850,17 @@ pub async fn import_modpack(
         "replace" => true,
         _ => return invalid_body("invalid_action", "action must be import or replace."),
     };
+    if !state
+        .staging
+        .native
+        .target_matches(&body.staged_upload_id, &server.id)
+    {
+        return error_response(
+            StatusCode::CONFLICT,
+            "target_mismatch",
+            "This upload was not selected for the active server.",
+        );
+    }
     let entry = state
         .staging
         .uploads
@@ -2453,6 +2897,10 @@ pub async fn import_modpack(
         }
     };
     let inspection_id = format!("inspect-{}", Uuid::new_v4());
+    let lease = state
+        .staging
+        .native
+        .inspection_lease(&body.staged_upload_id, &credential);
     let inspection = match modpacks::inspect_staged_archive(
         &StdFileSystem,
         &transport,
@@ -2462,8 +2910,15 @@ pub async fn import_modpack(
         &inspection_id,
     ) {
         Ok(inspection) => inspection,
-        Err(error) => return invalid_body("invalid_body", &error.to_string()),
+        Err(error) => {
+            drop(lease);
+            if state.staging.native.contains(&body.staged_upload_id) {
+                let _ = native_upload::cancel(&state, &credential, &body.staged_upload_id).await;
+            }
+            return invalid_body("invalid_body", &error.to_string());
+        }
     };
+    drop(lease);
 
     if matches!(inspection.format, modpacks::InspectedFormat::CurseForge(_)) {
         let configured = match secrets.get(provider::CURSEFORGE_API_KEY_SECRET) {
@@ -2487,14 +2942,13 @@ pub async fn import_modpack(
         }
     }
 
-    if state
+    let consumed = state
         .staging
         .uploads
         .lock()
         .unwrap()
-        .remove(&body.staged_upload_id)
-        .is_none()
-    {
+        .remove(&body.staged_upload_id);
+    if consumed.is_none() {
         let _ = std::fs::remove_dir_all(&inspection.staged_dir);
         return error_response(
             StatusCode::NOT_FOUND,
@@ -2502,6 +2956,7 @@ pub async fn import_modpack(
             "Unknown or already-redeemed staged upload.",
         );
     }
+    let _native_guard = consumed.and_then(|upload| upload.native_guard);
     let operation_id = match state.lifecycle.operations().begin_lifecycle(
         "modpack-import",
         Some(server.id.clone()),
@@ -2705,6 +3160,17 @@ pub async fn complete_modpack_manual_file(
         let Some(staged_upload_id) = body.staged_upload_id.as_deref() else {
             return invalid_body("missing_staged_upload_id", "stagedUploadId is required.");
         };
+        if !state
+            .staging
+            .native
+            .pending_matches(staged_upload_id, &unresolved)
+        {
+            return error_response(
+                StatusCode::CONFLICT,
+                "pending_file_changed",
+                "The pending file identity changed after admission.",
+            );
+        }
         let entry = state
             .staging
             .uploads
@@ -2735,12 +3201,20 @@ pub async fn complete_modpack_manual_file(
                 "Unknown or already-redeemed staged upload.",
             );
         }
-        state
+        let _consumed = state
             .staging
             .uploads
             .lock()
             .unwrap()
             .remove(staged_upload_id);
+        if _consumed.is_none() {
+            return error_response(
+                StatusCode::CONFLICT,
+                "upload_unavailable",
+                "Upload was consumed or cancelled before file completion.",
+            );
+        }
+
         let staged_filename = entry
             .file_name
             .or_else(|| {
@@ -3050,5 +3524,55 @@ mod staged_upload_tests {
             .await
             .unwrap();
         assert_eq!(repeated.status(), StatusCode::NO_CONTENT);
+    }
+}
+
+#[cfg(test)]
+mod server_component_presence_tests {
+    use super::*;
+    use std::io::Write;
+
+    // Essential: unknown imported metadata must not imply Missing, while stale
+    // configured metadata must not hide a deleted JAR. Tiny isolated files only.
+    #[test]
+    fn imported_jar_presence_and_version_are_independent() {
+        let root = std::env::temp_dir().join(format!("msc-component-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&root).unwrap();
+        struct Cleanup(PathBuf);
+        impl Drop for Cleanup {
+            fn drop(&mut self) {
+                let _ = std::fs::remove_dir_all(&self.0);
+            }
+        }
+        let _cleanup = Cleanup(root.clone());
+        let jar = root.join("paper.jar");
+        let mut config = msc_domain::app_config_schema::ConfigServer::new(
+            "test",
+            "Imported",
+            root.to_string_lossy(),
+            jar.to_string_lossy(),
+            2.0,
+            4.0,
+        );
+        std::fs::write(&jar, b"unknown jar metadata").unwrap();
+        let row = component_rows(&config).remove(0);
+        assert_eq!(
+            row.installed_label.as_deref(),
+            Some("Installed · version unknown")
+        );
+        assert_eq!(row.note.as_deref(), Some("Installed"));
+        let mut zip = zip::ZipWriter::new(std::fs::File::create(&jar).unwrap());
+        zip.start_file("version.json", zip::write::SimpleFileOptions::default())
+            .unwrap();
+        zip.write_all(br#"{"id":"26.3"}"#).unwrap();
+        zip.finish().unwrap();
+        let row = component_rows(&config).remove(0);
+        assert_eq!(row.installed_version.as_deref(), Some("26.3"));
+        assert!(!row.is_up_to_date);
+        config.minecraft_version = Some("old-version".into());
+        std::fs::remove_file(jar).unwrap();
+        let row = component_rows(&config).remove(0);
+        assert!(row.installed_version.is_none());
+        assert!(row.installed_label.is_none());
     }
 }

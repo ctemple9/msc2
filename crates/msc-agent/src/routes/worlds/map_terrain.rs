@@ -2,10 +2,12 @@
 pub(super) mod bedrock;
 mod dependencies;
 mod java_terrain_compat;
+pub(super) mod pre_render;
+use std::fs::OpenOptions;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, Weak};
 use std::time::{Duration, Instant};
 
@@ -13,6 +15,7 @@ use axum::body::Body;
 use axum::extract::{Extension, Query, State};
 use axum::http::{StatusCode, header};
 use axum::response::{IntoResponse, Response};
+use fs2::FileExt;
 use serde::Deserialize;
 use uuid::Uuid;
 
@@ -28,6 +31,26 @@ use msc_infrastructure::fs::StdFileSystem;
 
 const IDLE: Duration = Duration::from_secs(90);
 const MAX_ARTIFACT: usize = 32 * 1024 * 1024;
+// Re-bake Bedrock tiles when converted biome names change their geometry and tint data.
+const BEDROCK_TILE_CACHE_KEY: &str = "bedrock-anvil-v4-models-v1-biomes-v2";
+
+fn java_bake_capacity(running: bool) -> (u64, usize) {
+    let cores = std::thread::available_parallelism().map_or(1, usize::from);
+    let memory_mib = if running {
+        512
+    } else {
+        msc_infrastructure::conversion_resources::available_heap_mib()
+            .unwrap_or(512)
+            .clamp(512, 1024)
+    };
+    // Each tile can need roughly 200 MiB of working memory. Keep another
+    // core free for the desktop or server, and never admit more than four.
+    let workers = cores
+        .saturating_sub(1)
+        .clamp(1, 4)
+        .min((memory_mib / 256) as usize);
+    (memory_mib, workers)
+}
 
 #[derive(Debug)]
 struct TerrainError {
@@ -63,6 +86,20 @@ struct RendererState {
     snapshot: Mutex<Option<SavedSnapshot>>,
     sweeping: AtomicBool,
     progress: Mutex<Option<PreparationProgress>>,
+    pre_render: Mutex<Option<pre_render::Job>>,
+    visible_tile_active: AtomicUsize,
+    last_visible_tile: Mutex<Option<Instant>>,
+}
+
+struct VisibleTileRequest(Arc<RendererState>);
+
+impl Drop for VisibleTileRequest {
+    fn drop(&mut self) {
+        if let Ok(mut last) = self.0.last_visible_tile.lock() {
+            *last = Some(Instant::now());
+        }
+        self.0.visible_tile_active.fetch_sub(1, Ordering::AcqRel);
+    }
 }
 
 #[derive(Clone, serde::Serialize)]
@@ -118,14 +155,22 @@ pub(super) async fn preparation_progress(
 }
 
 struct SavedSnapshot {
-    _staging: Option<crate::map_staging::Staging>,
+    _staging: Option<Arc<crate::map_staging::Staging>>,
+    _cache_lock: Option<Arc<std::fs::File>>,
     server_id: String,
     source_world: PathBuf,
     path: PathBuf,
+    edition_cache_key: &'static str,
+}
+
+struct RendererIdentity<'a> {
+    selected_version: Option<&'a str>,
+    edition_cache_key: &'a str,
 }
 
 struct Renderer {
     _staging: crate::map_staging::Staging,
+    _cache_lock: std::fs::File,
     server_id: String,
     world: PathBuf,
     dimension: String,
@@ -134,6 +179,8 @@ struct Renderer {
     child: Child,
     diagnostics: Arc<Mutex<Vec<u8>>>,
     diagnostic_reader: Option<std::thread::JoinHandle<()>>,
+    started_at: Instant,
+    first_tile_reported: bool,
     last_use: Instant,
 }
 
@@ -233,13 +280,15 @@ pub(super) async fn artifact(
     let server_id = server.id;
     let dimension_id = query.dimension;
     let artifact = query.path;
+    let lifecycle = state.lifecycle.clone();
     match tokio::task::spawn_blocking(move || {
-        store.fetch(
+        store.fetch_visible(
             &server_id,
             &world,
             &dimension_id,
             &artifact,
             selected_version.as_deref(),
+            &|| lifecycle.status_snapshot().running,
         )
     })
     .await
@@ -295,6 +344,7 @@ pub(super) fn is_direct_child(parent: &Path, child: &Path) -> bool {
 fn artifact_type(path: &str) -> Option<&'static str> {
     match path {
         "manifest.json" => return Some("application/json"),
+        "camera.json" => return Some("application/json"),
         "viewer-world.json" => return Some("application/json"),
         "terrain.vtile" => return Some("application/octet-stream"),
         "terrain.vtexarr" => return Some("application/octet-stream"),
@@ -329,6 +379,43 @@ fn artifact_type(path: &str) -> Option<&'static str> {
 }
 
 impl RendererStore {
+    fn fetch_visible(
+        &self,
+        server_id: &str,
+        world: &Path,
+        dimension: &str,
+        artifact: &str,
+        selected_version: Option<&str>,
+        server_running: &(impl Fn() -> bool + Sync),
+    ) -> Result<(u16, Vec<u8>), TerrainError> {
+        let _visible = if artifact.starts_with("tiles/t.") {
+            self.0.visible_tile_active.fetch_add(1, Ordering::AcqRel);
+            Some(VisibleTileRequest(self.0.clone()))
+        } else {
+            None
+        };
+        self.fetch(
+            server_id,
+            world,
+            dimension,
+            artifact,
+            selected_version,
+            server_running,
+        )
+    }
+
+    fn visible_tile_busy(&self) -> bool {
+        if self.0.visible_tile_active.load(Ordering::Acquire) > 0 {
+            return true;
+        }
+        self.0
+            .last_visible_tile
+            .lock()
+            .ok()
+            .and_then(|last| *last)
+            .is_some_and(|last| last.elapsed() < Duration::from_millis(350))
+    }
+
     #[cfg(target_os = "windows")]
     pub(super) fn set_shutdown(&self, shutdown: bool) {
         self.0.shutdown.store(shutdown, Ordering::Release);
@@ -363,11 +450,16 @@ impl RendererStore {
         source_world: PathBuf,
         snapshot: crate::backup_operations::WorldMapSnapshot,
     ) -> Result<(), ()> {
+        let started = Instant::now();
+        let bytes = snapshot.bytes;
+        let hold_millis = snapshot.hold_millis;
         let next = SavedSnapshot {
             server_id,
             source_world,
             path: snapshot.path,
-            _staging: snapshot.staging,
+            _staging: snapshot.staging.map(Arc::new),
+            _cache_lock: None,
+            edition_cache_key: "java",
         };
         let mut renderer = self.0.current.lock().map_err(|_| ())?;
         if self.0.shutdown.load(Ordering::Acquire) {
@@ -377,7 +469,94 @@ impl RendererStore {
         // Stop the renderer before deleting the previous snapshot it reads.
         *renderer = None;
         *saved = Some(next);
+        eprintln!(
+            "Java map: selected refreshed snapshot in {:.1}ms ({} bytes copied; {}ms save hold)",
+            started.elapsed().as_secs_f64() * 1000.0,
+            bytes,
+            hold_millis
+        );
         Ok(())
+    }
+
+    pub(super) fn use_prepared_world(
+        &self,
+        server_id: String,
+        source_world: PathBuf,
+        prepared_world: PathBuf,
+        staging: Arc<crate::map_staging::Staging>,
+        cache_lock: Arc<std::fs::File>,
+    ) -> Result<(), ()> {
+        let mut renderer = self.0.current.lock().map_err(|_| ())?;
+        if self.0.shutdown.load(Ordering::Acquire) {
+            return Err(());
+        }
+        let mut saved = self.0.snapshot.lock().map_err(|_| ())?;
+        if saved.as_ref().is_some_and(|current| {
+            current.server_id == server_id
+                && current.source_world == source_world
+                && current.path == prepared_world
+        }) {
+            return Ok(());
+        }
+        *renderer = None;
+        *saved = Some(SavedSnapshot {
+            _staging: Some(staging),
+            _cache_lock: Some(cache_lock),
+            server_id,
+            source_world,
+            path: prepared_world,
+            edition_cache_key: BEDROCK_TILE_CACHE_KEY,
+        });
+        Ok(())
+    }
+
+    pub(super) fn restart_for_cache_settings(&self) -> Result<(), ()> {
+        let mut renderer = self.0.current.lock().map_err(|_| ())?;
+        if self.0.shutdown.load(Ordering::Acquire) {
+            return Err(());
+        }
+        *renderer = None;
+        Ok(())
+    }
+
+    pub(super) fn prepared_cache_lock(&self, path: &Path) -> Option<Arc<std::fs::File>> {
+        self.0
+            .snapshot
+            .lock()
+            .ok()?
+            .as_ref()
+            .filter(|saved| saved.path == path)?
+            ._cache_lock
+            .clone()
+    }
+
+    pub(super) fn preparation_update(
+        &self,
+        server_id: &str,
+        dimension: &str,
+        stage: &str,
+        completed: Option<usize>,
+        total: Option<usize>,
+    ) {
+        if let Ok(mut progress) = self.0.progress.lock() {
+            *progress = Some(PreparationProgress {
+                server_id: server_id.to_owned(),
+                dimension: dimension.to_owned(),
+                stage: stage.to_owned(),
+                completed,
+                total,
+            });
+        }
+    }
+
+    pub(super) fn preparation_finished(&self, server_id: &str) {
+        if let Ok(mut progress) = self.0.progress.lock()
+            && progress
+                .as_ref()
+                .is_some_and(|item| item.server_id == server_id)
+        {
+            *progress = None;
+        }
     }
 
     fn fetch(
@@ -387,8 +566,9 @@ impl RendererStore {
         dimension: &str,
         artifact: &str,
         selected_version: Option<&str>,
+        server_running: &(impl Fn() -> bool + Sync),
     ) -> Result<(u16, Vec<u8>), TerrainError> {
-        let (port, token) = {
+        let (port, token, first_tile_pending) = {
             let mut guard = self.0.current.lock().map_err(|_| ())?;
             if self.0.shutdown.load(Ordering::Acquire) {
                 return Err(().into());
@@ -403,6 +583,9 @@ impl RendererStore {
             let render_world = saved
                 .as_ref()
                 .map_or(world, |snapshot| snapshot.path.as_path());
+            let edition_cache_key = saved
+                .as_ref()
+                .map_or("java", |snapshot| snapshot.edition_cache_key);
             let reuse = guard.as_mut().is_some_and(|renderer| {
                 renderer.server_id == server_id
                     && renderer.world == render_world
@@ -410,6 +593,16 @@ impl RendererStore {
                     && renderer.last_use.elapsed() < IDLE
                     && renderer.child.try_wait().ok().flatten().is_none()
             });
+            if reuse
+                && artifact == "manifest.json"
+                && let Some(renderer) = guard.as_ref()
+            {
+                eprintln!(
+                    "Java map: warm renderer reused (ready for {:.1}s; last request {:.1}s ago)",
+                    renderer.started_at.elapsed().as_secs_f64(),
+                    renderer.last_use.elapsed().as_secs_f64()
+                );
+            }
             if !reuse {
                 if let Ok(mut progress) = self.0.progress.lock() {
                     *progress = Some(PreparationProgress {
@@ -421,17 +614,26 @@ impl RendererStore {
                     });
                 }
                 let reporter = PreparationReporter(&self.0.progress);
+                let source = if saved.is_some() { "snapshot" } else { "world" };
+                eprintln!("Java map: selecting {source} input for renderer startup");
                 *guard = Some(Renderer::launch(
                     server_id,
                     render_world,
+                    world,
                     dimension,
-                    selected_version,
+                    RendererIdentity {
+                        selected_version,
+                        edition_cache_key,
+                    },
                     &reporter,
+                    server_running,
                 )?);
             }
             let renderer = guard.as_mut().ok_or(())?;
             renderer.last_use = Instant::now();
-            (renderer.port, renderer.token.clone())
+            let first_tile_pending =
+                artifact.starts_with("tiles/t.") && !renderer.first_tile_reported;
+            (renderer.port, renderer.token.clone(), first_tile_pending)
         };
         self.ensure_sweeper();
         let url = format!("http://127.0.0.1:{port}/v1/worlds/default/{artifact}");
@@ -457,6 +659,22 @@ impl RendererStore {
                 eprintln!("Java terrain artifact read failed: {error}");
                 TerrainError::from(())
             })?;
+        if first_tile_pending
+            && let Ok(mut guard) = self.0.current.lock()
+            && let Some(renderer) = guard.as_mut()
+            && renderer.server_id == server_id
+            && renderer.port == port
+            && status == 200
+            && !renderer.first_tile_reported
+        {
+            renderer.first_tile_reported = true;
+            eprintln!(
+                "Java map: first tile response completed {:.1}s after renderer startup ({} bytes; HTTP {})",
+                renderer.started_at.elapsed().as_secs_f64(),
+                bytes.len(),
+                status
+            );
+        }
         Ok((status, bytes))
     }
 
@@ -481,6 +699,7 @@ impl RendererStore {
                     *current = None;
                 }
                 if current.is_none() {
+                    state.snapshot.lock().unwrap().take();
                     state.sweeping.store(false, Ordering::Release);
                     break;
                 }
@@ -493,50 +712,107 @@ impl Renderer {
     fn launch(
         server_id: &str,
         world: &Path,
+        source_world: &Path,
         dimension: &str,
-        selected_version: Option<&str>,
+        identity: RendererIdentity<'_>,
         progress: &PreparationReporter<'_>,
+        server_running: &(impl Fn() -> bool + Sync),
     ) -> Result<Self, TerrainError> {
         let binary = dependencies::binary()?;
         progress.update("Checking and preparing Minecraft textures", None, None);
-        let assets = dependencies::assets(world, selected_version)?;
+        let assets = dependencies::assets(world, identity.selected_version)?;
+        let (tile_cache, cache_key) = java_terrain_compat::persistent_tiles_for_edition(
+            server_id,
+            source_world,
+            dimension,
+            &assets,
+            identity.edition_cache_key,
+        )
+        .map_err(|error| TerrainError::new("map_storage_failed", error.to_string()))?;
+        let lock_path = tile_cache.join("lock");
+        if std::fs::symlink_metadata(&lock_path).is_ok_and(|meta| !meta.file_type().is_file()) {
+            return Err(TerrainError::new(
+                "map_storage_failed",
+                "The Java tile cache lock is not a regular file.",
+            ));
+        }
+        let cache_lock = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .open(lock_path)
+            .map_err(|error| TerrainError::new("map_storage_failed", error.to_string()))?;
+        cache_lock
+            .lock_exclusive()
+            .map_err(|error| TerrainError::new("map_storage_failed", error.to_string()))?;
         progress.update("Inspecting saved terrain", None, None);
         let listener = std::net::TcpListener::bind("127.0.0.1:0").map_err(|_| ())?;
         let port = listener.local_addr().map_err(|_| ())?.port();
         drop(listener);
-        let estimate = java_terrain_compat::staging_estimate(world, dimension)
-            .map_err(|error| TerrainError::new("terrain_preparation_failed", error.to_string()))?;
-        let staging = crate::map_staging::Staging::create("java-renderer", estimate)
+        let staging = crate::map_staging::Staging::create("java-renderer", 0)
             .map_err(|error| TerrainError::new("map_storage_failed", error.to_string()))?;
         let cache = staging.path().to_path_buf();
-        let render_world =
-            match java_terrain_compat::prepare(world, dimension, &cache, &|completed, total| {
+        let conversion_started = Instant::now();
+        let render_world = match java_terrain_compat::prepare(
+            server_id,
+            world,
+            source_world,
+            dimension,
+            &cache,
+            &|completed, total| {
                 progress.update("Converting saved terrain", Some(completed), Some(total))
-            }) {
-                Ok(path) => path,
-                Err(error) => {
-                    eprintln!("Java terrain compatibility preparation failed: {error}");
-                    return Err(TerrainError::new(
-                        "terrain_preparation_failed",
-                        format!(
-                            "Saved Java terrain preparation failed at {}: {error}",
-                            cache.display()
-                        ),
-                    ));
-                }
-            };
+            },
+            server_running,
+        ) {
+            Ok(path) => path,
+            Err(error) => {
+                eprintln!("Java terrain compatibility preparation failed: {error}");
+                return Err(TerrainError::new(
+                    "terrain_preparation_failed",
+                    format!(
+                        "Saved Java terrain preparation failed at {}: {error}",
+                        cache.display()
+                    ),
+                ));
+            }
+        };
+        eprintln!(
+            "Java map: compatible region preparation returned in {:.1}s",
+            conversion_started.elapsed().as_secs_f64()
+        );
+        let used = crate::map_staging::estimate_tree(&tile_cache)
+            .map_err(|error| TerrainError::new("map_storage_failed", error.to_string()))?;
+        let free = fs2::available_space(&tile_cache)
+            .map_err(|error| TerrainError::new("map_storage_failed", error.to_string()))?;
+        let growth = free.saturating_sub(msc_infrastructure::conversion_resources::DISK_RESERVE);
+        if growth < 64 * 1024 * 1024 {
+            return Err(TerrainError::new(
+                "map_storage_failed",
+                "The Java tile cache needs at least 64 MiB beyond MSC's disk reserve. Free space in Storage, then reopen the map.",
+            ));
+        }
+        let requested_mib = java_terrain_compat::tile_cache_budget_mib(&tile_cache).unwrap_or(4096);
+        let cache_limit_mib = ((used.saturating_add(growth)).min(requested_mib * 1024 * 1024)
+            / (1024 * 1024))
+            .max(64);
         let token = format!(
             "{}{}{}",
             Uuid::new_v4().simple(),
             Uuid::new_v4().simple(),
             Uuid::new_v4().simple()
         );
+        let (bake_memory_mib, bake_workers) = java_bake_capacity(server_running());
+        eprintln!(
+            "Java map: renderer allowing {bake_workers} concurrent bakes with {bake_memory_mib} MiB working budget"
+        );
         progress.update("Starting terrain renderer", None, None);
         let mut child = Command::new(binary)
             .arg("server")
             .arg(render_world)
             .args(["--dimension", dimension, "--out"])
-            .arg(cache.join("render"))
+            .arg(&tile_cache)
+            .args(["--cache-key", &cache_key])
             .arg("--assets")
             .arg(assets)
             .args([
@@ -545,9 +821,11 @@ impl Renderer {
                 "--port",
                 &port.to_string(),
                 "--memory",
-                "512",
+                &bake_memory_mib.to_string(),
+                "--cache-limit-mib",
+                &cache_limit_mib.to_string(),
                 "--threads",
-                "2",
+                &bake_workers.to_string(),
                 "--prebake",
                 "off",
                 "--players",
@@ -582,6 +860,7 @@ impl Renderer {
                 }
             })
         });
+        let started_at = Instant::now();
         let mut renderer = Self {
             server_id: server_id.to_string(),
             world: world.to_path_buf(),
@@ -589,13 +868,16 @@ impl Renderer {
             port,
             token,
             _staging: staging,
+            _cache_lock: cache_lock,
             child,
             diagnostics,
             diagnostic_reader,
+            started_at,
+            first_tile_reported: false,
             last_use: Instant::now(),
         };
-        let started = Instant::now();
-        while started.elapsed() < Duration::from_secs(45) {
+        let startup_started = Instant::now();
+        while startup_started.elapsed() < Duration::from_secs(45) {
             if let Some(status) = renderer.child.try_wait().map_err(|_| ())? {
                 if let Some(reader) = renderer.diagnostic_reader.take() {
                     let _ = reader.join();
@@ -610,6 +892,10 @@ impl Renderer {
             if let Ok(response) = http().get(&health).call()
                 && response.status().as_u16() == 200
             {
+                eprintln!(
+                    "Java map: renderer ready in {:.1}s",
+                    startup_started.elapsed().as_secs_f64()
+                );
                 return Ok(renderer);
             }
             std::thread::sleep(Duration::from_millis(250));

@@ -94,6 +94,7 @@ pub struct LifecycleOperations<'fs> {
     /// one (world/backup-only test setups, the `demo-install` ticker),
     /// which have no server directory to sweep in the first place.
     servers_root: Option<PathBuf>,
+    host_reset_config: Option<PathBuf>,
     records: Mutex<HashMap<OperationId, OperationRecord>>,
     terminal_ids: Mutex<VecDeque<OperationId>>,
     /// Workers retain their own Arc; removing a completed flag from this
@@ -107,6 +108,7 @@ impl<'fs> LifecycleOperations<'fs> {
             journal: OperationJournal::new(fs, dir),
             fs,
             servers_root: None,
+            host_reset_config: None,
             records: Mutex::new(HashMap::new()),
             terminal_ids: Mutex::new(VecDeque::new()),
             cancel_flags: Mutex::new(HashMap::new()),
@@ -120,6 +122,11 @@ impl<'fs> LifecycleOperations<'fs> {
     /// before P7.33.
     pub fn with_servers_root(mut self, servers_root: impl Into<PathBuf>) -> Self {
         self.servers_root = Some(servers_root.into());
+        self
+    }
+
+    pub fn with_host_reset_config(mut self, path: PathBuf) -> Self {
+        self.host_reset_config = Some(path);
         self
     }
 
@@ -371,6 +378,18 @@ impl<'fs> LifecycleOperations<'fs> {
                 from: record.state,
                 to: OperationState::Cancelled,
             });
+        }
+        if record.operation_type == HOST_RESET_OPERATION_TYPE
+            && let Some(config_path) = &self.host_reset_config
+        {
+            crate::host_reset::cancel_pending(self.fs, config_path, Some(id.as_str())).map_err(
+                |error| {
+                    LifecycleOperationError::Conflict(lifecycle_error(
+                        "reset_cancel_failed",
+                        error.to_string(),
+                    ))
+                },
+            )?;
         }
         record.status_line = Some(status_line.into());
         self.cancel_flags

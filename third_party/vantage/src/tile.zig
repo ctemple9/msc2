@@ -1,0 +1,997 @@
+//! Vantage binary tile format v1 (`.vtile`).
+//!
+//! A deliberately minimal, versioned, indexed geometry blob — the simplest
+//! instance of the documented, versioned binary contract decoupling generator
+//! from frontend. Later versions add textures (v3), fluids, quantized
+//! attributes (v6), and the compact quad encoding (v7); v1 remains the
+//! asset-free flat-color format.
+//!
+//! Every mesher emits strict quads — 4 consecutive vertices per face indexed
+//! `[b, b+1, b+2, b, b+2, b+3]` — so the index buffer is fully derivable from
+//! the vertex count. Formats ≤6 still ship it for old readers (synthesized
+//! here at serialize time); v7 drops it, which on real worlds was 63% of the
+//! gzipped bytes.
+//!
+//! All little-endian (matches x86/arm64 and the browser). Arrays are laid out so
+//! every f32/u32 block stays 4-byte aligned for zero-copy typed-array views.
+//!
+//!   offset  type            field
+//!   0       u8[4]           magic "VTL1"
+//!   4       u32             version (= 1)
+//!   8       u32             vertex_count (V)
+//!   12      u32             index_count  (I)
+//!   16      f32[3*V]        positions (world coords)
+//!   ...     u8[4*V]         colors (RGBA)
+//!   ...     i8[4*V]         normals (xyz + 1 pad byte)
+//!   ...     u32[I]          indices
+
+const std = @import("std");
+const mesh = @import("mesh.zig");
+const grid = @import("grid.zig");
+
+pub const MAGIC = "VTL1";
+pub const VERSION: u32 = 1;
+
+/// Serialize a mesh into a freshly allocated `.vtile` byte buffer.
+pub fn serialize(arena: std.mem.Allocator, m: mesh.Mesh) ![]u8 {
+    var out: std.ArrayList(u8) = .empty;
+    const v = m.vertex_count;
+    const i: u32 = @intCast(m.indices.items.len);
+
+    try out.appendSlice(arena, MAGIC);
+    try appendU32(arena, &out, VERSION);
+    try appendU32(arena, &out, v);
+    try appendU32(arena, &out, i);
+    try out.appendSlice(arena, std.mem.sliceAsBytes(m.positions.items));
+    try out.appendSlice(arena, std.mem.sliceAsBytes(m.colors.items));
+    try out.appendSlice(arena, std.mem.sliceAsBytes(m.normals.items));
+    try out.appendSlice(arena, std.mem.sliceAsBytes(m.indices.items));
+
+    return out.toOwnedSlice(arena);
+}
+
+fn appendU32(arena: std.mem.Allocator, out: *std.ArrayList(u8), v: u32) !void {
+    var buf: [4]u8 = undefined;
+    std.mem.writeInt(u32, &buf, v, .little);
+    try out.appendSlice(arena, &buf);
+}
+
+/// The index count the canonical quad topology implies for `v` vertices.
+fn canonicalIndexCount(v: u32) u32 {
+    return (v / 4) * 6;
+}
+
+/// Append the canonical quad index pattern for `v` vertices — two CCW triangles
+/// `[b, b+1, b+2, b, b+2, b+3]` per 4-vertex face. Every mesher emits exactly
+/// this topology, so formats ≤6 reconstruct their on-disk index array here
+/// instead of carrying one in memory.
+fn appendCanonicalIndices(arena: std.mem.Allocator, out: *std.ArrayList(u8), v: u32) !void {
+    var b: u32 = 0;
+    var buf: [24]u8 = undefined;
+    while (b < v) : (b += 4) {
+        const idx = [6]u32{ b, b + 1, b + 2, b, b + 2, b + 3 };
+        for (idx, 0..) |x, i| std.mem.writeInt(u32, buf[i * 4 ..][0..4], x, .little);
+        try out.appendSlice(arena, &buf);
+    }
+}
+
+pub const MAGIC2 = "VTL2";
+pub const VERSION2: u32 = 2;
+
+/// Serialize a textured mesh into a `.vtile` (v2) buffer. Adds per-vertex UV,
+/// a texture-array layer index, and a tint-multiply color over the v1 layout:
+///   "VTL2", u32 ver, u32 V, u32 I,
+///   f32[3V] positions, f32[2V] uv, f32[V] layer, u8[4V] color, i8[4V] normal,
+///   u32[I] indices.   (all little-endian, 4-byte aligned for zero-copy views)
+pub fn serializeTextured(arena: std.mem.Allocator, m: mesh.Mesh2) ![]u8 {
+    var out: std.ArrayList(u8) = .empty;
+    const v = m.vertex_count;
+
+    try out.appendSlice(arena, MAGIC2);
+    try appendU32(arena, &out, VERSION2);
+    try appendU32(arena, &out, v);
+    try appendU32(arena, &out, canonicalIndexCount(v));
+    try out.appendSlice(arena, std.mem.sliceAsBytes(m.positions.items));
+    try out.appendSlice(arena, std.mem.sliceAsBytes(m.uv.items));
+    try out.appendSlice(arena, std.mem.sliceAsBytes(m.layer.items));
+    try out.appendSlice(arena, std.mem.sliceAsBytes(m.color.items));
+    try out.appendSlice(arena, std.mem.sliceAsBytes(m.normals.items));
+    try appendCanonicalIndices(arena, &out, v);
+
+    return out.toOwnedSlice(arena);
+}
+
+pub const MAGIC3 = "VTL3";
+pub const VERSION3: u32 = 3;
+
+/// Serialize a textured mesh with biome data into a `.vtile` (v3) buffer. Adds a
+/// per-vertex biome id and a trailing biome legend (the name table) over v2:
+///   "VTL3", u32 ver, u32 V, u32 I,
+///   f32[3V] positions, f32[2V] uv, f32[V] layer, u8[4V] color, i8[4V] normal,
+///   f32[V] biome, u32[I] indices,
+///   u32 biome_count, then per biome: u16 name_len + name bytes.
+/// `biome_names` is the grid's biome name table; index 0 is the "" no-data
+/// sentinel (per-vertex biome ids index into it directly).
+pub fn serializeTexturedBiome(arena: std.mem.Allocator, m: mesh.Mesh2, biome_names: []const []const u8) ![]u8 {
+    var out: std.ArrayList(u8) = .empty;
+    const v = m.vertex_count;
+
+    try out.appendSlice(arena, MAGIC3);
+    try appendU32(arena, &out, VERSION3);
+    try appendU32(arena, &out, v);
+    try appendU32(arena, &out, canonicalIndexCount(v));
+    try out.appendSlice(arena, std.mem.sliceAsBytes(m.positions.items));
+    try out.appendSlice(arena, std.mem.sliceAsBytes(m.uv.items));
+    try out.appendSlice(arena, std.mem.sliceAsBytes(m.layer.items));
+    try out.appendSlice(arena, std.mem.sliceAsBytes(m.color.items));
+    try out.appendSlice(arena, std.mem.sliceAsBytes(m.normals.items));
+    try out.appendSlice(arena, std.mem.sliceAsBytes(m.biome.items));
+    try appendCanonicalIndices(arena, &out, v);
+
+    // Biome legend: count, then length-prefixed names (UTF-8, namespace kept).
+    try appendU32(arena, &out, @intCast(biome_names.len));
+    for (biome_names) |name| {
+        var lb: [2]u8 = undefined;
+        std.mem.writeInt(u16, &lb, @intCast(@min(name.len, std.math.maxInt(u16))), .little);
+        try out.appendSlice(arena, &lb);
+        try out.appendSlice(arena, name[0..@min(name.len, std.math.maxInt(u16))]);
+    }
+
+    return out.toOwnedSlice(arena);
+}
+
+pub const MAGIC4 = "VTL4";
+pub const VERSION4: u32 = 4;
+
+/// Serialize a textured + biome tile with a second geometry section for
+/// transparent fluids (water), drawn in a separate alpha-blended pass:
+///   "VTL4", u32 ver=4,
+///   <solid section>, <fluid section>,
+///   u32 biome_count, then per biome: u16 name_len + name bytes.
+/// A section is: u32 V, u32 I, f32[3V] pos, f32[2V] uv, f32[V] layer,
+///   u8[4V] color, i8[4V] normal, f32[V] biome, u32[I] indices.
+/// The normal's 4th byte (historically pad) carries packed sky/block light,
+/// `(sky << 4) | block` each 0..15 — free per-vertex light at no size cost.
+/// The solid section's header (V,I) sits at offset 8 so a VTL4 reader can share
+/// the VTL3 solid-mesh parse and just continue into the fluid section + legend.
+pub fn serializeWithFluid(arena: std.mem.Allocator, solid: mesh.Mesh2, fluid: mesh.Mesh2, biome_names: []const []const u8) ![]u8 {
+    var out: std.ArrayList(u8) = .empty;
+    try out.appendSlice(arena, MAGIC4);
+    try appendU32(arena, &out, VERSION4);
+    try appendMeshSection(arena, &out, solid);
+    try appendMeshSection(arena, &out, fluid);
+
+    // Shared biome legend: count, then length-prefixed names (UTF-8, ns kept).
+    try appendU32(arena, &out, @intCast(biome_names.len));
+    for (biome_names) |name| {
+        var lb: [2]u8 = undefined;
+        std.mem.writeInt(u16, &lb, @intCast(@min(name.len, std.math.maxInt(u16))), .little);
+        try out.appendSlice(arena, &lb);
+        try out.appendSlice(arena, name[0..@min(name.len, std.math.maxInt(u16))]);
+    }
+
+    return out.toOwnedSlice(arena);
+}
+
+pub const MAGIC5 = "VTL5";
+pub const VERSION5: u32 = 5;
+
+/// VTL5 = VTL4 plus a top-down surface map (for fast hover-picking without
+/// raycasting geometry). Layout:
+///   "VTL5", u32 ver=5,
+///   <solid section>, <fluid section>,
+///   u32 sx, u32 sz, i32 min_x, i32 min_z,
+///   u16[sx*sz] biome, i16[sx*sz] height,
+///   u32 biome_count, legend.
+/// The u16/i16 arrays stay 2-byte aligned because every preceding field is
+/// 4-byte sized, so the frontend can view them zero-copy.
+pub fn serializeWithSurface(
+    arena: std.mem.Allocator,
+    solid: mesh.Mesh2,
+    fluid: mesh.Mesh2,
+    surface: grid.Surface,
+    biome_names: []const []const u8,
+) ![]u8 {
+    var out: std.ArrayList(u8) = .empty;
+    try out.appendSlice(arena, MAGIC5);
+    try appendU32(arena, &out, VERSION5);
+    try appendMeshSection(arena, &out, solid);
+    try appendMeshSection(arena, &out, fluid);
+
+    // Surface map: dims + world origin, then the two parallel column arrays.
+    try appendU32(arena, &out, @intCast(surface.sx));
+    try appendU32(arena, &out, @intCast(surface.sz));
+    try appendI32(arena, &out, surface.min_x);
+    try appendI32(arena, &out, surface.min_z);
+    try out.appendSlice(arena, std.mem.sliceAsBytes(surface.biome));
+    try out.appendSlice(arena, std.mem.sliceAsBytes(surface.height));
+
+    // Shared biome legend: count, then length-prefixed names (UTF-8, ns kept).
+    try appendU32(arena, &out, @intCast(biome_names.len));
+    for (biome_names) |name| {
+        var lb: [2]u8 = undefined;
+        std.mem.writeInt(u16, &lb, @intCast(@min(name.len, std.math.maxInt(u16))), .little);
+        try out.appendSlice(arena, &lb);
+        try out.appendSlice(arena, name[0..@min(name.len, std.math.maxInt(u16))]);
+    }
+
+    return out.toOwnedSlice(arena);
+}
+
+pub const MAGIC6 = "VTL6";
+pub const VERSION6: u32 = 6;
+
+/// VTL6 = VTL5 with quantized vertex attributes — smaller tiles, faster to
+/// serialize and transfer, decoded back to the same geometry on the frontend.
+/// Per section the heavy float arrays shrink:
+///   positions f32[3V] -> u16[3V] via a per-axis bounding-box transform
+///     (world = min + q*scale); layer/biome f32[V] -> u16[V] (integer ids,
+///     lossless). uv / colour / normal / indices are unchanged (still zero-copy).
+/// Layout:
+///   "VTL6", u32 ver=6,
+///   <solid q-section>, <fluid q-section>,
+///   u32 sx, u32 sz, i32 min_x, i32 min_z,
+///   u16[sx*sz] biome, i16[sx*sz] height,
+///   u32 biome_count, legend.
+/// A q-section is: u32 V, u32 I, f32[2V] uv, u8[4V] colour, i8[4V] normal,
+///   u32[I] indices, f32[6] bbox (min xyz, scale xyz), u16[3V] pos, u16[V] layer,
+///   u16[V] biome, then 0/2 pad bytes so the section ends 4-byte aligned (keeps
+///   the following section / surface map zero-copy on the frontend).
+pub fn serializeWithSurfaceQuantized(
+    arena: std.mem.Allocator,
+    solid: mesh.Mesh2,
+    fluid: mesh.Mesh2,
+    surface: grid.Surface,
+    biome_names: []const []const u8,
+) ![]u8 {
+    var out: std.ArrayList(u8) = .empty;
+    try out.appendSlice(arena, MAGIC6);
+    try appendU32(arena, &out, VERSION6);
+    try appendMeshSectionQuantized(arena, &out, solid);
+    try appendMeshSectionQuantized(arena, &out, fluid);
+
+    // Surface map: dims + world origin, then the two parallel column arrays.
+    try appendU32(arena, &out, @intCast(surface.sx));
+    try appendU32(arena, &out, @intCast(surface.sz));
+    try appendI32(arena, &out, surface.min_x);
+    try appendI32(arena, &out, surface.min_z);
+    try out.appendSlice(arena, std.mem.sliceAsBytes(surface.biome));
+    try out.appendSlice(arena, std.mem.sliceAsBytes(surface.height));
+
+    // Shared biome legend: count, then length-prefixed names (UTF-8, ns kept).
+    try appendU32(arena, &out, @intCast(biome_names.len));
+    for (biome_names) |name| {
+        var lb: [2]u8 = undefined;
+        std.mem.writeInt(u16, &lb, @intCast(@min(name.len, std.math.maxInt(u16))), .little);
+        try out.appendSlice(arena, &lb);
+        try out.appendSlice(arena, name[0..@min(name.len, std.math.maxInt(u16))]);
+    }
+
+    return out.toOwnedSlice(arena);
+}
+
+fn appendMeshSectionQuantized(arena: std.mem.Allocator, out: *std.ArrayList(u8), m: mesh.Mesh2) !void {
+    const v = m.vertex_count;
+    try appendU32(arena, out, v);
+    try appendU32(arena, out, canonicalIndexCount(v));
+    // Unchanged, zero-copy on read: uv, colour, normal, indices.
+    try out.appendSlice(arena, std.mem.sliceAsBytes(m.uv.items));
+    try out.appendSlice(arena, std.mem.sliceAsBytes(m.color.items));
+    try out.appendSlice(arena, std.mem.sliceAsBytes(m.normals.items));
+    try appendCanonicalIndices(arena, out, v);
+
+    // Per-axis bounding box for the u16 position transform.
+    var mn = [3]f32{ 0, 0, 0 };
+    var sc = [3]f32{ 0, 0, 0 };
+    if (v > 0) {
+        var lo = [3]f32{ std.math.inf(f32), std.math.inf(f32), std.math.inf(f32) };
+        var hi = [3]f32{ -std.math.inf(f32), -std.math.inf(f32), -std.math.inf(f32) };
+        for (0..v) |i| {
+            inline for (0..3) |k| {
+                const p = m.positions.items[i * 3 + k];
+                lo[k] = @min(lo[k], p);
+                hi[k] = @max(hi[k], p);
+            }
+        }
+        inline for (0..3) |k| {
+            mn[k] = lo[k];
+            const span = hi[k] - lo[k];
+            sc[k] = if (span > 0) span / 65535.0 else 0;
+        }
+    }
+    inline for (mn) |x| try appendF32(arena, out, x);
+    inline for (sc) |x| try appendF32(arena, out, x);
+
+    // Quantized positions, then the lossless integer ids (layer, biome). The
+    // temporaries are freed here; only the bytes copied into `out` are kept.
+    const pq = try arena.alloc(u16, v * 3);
+    defer arena.free(pq);
+    for (0..v) |i| {
+        inline for (0..3) |k| pq[i * 3 + k] = quantPos(m.positions.items[i * 3 + k], mn[k], sc[k]);
+    }
+    try out.appendSlice(arena, std.mem.sliceAsBytes(pq));
+
+    const lq = try arena.alloc(u16, v);
+    defer arena.free(lq);
+    const bq = try arena.alloc(u16, v);
+    defer arena.free(bq);
+    for (0..v) |i| {
+        lq[i] = idToU16(m.layer.items[i]);
+        bq[i] = idToU16(m.biome.items[i]);
+    }
+    try out.appendSlice(arena, std.mem.sliceAsBytes(lq));
+    try out.appendSlice(arena, std.mem.sliceAsBytes(bq));
+
+    // Pad to a 4-byte boundary so the next section / surface stays aligned.
+    while (out.items.len % 4 != 0) try out.append(arena, 0);
+}
+
+pub const MAGIC7 = "VTL7";
+pub const VERSION7: u32 = 7;
+
+/// VTL7 = VTL6 re-encoded around what actually costs bytes on real worlds
+/// (measured per-stream on gzipped tiles: indices 63%, positions 42%):
+///   - NO index array. Geometry is strictly quads; the client regenerates the
+///     canonical pattern and shares one GPU index buffer across every tile.
+///   - u16 positions are delta-coded per component (wrapping mod-65536 diff,
+///     zigzag-mapped) — consecutive vertices are neighbours, so the stream
+///     becomes small repetitive values and gzip bites ~3× harder. The client
+///     undoes it in one in-place pass before upload.
+///   - uv f32 → i16 fixed point, 1/128 texture unit per step (greedy runs keep
+///     |uv| ≤ ~129, flow textures go negative — both well inside ±256). The
+///     shader dequantizes with a per-tile uUvScale uniform.
+/// Layout:
+///   "VTL7", u32 ver=7,
+///   <solid c-section>, <fluid c-section>,
+///   u32 sx, u32 sz, i32 min_x, i32 min_z,
+///   u16[sx*sz] biome, i16[sx*sz] height,
+///   u32 biome_count, legend.
+/// A c-section is: u32 V, i16[2V] uv, u8[4V] colour, i8[4V] normal (xyz +
+///   packed light byte), f32[6] bbox (min xyz, scale xyz), u16[3V] delta-coded
+///   pos, u16[V] layer, u16[V] biome, then 0/2 pad bytes so the section ends
+///   4-byte aligned.
+pub fn serializeWithSurfaceCompact(
+    arena: std.mem.Allocator,
+    solid: mesh.Mesh2,
+    fluid: mesh.Mesh2,
+    surface: grid.Surface,
+    biome_names: []const []const u8,
+) ![]u8 {
+    var out: std.ArrayList(u8) = .empty;
+    errdefer out.deinit(arena); // NonQuadMesh can bail mid-write
+    try out.appendSlice(arena, MAGIC7);
+    try appendU32(arena, &out, VERSION7);
+    try appendMeshSectionCompact(arena, &out, solid);
+    try appendMeshSectionCompact(arena, &out, fluid);
+
+    // Surface map: dims + world origin, then the two parallel column arrays.
+    try appendU32(arena, &out, @intCast(surface.sx));
+    try appendU32(arena, &out, @intCast(surface.sz));
+    try appendI32(arena, &out, surface.min_x);
+    try appendI32(arena, &out, surface.min_z);
+    try out.appendSlice(arena, std.mem.sliceAsBytes(surface.biome));
+    try out.appendSlice(arena, std.mem.sliceAsBytes(surface.height));
+
+    // Shared biome legend: count, then length-prefixed names (UTF-8, ns kept).
+    try appendU32(arena, &out, @intCast(biome_names.len));
+    for (biome_names) |name| {
+        var lb: [2]u8 = undefined;
+        std.mem.writeInt(u16, &lb, @intCast(@min(name.len, std.math.maxInt(u16))), .little);
+        try out.appendSlice(arena, &lb);
+        try out.appendSlice(arena, name[0..@min(name.len, std.math.maxInt(u16))]);
+    }
+
+    return out.toOwnedSlice(arena);
+}
+
+fn appendMeshSectionCompact(arena: std.mem.Allocator, out: *std.ArrayList(u8), m: mesh.Mesh2) !void {
+    const v = m.vertex_count;
+    // The whole format rests on the canonical quad topology — refuse to write
+    // a tile that would decode to garbage indices.
+    if (v % 4 != 0) return error.NonQuadMesh;
+    try appendU32(arena, out, v);
+
+    // UV as i16 fixed point.
+    const uvq = try arena.alloc(i16, v * 2);
+    defer arena.free(uvq);
+    for (m.uv.items, 0..) |u, i| uvq[i] = quantUv(u);
+    try out.appendSlice(arena, std.mem.sliceAsBytes(uvq));
+
+    try out.appendSlice(arena, std.mem.sliceAsBytes(m.color.items));
+    try out.appendSlice(arena, std.mem.sliceAsBytes(m.normals.items));
+
+    // Per-axis bounding box for the u16 position transform (same as VTL6).
+    var mn = [3]f32{ 0, 0, 0 };
+    var sc = [3]f32{ 0, 0, 0 };
+    if (v > 0) {
+        var lo = [3]f32{ std.math.inf(f32), std.math.inf(f32), std.math.inf(f32) };
+        var hi = [3]f32{ -std.math.inf(f32), -std.math.inf(f32), -std.math.inf(f32) };
+        for (0..v) |i| {
+            inline for (0..3) |k| {
+                const p = m.positions.items[i * 3 + k];
+                lo[k] = @min(lo[k], p);
+                hi[k] = @max(hi[k], p);
+            }
+        }
+        inline for (0..3) |k| {
+            mn[k] = lo[k];
+            const span = hi[k] - lo[k];
+            sc[k] = if (span > 0) span / 65535.0 else 0;
+        }
+    }
+    inline for (mn) |x| try appendF32(arena, out, x);
+    inline for (sc) |x| try appendF32(arena, out, x);
+
+    // Quantize as VTL6 would, then delta-code each component against the
+    // previous vertex (wrapping) and zigzag-map so small ± steps become small
+    // unsigned values.
+    const pq = try arena.alloc(u16, v * 3);
+    defer arena.free(pq);
+    var prev = [3]u16{ 0, 0, 0 };
+    for (0..v) |i| {
+        inline for (0..3) |k| {
+            const q = quantPos(m.positions.items[i * 3 + k], mn[k], sc[k]);
+            pq[i * 3 + k] = zigzagDelta(q, prev[k]);
+            prev[k] = q;
+        }
+    }
+    try out.appendSlice(arena, std.mem.sliceAsBytes(pq));
+
+    // Lossless integer ids, unchanged from VTL6.
+    const lq = try arena.alloc(u16, v);
+    defer arena.free(lq);
+    const bq = try arena.alloc(u16, v);
+    defer arena.free(bq);
+    for (0..v) |i| {
+        lq[i] = idToU16(m.layer.items[i]);
+        bq[i] = idToU16(m.biome.items[i]);
+    }
+    try out.appendSlice(arena, std.mem.sliceAsBytes(lq));
+    try out.appendSlice(arena, std.mem.sliceAsBytes(bq));
+
+    // Pad to a 4-byte boundary so the next section / surface stays aligned.
+    while (out.items.len % 4 != 0) try out.append(arena, 0);
+}
+
+pub const MAGIC8 = "VTL8";
+pub const VERSION8: u32 = 8;
+pub const MAGIC9 = "VTL9";
+pub const VERSION9: u32 = 9;
+pub const MAGIC10 = "VTLA";
+pub const VERSION10: u32 = 10;
+
+/// VTLA (version 10) = VTL9 with each section's cave partition made visible:
+///   - the mesher stable-partitions cave-dark quads (faces only a sky-light-0,
+///     non-water cell can see) to the END of each lighting segment, so a
+///     viewer can draw a surface-only PREFIX of each mesh while the camera is
+///     above ground — whole cave systems stop costing GPU vertex work without
+///     dropping a face from the tile.
+///   - each section header gains `cave_start` (first cave-dark vertex of the
+///     vertex-lit head `[0, lm_start)`) and `cave_lm_start` (first cave-dark
+///     vertex of the atlas-lit tail `[lm_start, V)`). Both equal their
+///     segment's end when there is no cave geometry.
+///   - everything else is VTL9: packed RG8 lightmap planes, delta-coded
+///     positions/lmuv, i16 uv, no index array.
+/// Layout:
+///   "VTLA", u32 ver=10,
+///   <solid l-section>, <fluid l-section>,
+///   u32 lm_w, u32 lm_h, u8[lm_w·lm_h] packed light, u8[...] AO,
+///   u32 sx, u32 sz, i32 min_x, i32 min_z,
+///   u16[sx*sz] biome, i16[sx*sz] height,
+///   u32 biome_count, legend.
+/// An l-section is a VTL7 c-section with `u32 lm_start, u32 cave_start,
+/// u32 cave_lm_start` after V and `u16[2·(V−lm_start)] lmuv` after the biome
+/// ids (then 0/2 pad bytes).
+pub fn serializeWithLightmap(
+    arena: std.mem.Allocator,
+    built: mesh.Built,
+    surface: grid.Surface,
+    biome_names: []const []const u8,
+) ![]u8 {
+    var out: std.ArrayList(u8) = .empty;
+    errdefer out.deinit(arena); // NonQuadMesh can bail mid-write
+
+    // A tile arena cannot reclaim each ArrayList growth allocation. Reserve the
+    // exact final size once so serialization never retains superseded buffers.
+    const surface_cells = surface.sx * surface.sz;
+    var exact_size: usize = 8 + litSectionSize(built.solid.vertex_count, built.lm_start) +
+        litSectionSize(built.fluid.vertex_count, built.fluid.vertex_count) + 8 + built.lightmap.texels.len +
+        16 + 4 * surface_cells + 4;
+    for (biome_names) |name| exact_size += 2 + @min(name.len, std.math.maxInt(u16));
+    try out.ensureTotalCapacityPrecise(arena, exact_size);
+
+    // Clamp the cave boundaries into their segments: `Built`'s maxInt default
+    // ("unset") becomes an all-surface section, so hand-built meshes and empty
+    // tiles serialize without spelling the fields out.
+    const sv = built.solid.vertex_count;
+    const solid_cave = @min(built.solid_cave, built.lm_start);
+    const solid_cave_lm = @min(@max(built.solid_cave_lm, built.lm_start), sv);
+    const fluid_cave = @min(built.fluid_cave, built.fluid.vertex_count);
+
+    try out.appendSlice(arena, MAGIC10);
+    try appendU32(arena, &out, VERSION10);
+    try appendMeshSectionLit(arena, &out, built.solid, built.lm_start, solid_cave, solid_cave_lm);
+    try appendMeshSectionLit(arena, &out, built.fluid, built.fluid.vertex_count, fluid_cave, built.fluid.vertex_count);
+
+    // The shelf-packed lightmap atlas (may be empty: flat light, empty tile).
+    try appendU32(arena, &out, built.lightmap.w);
+    try appendU32(arena, &out, built.lightmap.h);
+    const lightmap_texels: usize = @as(usize, built.lightmap.w) * built.lightmap.h;
+    std.debug.assert(built.lightmap.texels.len == lightmap_texels * 2);
+    // Transpose the mesher's convenient interleaved RG into two homogeneous
+    // planes. This is still allocation-free and compresses materially better.
+    for (0..lightmap_texels) |i| try out.append(arena, built.lightmap.texels[i * 2]);
+    for (0..lightmap_texels) |i| try out.append(arena, built.lightmap.texels[i * 2 + 1]);
+
+    // Surface map: dims + world origin, then the two parallel column arrays.
+    try appendU32(arena, &out, @intCast(surface.sx));
+    try appendU32(arena, &out, @intCast(surface.sz));
+    try appendI32(arena, &out, surface.min_x);
+    try appendI32(arena, &out, surface.min_z);
+    try out.appendSlice(arena, std.mem.sliceAsBytes(surface.biome));
+    try out.appendSlice(arena, std.mem.sliceAsBytes(surface.height));
+
+    // Shared biome legend: count, then length-prefixed names (UTF-8, ns kept).
+    try appendU32(arena, &out, @intCast(biome_names.len));
+    for (biome_names) |name| {
+        var lb: [2]u8 = undefined;
+        std.mem.writeInt(u16, &lb, @intCast(@min(name.len, std.math.maxInt(u16))), .little);
+        try out.appendSlice(arena, &lb);
+        try out.appendSlice(arena, name[0..@min(name.len, std.math.maxInt(u16))]);
+    }
+
+    return out.toOwnedSlice(arena);
+}
+
+/// Exact encoded size of one aligned VTLA lit section. Both counts are quad
+/// multiples, so the expression is already 4-byte aligned.
+fn litSectionSize(vertex_count: u32, lm_start: u32) usize {
+    const v: usize = vertex_count;
+    return 40 + 26 * v - 4 * @as(usize, lm_start);
+}
+
+fn appendMeshSectionLit(arena: std.mem.Allocator, out: *std.ArrayList(u8), m: mesh.Mesh2, lm_start: u32, cave_start: u32, cave_lm_start: u32) !void {
+    const v = m.vertex_count;
+    if (v % 4 != 0) return error.NonQuadMesh;
+    std.debug.assert(m.lmuv.items.len == 2 * (v - lm_start));
+    std.debug.assert(cave_start <= lm_start and cave_lm_start >= lm_start and cave_lm_start <= v);
+    try appendU32(arena, out, v);
+    try appendU32(arena, out, lm_start);
+    try appendU32(arena, out, cave_start);
+    try appendU32(arena, out, cave_lm_start);
+
+    // Encode directly into the exactly reserved output. The old temporary
+    // uv/position/id arrays accumulated in the tile arena and materially
+    // inflated peak memory even though their logical lifetimes were short.
+    for (m.uv.items) |u| try appendI16(arena, out, quantUv(u));
+
+    try out.appendSlice(arena, std.mem.sliceAsBytes(m.color.items));
+    try out.appendSlice(arena, std.mem.sliceAsBytes(m.normals.items));
+
+    // Per-axis bounding box for the u16 position transform (same as VTL6).
+    var mn = [3]f32{ 0, 0, 0 };
+    var sc = [3]f32{ 0, 0, 0 };
+    if (v > 0) {
+        var lo = [3]f32{ std.math.inf(f32), std.math.inf(f32), std.math.inf(f32) };
+        var hi = [3]f32{ -std.math.inf(f32), -std.math.inf(f32), -std.math.inf(f32) };
+        for (0..v) |i| {
+            inline for (0..3) |k| {
+                const p = m.positions.items[i * 3 + k];
+                lo[k] = @min(lo[k], p);
+                hi[k] = @max(hi[k], p);
+            }
+        }
+        inline for (0..3) |k| {
+            mn[k] = lo[k];
+            const span = hi[k] - lo[k];
+            sc[k] = if (span > 0) span / 65535.0 else 0;
+        }
+    }
+    inline for (mn) |x| try appendF32(arena, out, x);
+    inline for (sc) |x| try appendF32(arena, out, x);
+
+    // Delta-coded quantized positions (see VTL7).
+    var prev = [3]u16{ 0, 0, 0 };
+    for (0..v) |i| {
+        inline for (0..3) |k| {
+            const q = quantPos(m.positions.items[i * 3 + k], mn[k], sc[k]);
+            try appendU16(arena, out, zigzagDelta(q, prev[k]));
+            prev[k] = q;
+        }
+    }
+
+    // Lossless integer ids, unchanged from VTL6.
+    for (m.layer.items) |x| try appendU16(arena, out, idToU16(x));
+    for (m.biome.items) |x| try appendU16(arena, out, idToU16(x));
+
+    // The atlas-lit tail's lightmap UVs (half-texel u16 pairs), delta-coded
+    // per component like positions — atlas placement follows emission order,
+    // so consecutive quads sit side by side and the deltas stay small.
+    var lprev = [2]u16{ 0, 0 };
+    for (m.lmuv.items, 0..) |val, i| {
+        try appendU16(arena, out, zigzagDelta(val, lprev[i % 2]));
+        lprev[i % 2] = val;
+    }
+
+    // Pad to a 4-byte boundary so the next section / surface stays aligned.
+    while (out.items.len % 4 != 0) try out.append(arena, 0);
+}
+
+/// UV steps of 1/128 texture unit: exact for the 1/16-texel model UVs, ~0.1 px
+/// on a 16px texture for the arbitrary fluid-flow fractions.
+pub const UV_SCALE: f32 = 128.0;
+
+fn quantUv(u: f32) i16 {
+    return @intFromFloat(std.math.clamp(@round(u * UV_SCALE), -32768.0, 32767.0));
+}
+
+/// Wrapping mod-65536 difference, zigzag-mapped to u16 (bijective; the decoder
+/// runs `cur = prev +% unzigzag(d)`).
+fn zigzagDelta(cur: u16, prev: u16) u16 {
+    const d: i16 = @bitCast(cur -% prev);
+    return @bitCast((d *% 2) ^ (d >> 15));
+}
+
+fn quantPos(p: f32, mn: f32, sc: f32) u16 {
+    if (sc <= 0) return 0;
+    return @intFromFloat(std.math.clamp(@round((p - mn) / sc), 0.0, 65535.0));
+}
+
+fn idToU16(x: f32) u16 {
+    return @intFromFloat(std.math.clamp(@round(x), 0.0, 65535.0));
+}
+
+fn appendF32(arena: std.mem.Allocator, out: *std.ArrayList(u8), v: f32) !void {
+    var buf: [4]u8 = undefined;
+    std.mem.writeInt(u32, &buf, @bitCast(v), .little);
+    try out.appendSlice(arena, &buf);
+}
+
+fn appendU16(arena: std.mem.Allocator, out: *std.ArrayList(u8), v: u16) !void {
+    var buf: [2]u8 = undefined;
+    std.mem.writeInt(u16, &buf, v, .little);
+    try out.appendSlice(arena, &buf);
+}
+
+fn appendI16(arena: std.mem.Allocator, out: *std.ArrayList(u8), v: i16) !void {
+    var buf: [2]u8 = undefined;
+    std.mem.writeInt(i16, &buf, v, .little);
+    try out.appendSlice(arena, &buf);
+}
+
+fn appendI32(arena: std.mem.Allocator, out: *std.ArrayList(u8), v: i32) !void {
+    var buf: [4]u8 = undefined;
+    std.mem.writeInt(i32, &buf, v, .little);
+    try out.appendSlice(arena, &buf);
+}
+
+fn appendMeshSection(arena: std.mem.Allocator, out: *std.ArrayList(u8), m: mesh.Mesh2) !void {
+    try appendU32(arena, out, m.vertex_count);
+    try appendU32(arena, out, canonicalIndexCount(m.vertex_count));
+    try out.appendSlice(arena, std.mem.sliceAsBytes(m.positions.items));
+    try out.appendSlice(arena, std.mem.sliceAsBytes(m.uv.items));
+    try out.appendSlice(arena, std.mem.sliceAsBytes(m.layer.items));
+    try out.appendSlice(arena, std.mem.sliceAsBytes(m.color.items));
+    try out.appendSlice(arena, std.mem.sliceAsBytes(m.normals.items));
+    try out.appendSlice(arena, std.mem.sliceAsBytes(m.biome.items));
+    try appendCanonicalIndices(arena, out, m.vertex_count);
+}
+
+test "serialized header is well-formed and sizes match" {
+    const a = std.testing.allocator;
+    var m: mesh.Mesh = .{};
+    defer {
+        m.positions.deinit(a);
+        m.colors.deinit(a);
+        m.normals.deinit(a);
+        m.indices.deinit(a);
+    }
+    // One quad: 4 verts, 6 indices.
+    try m.positions.appendSlice(a, &.{ 0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0 });
+    try m.colors.appendSlice(a, &([_]u8{ 10, 20, 30, 255 } ** 4));
+    try m.normals.appendSlice(a, &([_]i8{ 0, 0, 1, 0 } ** 4));
+    try m.indices.appendSlice(a, &.{ 0, 1, 2, 0, 2, 3 });
+    m.vertex_count = 4;
+
+    const bytes = try serialize(a, m);
+    defer a.free(bytes);
+
+    try std.testing.expectEqualSlices(u8, MAGIC, bytes[0..4]);
+    try std.testing.expectEqual(VERSION, std.mem.readInt(u32, bytes[4..8], .little));
+    try std.testing.expectEqual(@as(u32, 4), std.mem.readInt(u32, bytes[8..12], .little));
+    try std.testing.expectEqual(@as(u32, 6), std.mem.readInt(u32, bytes[12..16], .little));
+
+    const expected = 16 + (4 * 3 * 4) + (4 * 4) + (4 * 4) + (6 * 4);
+    try std.testing.expectEqual(@as(usize, expected), bytes.len);
+}
+
+test "VTL3 writes biome attribute and legend" {
+    const a = std.testing.allocator;
+    var m: mesh.Mesh2 = .{};
+    defer {
+        m.positions.deinit(a);
+        m.uv.deinit(a);
+        m.layer.deinit(a);
+        m.color.deinit(a);
+        m.normals.deinit(a);
+        m.biome.deinit(a);
+    }
+    // One quad, biome id 1 on all 4 verts.
+    try m.positions.appendSlice(a, &.{ 0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0 });
+    try m.uv.appendSlice(a, &([_]f32{ 0, 0 } ** 4));
+    try m.layer.appendSlice(a, &([_]f32{0} ** 4));
+    try m.color.appendSlice(a, &([_]u8{ 255, 255, 255, 255 } ** 4));
+    try m.normals.appendSlice(a, &([_]i8{ 0, 0, 1, 0 } ** 4));
+    try m.biome.appendSlice(a, &([_]f32{1} ** 4));
+    m.vertex_count = 4;
+
+    const names = [_][]const u8{ "", "minecraft:plains" };
+    const bytes = try serializeTexturedBiome(a, m, &names);
+    defer a.free(bytes);
+
+    try std.testing.expectEqualSlices(u8, MAGIC3, bytes[0..4]);
+    try std.testing.expectEqual(VERSION3, std.mem.readInt(u32, bytes[4..8], .little));
+    try std.testing.expectEqual(@as(u32, 4), std.mem.readInt(u32, bytes[8..12], .little));
+
+    // Legend sits after the fixed-size arrays: header(16) + pos(48) + uv(32) +
+    // layer(16) + color(16) + normal(16) + biome(16) + indices(24).
+    const legend_off = 16 + 48 + 32 + 16 + 16 + 16 + 16 + 24;
+    try std.testing.expectEqual(@as(u32, 2), std.mem.readInt(u32, bytes[legend_off..][0..4], .little));
+    // First name "" (len 0), then "minecraft:plains" (len 16).
+    try std.testing.expectEqual(@as(u16, 0), std.mem.readInt(u16, bytes[legend_off + 4 ..][0..2], .little));
+    const n1_len = std.mem.readInt(u16, bytes[legend_off + 6 ..][0..2], .little);
+    try std.testing.expectEqual(@as(u16, 16), n1_len);
+    try std.testing.expectEqualStrings("minecraft:plains", bytes[legend_off + 8 ..][0..16]);
+}
+
+test "VTL4 writes both geometry sections and the shared legend" {
+    const a = std.testing.allocator;
+    var solid: mesh.Mesh2 = .{};
+    var fluid: mesh.Mesh2 = .{};
+    defer for ([_]*mesh.Mesh2{ &solid, &fluid }) |m| {
+        m.positions.deinit(a);
+        m.uv.deinit(a);
+        m.layer.deinit(a);
+        m.color.deinit(a);
+        m.normals.deinit(a);
+        m.biome.deinit(a);
+    };
+    // One quad in each section.
+    for ([_]*mesh.Mesh2{ &solid, &fluid }) |m| {
+        try m.positions.appendSlice(a, &.{ 0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0 });
+        try m.uv.appendSlice(a, &([_]f32{ 0, 0 } ** 4));
+        try m.layer.appendSlice(a, &([_]f32{0} ** 4));
+        try m.color.appendSlice(a, &([_]u8{ 255, 255, 255, 255 } ** 4));
+        try m.normals.appendSlice(a, &([_]i8{ 0, 0, 1, 0 } ** 4));
+        try m.biome.appendSlice(a, &([_]f32{1} ** 4));
+        m.vertex_count = 4;
+    }
+
+    const names = [_][]const u8{ "", "minecraft:plains" };
+    const bytes = try serializeWithFluid(a, solid, fluid, &names);
+    defer a.free(bytes);
+
+    try std.testing.expectEqualSlices(u8, MAGIC4, bytes[0..4]);
+    try std.testing.expectEqual(VERSION4, std.mem.readInt(u32, bytes[4..8], .little));
+    // Solid section header at offset 8 (V, I).
+    try std.testing.expectEqual(@as(u32, 4), std.mem.readInt(u32, bytes[8..12], .little));
+    try std.testing.expectEqual(@as(u32, 6), std.mem.readInt(u32, bytes[12..16], .little));
+    // Walk to the fluid section: solid arrays (36 bytes/vert) + indices (4/idx).
+    const sec_bytes = 36 * 4 + 4 * 6; // V=4, I=6
+    const fluid_off = 8 + 8 + sec_bytes;
+    try std.testing.expectEqual(@as(u32, 4), std.mem.readInt(u32, bytes[fluid_off..][0..4], .little));
+    try std.testing.expectEqual(@as(u32, 6), std.mem.readInt(u32, bytes[fluid_off + 4 ..][0..4], .little));
+    // Legend follows the fluid section.
+    const legend_off = fluid_off + 8 + sec_bytes;
+    try std.testing.expectEqual(@as(u32, 2), std.mem.readInt(u32, bytes[legend_off..][0..4], .little));
+}
+
+test "VTL6 quantizes positions and round-trips within tolerance" {
+    const a = std.testing.allocator;
+    var solid: mesh.Mesh2 = .{};
+    var fluid: mesh.Mesh2 = .{};
+    defer for ([_]*mesh.Mesh2{ &solid, &fluid }) |m| {
+        m.positions.deinit(a);
+        m.uv.deinit(a);
+        m.layer.deinit(a);
+        m.color.deinit(a);
+        m.normals.deinit(a);
+        m.biome.deinit(a);
+    };
+    // A quad with a wide, offset position span so the bbox transform is exercised.
+    const px = [_]f32{ -100, 0, 0, 200, 0, 0, 200, 64, 0, -100, 64, 0 };
+    try solid.positions.appendSlice(a, &px);
+    try solid.uv.appendSlice(a, &([_]f32{ 0, 0 } ** 4));
+    try solid.layer.appendSlice(a, &([_]f32{ 42, 42, 42, 42 }));
+    try solid.color.appendSlice(a, &([_]u8{ 255, 255, 255, 255 } ** 4));
+    try solid.normals.appendSlice(a, &([_]i8{ 0, 0, 1, 0 } ** 4));
+    try solid.biome.appendSlice(a, &([_]f32{ 7, 7, 7, 7 }));
+    solid.vertex_count = 4;
+
+    const surface: grid.Surface = .{ .sx = 0, .sz = 0, .min_x = 0, .min_z = 0, .biome = &.{}, .height = &.{} };
+    const names = [_][]const u8{ "", "minecraft:plains" };
+    const bytes = try serializeWithSurfaceQuantized(a, solid, fluid, surface, &names);
+    defer a.free(bytes);
+
+    try std.testing.expectEqualSlices(u8, MAGIC6, bytes[0..4]);
+    try std.testing.expectEqual(VERSION6, std.mem.readInt(u32, bytes[4..8], .little));
+    try std.testing.expectEqual(@as(u32, 4), std.mem.readInt(u32, bytes[8..12], .little));
+
+    // Walk the solid q-section to its bbox + quantized positions. From the file
+    // start: magic+ver (8) + section header V,I (8) + uv 8V + colour 4V +
+    // normal 4V + indices 4I = 16 + 16V + 4I bytes.
+    const V = 4;
+    const I = 6;
+    const bbox_off = 16 + 16 * V + 4 * I;
+    var mn: [3]f32 = undefined;
+    var sc: [3]f32 = undefined;
+    inline for (0..3) |k| mn[k] = @bitCast(std.mem.readInt(u32, bytes[bbox_off + k * 4 ..][0..4], .little));
+    inline for (0..3) |k| sc[k] = @bitCast(std.mem.readInt(u32, bytes[bbox_off + 12 + k * 4 ..][0..4], .little));
+    const pos_off = bbox_off + 24;
+    // Reconstruct each vertex and compare to the original within one quant step.
+    for (0..V) |i| {
+        inline for (0..3) |k| {
+            const q = std.mem.readInt(u16, bytes[pos_off + (i * 3 + k) * 2 ..][0..2], .little);
+            const world = mn[k] + @as(f32, @floatFromInt(q)) * sc[k];
+            const tol = @max(sc[k], 1e-4);
+            try std.testing.expect(@abs(world - px[i * 3 + k]) <= tol);
+        }
+    }
+    // Layer + biome ids follow the quantized positions (u16[3V] then u16[V]×2).
+    const layer_off = pos_off + 3 * V * 2;
+    try std.testing.expectEqual(@as(u16, 42), std.mem.readInt(u16, bytes[layer_off..][0..2], .little));
+    const biome_off = layer_off + V * 2;
+    try std.testing.expectEqual(@as(u16, 7), std.mem.readInt(u16, bytes[biome_off..][0..2], .little));
+}
+
+test "VTL7 drops indices, delta-codes positions, and round-trips" {
+    const a = std.testing.allocator;
+    var solid: mesh.Mesh2 = .{};
+    var fluid: mesh.Mesh2 = .{};
+    defer for ([_]*mesh.Mesh2{ &solid, &fluid }) |m| {
+        m.positions.deinit(a);
+        m.uv.deinit(a);
+        m.layer.deinit(a);
+        m.color.deinit(a);
+        m.normals.deinit(a);
+        m.biome.deinit(a);
+    };
+    // Two quads with a wide span; UVs include a negative flow-texture value and
+    // a tiled greedy run (17.0).
+    const px = [_]f32{
+        -100, 0, 0, 200, 0, 0, 200, 64, 0, -100, 64, 0,
+        0,    0, 5, 1,   0, 5, 1,   1,  5, 0,    1,  5,
+    };
+    const uvs = [_]f32{ 0, 0, 17.0, 0, 17.0, 1, 0, 1, -0.25, 0.5, 0.5, 0.5, 0.5, 1, -0.25, 1 };
+    try solid.positions.appendSlice(a, &px);
+    try solid.uv.appendSlice(a, &uvs);
+    try solid.layer.appendSlice(a, &([_]f32{42} ** 8));
+    try solid.color.appendSlice(a, &([_]u8{ 255, 250, 245, 240 } ** 8));
+    try solid.normals.appendSlice(a, &([_]i8{ 0, 0, 1, -16 } ** 8));
+    try solid.biome.appendSlice(a, &([_]f32{7} ** 8));
+    solid.vertex_count = 8;
+
+    const surface: grid.Surface = .{ .sx = 0, .sz = 0, .min_x = 0, .min_z = 0, .biome = &.{}, .height = &.{} };
+    const names = [_][]const u8{ "", "minecraft:plains" };
+    const bytes = try serializeWithSurfaceCompact(a, solid, fluid, surface, &names);
+    defer a.free(bytes);
+
+    try std.testing.expectEqualSlices(u8, MAGIC7, bytes[0..4]);
+    try std.testing.expectEqual(VERSION7, std.mem.readInt(u32, bytes[4..8], .little));
+    const V = 8;
+    try std.testing.expectEqual(@as(u32, V), std.mem.readInt(u32, bytes[8..12], .little));
+
+    // UV round-trip: i16 fixed point at offset 12, 1/128 step.
+    for (uvs, 0..) |u, i| {
+        const q: i16 = @bitCast(std.mem.readInt(u16, bytes[12 + i * 2 ..][0..2], .little));
+        try std.testing.expect(@abs(@as(f32, @floatFromInt(q)) / UV_SCALE - u) <= 0.5 / UV_SCALE);
+    }
+
+    // Walk to bbox: 12 + uv 4V + colour 4V + normal 4V.
+    const bbox_off = 12 + 12 * V;
+    var mn: [3]f32 = undefined;
+    var sc: [3]f32 = undefined;
+    inline for (0..3) |k| mn[k] = @bitCast(std.mem.readInt(u32, bytes[bbox_off + k * 4 ..][0..4], .little));
+    inline for (0..3) |k| sc[k] = @bitCast(std.mem.readInt(u32, bytes[bbox_off + 12 + k * 4 ..][0..4], .little));
+
+    // Undo the delta coding and compare every reconstructed position.
+    const pos_off = bbox_off + 24;
+    var prev = [3]u16{ 0, 0, 0 };
+    for (0..V) |i| {
+        inline for (0..3) |k| {
+            const zz = std.mem.readInt(u16, bytes[pos_off + (i * 3 + k) * 2 ..][0..2], .little);
+            const d: i16 = @bitCast((zz >> 1) ^ (0 -% (zz & 1)));
+            const q = prev[k] +% @as(u16, @bitCast(d));
+            prev[k] = q;
+            const world = mn[k] + @as(f32, @floatFromInt(q)) * sc[k];
+            const tol = @max(sc[k], 1e-4);
+            try std.testing.expect(@abs(world - px[i * 3 + k]) <= tol);
+        }
+    }
+
+    // Layer + biome follow; the empty fluid section then the surface header.
+    const layer_off = pos_off + 3 * V * 2;
+    try std.testing.expectEqual(@as(u16, 42), std.mem.readInt(u16, bytes[layer_off..][0..2], .little));
+    const biome_off = layer_off + V * 2;
+    try std.testing.expectEqual(@as(u16, 7), std.mem.readInt(u16, bytes[biome_off..][0..2], .little));
+    const fluid_off = biome_off + V * 2; // section already 4-aligned (V=8)
+    try std.testing.expectEqual(@as(u32, 0), std.mem.readInt(u32, bytes[fluid_off..][0..4], .little));
+}
+
+test "VTL7 refuses non-quad meshes" {
+    const a = std.testing.allocator;
+    var solid: mesh.Mesh2 = .{};
+    const fluid: mesh.Mesh2 = .{};
+    defer {
+        solid.positions.deinit(a);
+    }
+    try solid.positions.appendSlice(a, &.{ 0, 0, 0, 1, 0, 0, 1, 1, 0 });
+    solid.vertex_count = 3; // a lone triangle — not the quad contract
+    const surface: grid.Surface = .{ .sx = 0, .sz = 0, .min_x = 0, .min_z = 0, .biome = &.{}, .height = &.{} };
+    try std.testing.expectError(error.NonQuadMesh, serializeWithSurfaceCompact(a, solid, fluid, surface, &.{}));
+}
+
+test "VTLA carries lm_start, the cave boundaries, the lmuv tail, and the packed atlas" {
+    const a = std.testing.allocator;
+    var built: mesh.Built = .{};
+    defer {
+        built.solid.positions.deinit(a);
+        built.solid.uv.deinit(a);
+        built.solid.layer.deinit(a);
+        built.solid.color.deinit(a);
+        built.solid.normals.deinit(a);
+        built.solid.biome.deinit(a);
+        built.solid.lmuv.deinit(a);
+    }
+    // Two quads: one model face (per-vertex light), one greedy (atlas-lit).
+    const m = &built.solid;
+    try m.positions.appendSlice(a, &([_]f32{ 0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0 } ** 2));
+    try m.uv.appendSlice(a, &([_]f32{ 0, 0 } ** 8));
+    try m.layer.appendSlice(a, &([_]f32{5} ** 8));
+    try m.color.appendSlice(a, &([_]u8{ 255, 255, 255, 255 } ** 8));
+    try m.normals.appendSlice(a, &([_]i8{ 0, 0, 1, -1 } ** 8));
+    try m.biome.appendSlice(a, &([_]f32{1} ** 8));
+    m.vertex_count = 8;
+    built.lm_start = 4;
+    // The greedy quad's half-texel lmuv: a 3x2-block rect at atlas (0,0).
+    try m.lmuv.appendSlice(a, &.{ 1, 1, 1, 5, 7, 5, 7, 1 });
+    // Packed RG atlas: sky=10/block=5, followed by exact AO=255.
+    var texels = [_]u8{ 0xa5, 255 } ** 12;
+    built.lightmap = .{ .w = 4, .h = 3, .texels = &texels };
+
+    const surface: grid.Surface = .{ .sx = 0, .sz = 0, .min_x = 0, .min_z = 0, .biome = &.{}, .height = &.{} };
+    const names = [_][]const u8{ "", "minecraft:plains" };
+    const bytes = try serializeWithLightmap(a, built, surface, &names);
+    defer a.free(bytes);
+
+    try std.testing.expectEqualSlices(u8, MAGIC10, bytes[0..4]);
+    try std.testing.expectEqual(VERSION10, std.mem.readInt(u32, bytes[4..8], .little));
+    const V = 8;
+    try std.testing.expectEqual(@as(u32, V), std.mem.readInt(u32, bytes[8..12], .little));
+    try std.testing.expectEqual(@as(u32, 4), std.mem.readInt(u32, bytes[12..16], .little)); // lm_start
+    // Cave boundaries: unset on the hand-built mesh, so the serializer clamps
+    // them to "all surface" — head boundary == lm_start, tail boundary == V.
+    try std.testing.expectEqual(@as(u32, 4), std.mem.readInt(u32, bytes[16..20], .little)); // cave_start
+    try std.testing.expectEqual(@as(u32, V), std.mem.readInt(u32, bytes[20..24], .little)); // cave_lm_start
+
+    // Walk the solid section: header(8+16) + uv 4V + colour 4V + normal 4V +
+    // bbox 24 + pos 6V + layer 2V + biome 2V = 24 + 22V + 24, then the
+    // delta-coded lmuv: u [1,1,7,7] → zz [2,0,12,0]; v [1,5,5,1] → zz [2,8,0,7].
+    const lmuv_off = 24 + 22 * V + 24;
+    try std.testing.expectEqual(@as(u16, 2), std.mem.readInt(u16, bytes[lmuv_off..][0..2], .little));
+    try std.testing.expectEqual(@as(u16, 12), std.mem.readInt(u16, bytes[lmuv_off + 4 * 2 ..][0..2], .little));
+    try std.testing.expectEqual(@as(u16, 7), std.mem.readInt(u16, bytes[lmuv_off + 7 * 2 ..][0..2], .little));
+    // Fluid section is empty: V=0, lm_start=0, cave boundaries 0/0, bbox only.
+    const fluid_off = lmuv_off + 8 * 2; // 8 lmuv u16s (V - lm_start = 4 verts)
+    try std.testing.expectEqual(@as(u32, 0), std.mem.readInt(u32, bytes[fluid_off..][0..4], .little));
+    try std.testing.expectEqual(@as(u32, 0), std.mem.readInt(u32, bytes[fluid_off + 4 ..][0..4], .little));
+    try std.testing.expectEqual(@as(u32, 0), std.mem.readInt(u32, bytes[fluid_off + 8 ..][0..4], .little));
+    try std.testing.expectEqual(@as(u32, 0), std.mem.readInt(u32, bytes[fluid_off + 12 ..][0..4], .little));
+    // Atlas header follows the fluid section (its bbox is 24 zero-filled bytes).
+    const lm_off = fluid_off + 16 + 24;
+    try std.testing.expectEqual(@as(u32, 4), std.mem.readInt(u32, bytes[lm_off..][0..4], .little));
+    try std.testing.expectEqual(@as(u32, 3), std.mem.readInt(u32, bytes[lm_off + 4 ..][0..4], .little));
+    try std.testing.expectEqual(@as(u8, 0xa5), bytes[lm_off + 8]); // packed sky/block
+    try std.testing.expectEqual(@as(u8, 255), bytes[lm_off + 8 + 12]); // AO plane
+    try std.testing.expectEqual(@as(u8, 255), bytes[lm_off + 8 + 2 * 12 - 1]);
+}

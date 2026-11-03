@@ -1,3 +1,5 @@
+import type { components } from '../api/generated';
+
 export type PlatformKind = 'tauri';
 
 export interface PickedFile {
@@ -13,9 +15,95 @@ export interface FileChunkSource {
   close(): Promise<void>;
 }
 
+/** A picker capability, never a local path or a JavaScript byte reader. */
+export interface NativeUploadBinding {
+  readonly creationContext?: boolean;
+  readonly agentHostId: string;
+  readonly purpose: components['schemas']['NativeUploadBeginRequestDTO']['purpose'];
+  readonly targetServerId?: string | null;
+  readonly operationId?: string | null;
+  readonly fileId?: string | null;
+}
+export interface NativeFilePickerRequest extends FilePickerRequest {
+  readonly directory?: boolean;
+  readonly droppedSourceId?: string;
+  readonly binding: NativeUploadBinding;
+}
+export interface NativeFileDescriptor {
+  readonly directory?: boolean;
+  readonly sourceId: string;
+  readonly binding: NativeUploadBinding;
+  readonly name: string;
+  readonly size: number;
+  readonly expiresInSeconds: number;
+}
+export interface NativeDroppedSource {
+  readonly sourceId: string | null;
+  readonly name: string;
+  readonly directory: boolean;
+  readonly error: string | null;
+}
+export interface NativeFileSource extends NativeFileDescriptor {
+  readonly kind: 'native';
+  close(): Promise<void>;
+}
+export type NativeUploadTransportKind =
+  'stream' | 'local-copy' | 'legacy-chunks' | 'legacy-buffered-agent';
+export interface NativeUploadProgress {
+  readonly operationId: string;
+  readonly agentHostId: string;
+  readonly phase:
+    | 'preparing'
+    | 'local-copying'
+    | 'transferring'
+    | 'verifying'
+    | 'cancelling'
+    | 'complete'
+    | 'cancelled'
+    | 'failed';
+  readonly bytesTransferred: number;
+  readonly totalBytes: number;
+  readonly bytesPerSecond: number;
+  readonly transport: NativeUploadTransportKind | null;
+}
+export interface NativeUploadResult {
+  readonly operationId: string;
+  readonly agentHostId: string;
+  readonly stagedUploadId: string;
+  readonly receivedBytes: number;
+  readonly sha256: string;
+  readonly transport: NativeUploadTransportKind;
+}
+export interface NativeUploadFailure {
+  readonly code: string;
+  readonly message: string;
+  readonly cleanup: 'not-admitted' | 'confirmed' | 'unconfirmed';
+  readonly agentHostId?: string;
+  readonly operationId?: string;
+  readonly stagedUploadId?: string;
+}
+export interface NativeUploadOptions {
+  readonly signal?: AbortSignal;
+  readonly onProgress?: (progress: NativeUploadProgress) => void;
+}
+export interface NativeFileUploader {
+  upload(source: NativeFileSource, options?: NativeUploadOptions): Promise<NativeUploadResult>;
+}
+
 export interface FileUploadProgress {
-  readonly phase: 'selecting' | 'preparing' | 'reading' | 'uploading' | 'cancelling' | 'complete';
+  readonly phase:
+    | 'selecting'
+    | 'preparing'
+    | 'reading'
+    | 'uploading'
+    | NativeUploadProgress['phase']
+    | 'inspecting'
+    | 'importing'
+    | 'installing';
   readonly bytesUploaded: number;
+  readonly bytesPerSecond?: number;
+  readonly transport?: NativeUploadTransportKind | null;
+  readonly statusLine?: string;
   readonly totalBytes: number;
   readonly chunkSizeBytes?: number;
 }
@@ -118,6 +206,7 @@ export interface PlatformAdapter {
   readFileStream?(path: string): Promise<FileChunkSource>;
   pickFile(request: FilePickerRequest): Promise<PickedFile | null>;
   pickFileStream(request: FilePickerRequest): Promise<FileChunkSource | null>;
+  pickNativeFile?(request: NativeFilePickerRequest): Promise<NativeFileSource | null>;
   notify(notification: DesktopNotification): Promise<void>;
   showMenu(entries: readonly MenuEntry[]): Promise<void>;
   closeWindow(): Promise<void>;
@@ -131,11 +220,16 @@ export interface PlatformAdapter {
   /** Fires with the real local filesystem path(s) whenever the user drops
    *  something onto the window. Returns an unsubscribe function, mirroring
    *  `onCloseRequested`. */
+  onNativeSourceDrop?(
+    handler: (sources: readonly NativeDroppedSource[]) => void,
+  ): Promise<() => void>;
   onFileDrop(handler: (paths: readonly string[]) => void): Promise<() => void>;
   onCloseRequested(handler: () => void): Promise<() => void>;
   credentialFor(hostId: string): Promise<string | null>;
   agentHealthCheck(): Promise<boolean>;
   agentServiceStatus(): Promise<AgentServiceStatus>;
+  agentIndicatorEnabled?(): Promise<boolean>;
+  setAgentIndicatorEnabled?(enabled: boolean): Promise<void>;
   manageAgentService(action: AgentServiceAction): Promise<AgentServiceStatus>;
   previewLocalUninstall(installers: readonly string[]): Promise<UninstallInventory>;
   uninstallLocal(request: LocalUninstallRequest): Promise<UninstallScheduled>;
@@ -149,6 +243,7 @@ export interface TauriPlatformDependencies {
   readFile?(path: string): Promise<Uint8Array>;
   pickFile(request: FilePickerRequest): Promise<PickedFile | null>;
   pickFileStream?(request: FilePickerRequest): Promise<FileChunkSource | null>;
+  pickNativeFile?(request: NativeFilePickerRequest): Promise<NativeFileSource | null>;
   readFileStream?(path: string): Promise<FileChunkSource>;
   notify(notification: DesktopNotification): Promise<void>;
   showMenu(entries: readonly MenuEntry[]): Promise<void>;
@@ -156,13 +251,37 @@ export interface TauriPlatformDependencies {
   quitApplication(): Promise<void>;
   openExternal(url: string): Promise<void>;
   revealInFileManager(path: string): Promise<void>;
+  onNativeSourceDrop?(
+    handler: (sources: readonly NativeDroppedSource[]) => void,
+  ): Promise<() => void>;
   onFileDrop(handler: (paths: readonly string[]) => void): Promise<() => void>;
   onCloseRequested(handler: () => void): Promise<() => void>;
   agentHealthCheck(): Promise<boolean>;
   agentServiceStatus(): Promise<AgentServiceStatus>;
+  agentIndicatorEnabled?(): Promise<boolean>;
+  setAgentIndicatorEnabled?(enabled: boolean): Promise<void>;
   manageAgentService(action: AgentServiceAction): Promise<AgentServiceStatus>;
   previewLocalUninstall?(installers: readonly string[]): Promise<UninstallInventory>;
   uninstallLocal?(request: LocalUninstallRequest): Promise<UninstallScheduled>;
   checkForUpdates?(): Promise<UpdateCheckResult>;
   installUpdate?(releaseId: string): Promise<UpdateInstallResult>;
+}
+
+export interface NativeDownloadRequest {
+  readonly agentHostId: string;
+  readonly stagedDownloadId: string;
+  readonly fileName: string;
+  readonly expectedBytes: number;
+}
+export interface NativeDownloadResult {
+  readonly agentHostId: string;
+  readonly operationId: string;
+  readonly bytesWritten: number;
+  readonly sha256: string;
+}
+export interface NativeFileDownloader {
+  download(
+    request: NativeDownloadRequest,
+    options?: NativeUploadOptions,
+  ): Promise<NativeDownloadResult>;
 }

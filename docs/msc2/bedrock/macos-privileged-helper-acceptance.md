@@ -1,5 +1,7 @@
 # macOS privileged Bedrock helper acceptance
 
+> Privacy cleanup (2026-10-08): personal account paths and captured network addresses in this record have been replaced with examples. Substitute your own paths and addresses when following commands; example values are not the original observations.
+
 P15.75 uses the read-only inspector below on the owner Intel Mac:
 
 ```text
@@ -41,9 +43,9 @@ P15.73/P15.74 verification and the administrator-authorized helper install are
 the prerequisite for repeating the command and closing this acceptance step.
 
 The subsequent live retry also exposed an installed-root mismatch: the helper
-plist allowed `/Users/camerontemple/Library/Application Support/MSC2/servers`,
+plist allowed `/Users/example/Library/Application Support/MSC2/servers`,
 while the agent's actual data and Bedrock server directory are under
-`/Users/camerontemple/Library/Application Support/MSC 2/servers`. The desktop
+`/Users/example/Library/Application Support/MSC 2/servers`. The desktop
 installer now derives the helper root from its own `agent_data_directory()` so
 the two service components cannot silently choose different macOS paths.
 
@@ -102,7 +104,7 @@ start rollback, the TCP `19001` relay returning `HTTP/1.1 404 Not Found`, and
 the host listener report. Its 32-UDP-listener result is superseded because BDS
 rejected the 32-entry property with a maximum of 16 mappings; the report must
 be rerun after P15.78 is installed.
-A same-host request to `http://10.0.0.142:19001/` also returned BDS's HTTP 404;
+A same-host request to `http://192.168.1.10:19001/` also returned BDS's HTTP 404;
 that proves the host's LAN-facing relay boundary, not an iPad session.
 
 The report-only diagnostic was corrected during this step: `lsof` cannot see
@@ -115,7 +117,7 @@ acceptance:
 
 | Path | Result | Evidence or first boundary |
 |---|---|---|
-| iPad direct LAN → `10.0.0.142:19001` | Not yet exercised | Host-side LAN probe passed; no iPad session was available to this run. |
+| iPad direct LAN → `192.168.1.10:19001` | Not yet exercised | Host-side LAN probe passed; no iPad session was available to this run. |
 | iPad direct remote → public address | Not yet exercised | No cellular/off-LAN client session was available to this run. |
 | Xbox Broadcast discovery and transfer on home LAN | Not yet exercised | The managed Broadcast JVM is running, but no discovery or transfer session was observed. |
 | Reconnect without restarting BDS | Not yet exercised | No client session was available to disconnect and reconnect. |
@@ -123,7 +125,7 @@ acceptance:
 
 One installed-runtime prerequisite is also still open. The live Bedrock
 `server.properties` observed during this run contains the pre-P15.76 value
-`server-udp-ports=73.135.129.135:19002-19033:19002-19033`. The P15.76 source
+`server-udp-ports=203.0.113.10:19002-19033:19002-19033`. The P15.76 source
 was then corrected by P15.78 to write sixteen individual mappings, but this
 running installation has not yet been restarted or refreshed from that build,
 so this step does not claim remote NetherNet or Xbox acceptance. The next owner

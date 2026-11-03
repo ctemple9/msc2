@@ -51,10 +51,10 @@ private struct PrivilegedServiceConfiguration {
         guard let socketPath, socketPath.hasPrefix("/") else {
             throw ServiceConfigurationError.missingValue("--socket-path")
         }
-        guard let allowedUID else {
+        guard let allowedUID, allowedUID != 0 else {
             throw ServiceConfigurationError.missingValue("--allowed-uid")
         }
-        guard let allowedGID else {
+        guard let allowedGID, allowedGID != 0 else {
             throw ServiceConfigurationError.missingValue("--allowed-gid")
         }
         guard !roots.isEmpty else {
@@ -262,6 +262,7 @@ private final class ServiceSession: @unchecked Sendable {
                 uid: policy.allowedUID,
                 gid: policy.allowedGID,
                 identity: "root-helper"),
+            supervisesWorker: true,
             responseHandler: { [writer] response in
             writer.write(response)
         })
@@ -465,7 +466,17 @@ private struct BedrockSidecarMain {
         let arguments = Array(CommandLine.arguments.dropFirst())
         if arguments.contains("--service") {
             do {
-                let service = try PrivilegedService(configuration: PrivilegedServiceConfiguration(arguments: arguments))
+                let configuration = try PrivilegedServiceConfiguration(arguments: arguments)
+                // RESETIDS gives the VM child this account while the supervisor
+                // retains effective root for authenticated service and NAT relays.
+                guard geteuid() == 0,
+                      let user = getpwuid(configuration.allowedUID),
+                      initgroups(user.pointee.pw_name, Int32(configuration.allowedGID)) == 0,
+                      setregid(configuration.allowedGID, getegid()) == 0,
+                      setreuid(configuration.allowedUID, 0) == 0 else {
+                    throw ServiceConfigurationError.invalidValue("cannot configure VM worker identity")
+                }
+                let service = try PrivilegedService(configuration: configuration)
                 let signalSource = DispatchSource.makeSignalSource(signal: SIGTERM, queue: .main)
                 // A client can disconnect while a response is being written.
                 // Ignore SIGPIPE so FileHandle.write reports that broken
@@ -482,7 +493,15 @@ private struct BedrockSidecarMain {
                 exit(EXIT_FAILURE)
             }
         } else {
-            runSidecar()
+            let worker = arguments == ["--vm-worker"]
+            if worker && (getuid() == 0 || geteuid() == 0 || getuid() != geteuid() || getgid() != getegid()) {
+                FileHandle.standardError.write(Data("VM worker refused root or mismatched identity\n".utf8))
+                exit(EXIT_FAILURE)
+            }
+            if worker {
+                FileHandle.standardError.write(Data("Bedrock VM worker host identity: \(geteuid()):\(getegid())\n".utf8))
+            }
+            runSidecar(vmWorker: worker)
         }
     }
 }

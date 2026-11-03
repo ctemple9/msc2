@@ -2,7 +2,7 @@
 
 > Owner amendment (2026-10-06, D-042): modded map repair/import and private Minecraft client capture are retired. The standard Java and Bedrock saved-terrain maps remain supported. Earlier repair-plan or capture acceptance requirements are withdrawn rather than satisfied.
 
-**Revision:** 1.9 · **Date:** 2026-09-28 · **Owner:** Cameron Temple
+**Revision:** 1.11 · **Date:** 2026-10-30 · **Owner:** Cameron Temple
 **Baseline:** MSC 1 at commit `fccd61f0ed743086f1f5db6bef58e228a36010f3`
 
 **Companion documents:**
@@ -21,7 +21,7 @@
 
 MSC 2 is the control plane for self-hosted Minecraft servers: creation, runtime management, worlds, backups, mods, players, diagnostics, networking, and updates.
 
-Architecturally it is **one engine with two supported interfaces**. All server-management behavior lives in a Rust service. The Tauri desktop app and command-line client use that service's API. No client implements server-management logic; the agent does not serve a browser UI (D-038).
+Architecturally it is **one engine shared by the desktop app, CLI, and TUI**. All server-management behavior lives in a Rust service. Each client uses that service's API; the TUI uses the host-local access path. No client implements server-management logic; the agent does not serve a browser UI (D-038, D-043).
 
 The defining constraint:
 
@@ -44,6 +44,7 @@ flowchart TB
     subgraph clients["Supported clients"]
         Desktop["MSC Desktop<br/>Tauri shell"]
         CLI["msc CLI<br/>host-local or SSH shell"]
+        TUI["msc tui<br/>host-local or SSH shell"]
     end
 
     Svelte["Svelte frontend<br/>(desktop app)"]
@@ -51,6 +52,7 @@ flowchart TB
     Desktop --> Svelte
     Svelte --> API
     CLI --> API
+    TUI --> API
 
     API["MSC API<br/>HTTP + WebSocket, versioned"]
     API --> Agent["MSC Agent<br/>service, scheduler, operation journal"]
@@ -87,14 +89,14 @@ Clients display and request. They never become co-owners. This is what keeps rec
 
 | Layer | Choice | Notes |
 |---|---|---|
-| Engine, service, API, CLI | **Rust** | Single binary per platform. See D-002. |
+| Engine, service, API, CLI, TUI | **Rust** | One installed command per platform. See D-002 and D-043. |
 | HTTP / WebSocket | `axum` + `tokio` | Replaces MSC 1's hand-written socket server. |
 | CLI parsing | `clap` | Generates shell completions. |
 | Interactive prompts | `inquire` | Fuzzy select, confirm. Phase: after core CLI. |
-| Full-screen terminal client | — | Retired from MSC 2; the supported terminal surface is the scriptable CLI (D-034). |
+| Full-screen terminal client | Rust terminal rendering and input | Implemented with `crossterm`; restored under D-043 and accepted in Phase 22. |
 | Progress | `indicatif` | Downloads, installs. |
 | Desktop shell | **Tauri** | Thin. Loads the Svelte bundle. |
-| Frontend | **Svelte + TypeScript** | One bundle, served by the agent and loaded by Tauri. |
+| Desktop frontend | **Svelte + TypeScript** | Bundled in and loaded by Tauri; the agent does not serve it to browsers (D-038). |
 | Secret storage | `keyring` crate **+ headless fallback** | Keychain / DPAPI behind one trait. **The crate is not sufficient on headless Linux** — see §8. |
 | Hashing | Rust-native | Replaces CryptoKit usage. |
 | Images | `image` crate | Replaces AppKit `NSImage` skin handling. |
@@ -102,7 +104,7 @@ Clients display and request. They never become co-owners. This is what keeps rec
 
 ---
 
-## 4. The three run modes
+## 4. The four run modes
 
 **Desktop mode.** The Tauri application opens. If a local agent is running it attaches; otherwise it offers to install and start the service. The desktop experience feels immediate because the agent is local, but it uses the same API contract as any remote client.
 
@@ -132,9 +134,17 @@ or bearer-token option.
 
 Human-readable by default; `--json` on everything; meaningful exit codes; colors and spinners disabled automatically when stdout is not a TTY.
 
-The CLI is the retained terminal interface: named one-shot commands,
+The CLI remains the scriptable terminal interface: named one-shot commands,
 automation-friendly output, and interactive confirmations where an action is
-destructive. MSC does not ship a persistent full-screen terminal client.
+destructive.
+
+**TUI mode.** `msc tui` opens the full-screen, keyboard-driven client on the
+agent host in a local terminal or SSH login shell. It uses the CLI's
+host-local authorization boundary and existing API/WebSocket contracts;
+agent service controls still use the local operating system when the API is
+down. The TUI is supported on macOS, Windows, and Linux. It does not provide
+a direct-remote host, URL, port, or bearer-token mode (D-040, D-043). From the
+repository, run `cargo run -p msc-agent -- tui`.
 
 ---
 
@@ -394,7 +404,7 @@ Bedrock therefore uses two daemons with deliberately unequal privileges:
 | Process | Identity | Authority |
 |---|---|---|
 | `com.ctemple.msc2.agent` | Installing user (`UserName` is set) | Owns server state, API, operations, policy, and supervision |
-| macOS Bedrock helper | `root` (no plist `UserName`) | Owns only the Swift VZ VM session and its host TCP/UDP relays |
+| macOS Bedrock helper | Effective `root` (no plist `UserName`) | Supervises a fixed installing-user VM worker and owns host TCP/UDP relays (P16.71 owner amendment) |
 
 The agent connects to the helper over a local Unix-domain socket carrying the
 narrow Bedrock sidecar protocol. The helper authenticates the peer UID, admits
@@ -682,7 +692,9 @@ Given that MSC 1's remote-client parity gap was itself a months-long project, th
 
 ### How parity is tracked
 
-One row per capability, maintained continuously from the first vertical slice:
+The [client capability matrix](client-capability-matrix.csv) lists each API
+operation and its implementation state. Its current columns cover Desktop and
+CLI:
 
 ```
 MSC 1 capability → MSC 2 agent operation → Desktop → CLI
@@ -690,9 +702,10 @@ MSC 1 capability → MSC 2 agent operation → Desktop → CLI
 
 Every cell is **Implemented**, **Planned**, or **Intentional exception**.
 
-The matrix covers the supported Tauri desktop and CLI clients. Browser and
-mobile management are not supported v1 clients and do not receive capability
-columns (D-033, D-038).
+Phase 22's implementation and acceptance are recorded in the
+[rolling-plan archive](rolling-plan-archive.md). The current matrix does not
+have a TUI column, so it does not claim row-by-row TUI parity. Browser and
+mobile management do not receive capability columns (D-033, D-038, D-043).
 
 Accordingly:
 
@@ -725,7 +738,7 @@ Every megabyte the agent holds on an 8 GB host is a megabyte Java cannot have. T
 
 ## 18. Educational content (D-026)
 
-MSC 1's teaching material is among its largest assets: a 31-topic Server Handbook across 6 categories, a concept guide, an onboarding tour over the live UI, ~18 files of router port-forwarding guides with brand matching and a troubleshooting decision tree, and contextual help throughout. It is also the clearest example of the duplication MSC 2 removes — all of it is Swift compiled into the macOS app, so the former remote client required a second, separately-written educational surface (`QuickGuideView`, 706 lines). MSC 2's supported teaching surfaces are the Tauri desktop app and CLI; the browser presentation is retired by D-038.
+MSC 1's teaching material is among its largest assets: a 31-topic Server Handbook across 6 categories, a concept guide, an onboarding tour over the live UI, ~18 files of router port-forwarding guides with brand matching and a troubleshooting decision tree, and contextual help throughout. It is also the clearest example of the duplication MSC 2 removes — all of it is Swift compiled into the macOS app, so the former remote client required a second, separately-written educational surface (`QuickGuideView`, 706 lines). MSC 2 teaches through the Tauri desktop app, CLI, and TUI. The TUI includes the Server Handbook and interactive Router Guide; onboarding is not part of the TUI. The browser presentation is retired by D-038.
 
 **Content is data the agent serves. Clients render it; they never author it.**
 
@@ -884,7 +897,7 @@ stops. Measure these targets on each server type before making release claims.
 - The repository's Bedrock fixtures are JSON behavior cases, not a real BDS
   chunk save. Cameron has supplied private local inputs outside Git:
   `~/msc2-servers/bedrock/juice/worlds/Juice!` (BDS `level.dat` plus LevelDB)
-  and `~/msc2-servers/java/campack/campak-ubuntu` (modded Java Anvil).
+  and `~/msc2-servers/java/modded-sample/modded-sample-ubuntu` (modded Java Anvil).
   Use a consistent, read-only working copy for the first proof, and keep
   these worlds and any derived player data out of the repository. Inspect
   whether the BDS save actually contains every named shape; if it does not,
@@ -928,6 +941,6 @@ family.
 The feasibility and provisional guardrails above are retained as historical design inputs. Current implementation/owner observations, saved-terrain and player freshness distinctions, tile residency bounds, measured local costs and deferred compatibility checks are consolidated in [Phase 18 map acceptance](phase18-map-acceptance.md). Live BDS map capture now uses the proven console hold/query/copy/resume boundary against a private snapshot. The configured 512 MiB tile budget is not a measured whole-process RSS limit. Standard dimensions have representative evidence; missing saved Nether chunks and ungenerated ATM10 custom dimensions remain named limits. Cameron directed all Phase 18 steps to Done; independent gate review and exact release-artifact acceptance are not implied.
 
 
-### Server Java selection (D-043, owner amendment 2026-11-03)
+### Server Java selection (D-044, owner amendment 2026-11-03)
 
 A ConfigServer may persist java_path and java_extra_flags. Missing values inherit the corresponding AppConfig defaults for backward compatibility. Creation saves an explicit Java selection; normal starts and installer-based version changes resolve the server selection first. The server editor supplies an explicit serverId query to GET/POST /v1/config/java-runtime; omitting serverId retains host-default access. An empty server executable override restores inheritance, while java explicitly uses PATH. Native terrain renderers are independent executables and do not use this Java setting.

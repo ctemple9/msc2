@@ -9,7 +9,7 @@
   "input": {
     "root": "/srv/server1",
     "relativePath": "",
-    "homeDir": "/Users/cameron",
+    "homeDir": "/Users/example",
     "fsTree": {}
   },
   "expected": {

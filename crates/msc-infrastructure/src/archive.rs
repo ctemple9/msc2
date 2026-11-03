@@ -49,10 +49,9 @@ pub const WORLD_PROFILE_ENTRY: &str = ".msc2-world-profile.json";
 /// this ceiling is generous headroom above that, not a tight fit.
 pub const MAX_ARCHIVE_ENTRIES: u64 = 200_000;
 
-/// 8 GiB: comfortably above any real world/backup archive this project's
-/// own corpus (`corpus/worlds/`, `corpus/backups/`) has ever produced,
-/// comfortably below "fills the disk."
-pub const MAX_TOTAL_UNCOMPRESSED_BYTES: u64 = 8 * 1024 * 1024 * 1024;
+/// Absolute corruption/abuse backstop, independent of the destination's free
+/// space. Real extraction is additionally bounded by available disk space.
+pub const MAX_TOTAL_UNCOMPRESSED_BYTES: u64 = 1024 * 1024 * 1024 * 1024;
 
 /// [`extract_zip`]'s ceilings, factored out so tests can exercise the
 /// "exceeded" branch against a small real archive and a small limit
@@ -676,6 +675,14 @@ fn extract_zip_reporting(
     limits: ArchiveLimits,
     progress: &mut dyn FnMut(&str, u64, u64),
 ) -> Result<(), ArchiveError> {
+    // Refuse impossible disk requirements before the full CRC/decompression
+    // pass, not after spending minutes checking a large archive.
+    crate::conversion_resources::require_space(
+        dest_root,
+        declared_uncompressed_size(zip_path)?,
+        "extracting world archive",
+    )
+    .map_err(ArchiveError::Io)?;
     let mut archive =
         validate_archive_safety_reporting(zip_path, limits, &mut |current, total| {
             progress("Checking archive before extraction", current, total)
@@ -689,6 +696,8 @@ fn extract_zip_reporting(
             total = total.saturating_add(entry.size());
         }
     }
+    crate::conversion_resources::require_space(dest_root, total, "extracting world archive")
+        .map_err(ArchiveError::Io)?;
     progress("Extracting imported world", 0, total);
     let mut report = |current, total| progress("Extracting imported world", current, total);
     let mut bytes = ByteProgress {
@@ -712,7 +721,14 @@ fn extract_zip_reporting(
         if let Some(parent) = dest.parent() {
             fs::create_dir_all(parent).map_err(ArchiveError::Io)?;
         }
-        let mut out = fs::File::create(&dest).map_err(ArchiveError::Io)?;
+        let mut out =
+            crate::conversion_resources::ReservedFile::create(&dest).map_err(ArchiveError::Io)?;
+        crate::conversion_resources::require_space(
+            dest_root,
+            entry.size(),
+            "extracting world archive",
+        )
+        .map_err(ArchiveError::Io)?;
         bytes.copy(&mut entry, &mut out).map_err(ArchiveError::Io)?;
         drop(out);
         apply_executable_bit(&dest, entry.unix_mode())?;
@@ -1034,7 +1050,8 @@ fn create_zip_reporting(
         if should_cancel() {
             return Err(ArchiveError::Cancelled);
         }
-        let file = fs::File::create(dest_zip_path).map_err(ArchiveError::Io)?;
+        let file = crate::conversion_resources::ReservedFile::create(dest_zip_path)
+            .map_err(ArchiveError::Io)?;
         let mut zip = ZipWriter::new(file);
         for name in folder_names {
             if should_cancel() {
@@ -1061,4 +1078,22 @@ fn create_zip_reporting(
         }
     }
     result
+}
+
+/// Metadata-only estimate; extraction still performs full safety/CRC checks.
+pub fn declared_uncompressed_size(path: &Path) -> Result<u64, ArchiveError> {
+    let mut archive = ZipArchive::new(fs::File::open(path).map_err(ArchiveError::Open)?)
+        .map_err(|error| ArchiveError::Corrupt(error.to_string()))?;
+    let mut total = 0_u64;
+    for index in 0..archive.len() {
+        total = total
+            .checked_add(
+                archive
+                    .by_index_raw(index)
+                    .map_err(|error| ArchiveError::Corrupt(error.to_string()))?
+                    .size(),
+            )
+            .ok_or_else(|| ArchiveError::Corrupt("archive size overflow".into()))?;
+    }
+    Ok(total)
 }

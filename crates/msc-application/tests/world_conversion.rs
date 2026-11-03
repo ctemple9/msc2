@@ -812,7 +812,12 @@ fn world_conversion_activation_failure_leaves_slot_written_but_inactive() {
 
     match result {
         Err(ConversionError::ConversionFailed(msg)) => {
-            assert_eq!(msg, "Failed to activate converted world slot.")
+            assert!(msg.contains("simulated write failure"), "{msg}");
+            let slots = world_store::load_slots(&std_fs, target.path());
+            assert_eq!(slots.len(), 1);
+            let saved = world_store::zip_path(target.path(), &slots[0].id);
+            assert!(msg.contains(saved.to_str().unwrap()), "{msg}");
+            assert!(saved.is_file(), "the completed conversion must survive");
         }
         other => panic!("expected ConversionFailed, got {other:?}"),
     }
@@ -832,7 +837,7 @@ fn world_conversion_activation_failure_leaves_slot_written_but_inactive() {
 // ---------------------------------------------------------------------
 // replace-existing-slot-overwrite-is-not-atomic-unlike-other-slot-mutations
 //
-// Corrected on Cameron's call (see `world_conversion.rs`'s module doc
+// Corrected on example's call (see `world_conversion.rs`'s module doc
 // and `replace_slot_with_converted_zip`'s own doc): the overwrite now
 // stages to a temp file first, so a write failure never touches the
 // destination's existing archive.
@@ -892,4 +897,81 @@ fn world_conversion_replace_existing_slot_write_failure_preserves_previous_archi
         !temp_zip.exists(),
         "the failed staged copy's own temp file must not be left behind"
     );
+}
+
+/// Explicit opt-in acceptance against an existing large source archive. Never
+/// touches its server: output and activation stay under a disposable directory.
+#[test]
+#[ignore = "requires an owner-selected world archive and installed Chunker/Java"]
+fn world_conversion_real_large_world() {
+    struct RealConverter(PathBuf, String);
+    impl WorldConverter for RealConverter {
+        fn is_installed(&self) -> bool {
+            self.0.is_file()
+        }
+        fn resolve_java_path(&self, _: &str) -> Option<String> {
+            Some(self.1.clone())
+        }
+        fn supported_formats(&self, _: &str) -> Vec<String> {
+            vec![]
+        }
+        fn convert(
+            &self,
+            input: &Path,
+            output: &Path,
+            format: &str,
+            java: &str,
+            progress: &mut dyn FnMut(&str),
+        ) -> Result<(), String> {
+            msc_infrastructure::chunker::run_conversion(
+                &self.0, input, output, format, java, progress,
+            )
+        }
+    }
+    let archive = PathBuf::from(std::env::var("MSC2_LARGE_WORLD_ARCHIVE").expect("source ZIP"));
+    let slot_dir = archive.parent().unwrap();
+    let server = slot_dir.parent().unwrap().parent().unwrap();
+    let slot = make_slot(
+        slot_dir.file_name().unwrap().to_str().unwrap(),
+        Some("Tectonic"),
+    );
+    let before = fs::metadata(&archive).unwrap();
+    assert!(archive::declared_uncompressed_size(&archive).unwrap() > 8 * 1024 * 1024 * 1024);
+    let converter = RealConverter(
+        std::env::var("MSC2_ACCEPTANCE_CHUNKER").unwrap().into(),
+        std::env::var("MSC2_ACCEPTANCE_JAVA").unwrap(),
+    );
+    let target = TempDir::new("large-real-target");
+    fs::write(
+        target.path().join("server.properties"),
+        "level-name=converted\n",
+    )
+    .unwrap();
+    let result = convert_world(
+        &StdFileSystem,
+        &converter,
+        "java",
+        server,
+        &slot,
+        ServerType::Java,
+        false,
+        target.path(),
+        ServerType::Bedrock,
+        Some("converted"),
+        "BEDROCK_1_21_130",
+        ConversionPlacement::NewSlot {
+            name: "Converted".into(),
+        },
+        false,
+        "2026-10-12T00:00:00Z",
+        || true,
+        |line| eprintln!("{line}"),
+        || false,
+    )
+    .expect("real large-world conversion");
+    let after = fs::metadata(&archive).unwrap();
+    assert_eq!(before.len(), after.len());
+    assert_eq!(before.modified().unwrap(), after.modified().unwrap());
+    assert!(world_store::zip_path(target.path(), &result.id).is_file());
+    assert!(target.path().join("worlds/converted/db/CURRENT").is_file());
 }

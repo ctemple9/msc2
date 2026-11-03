@@ -9,7 +9,7 @@
   "input": {
     "root": "/srv/server1",
     "relativePath": "link-out",
-    "homeDir": "/Users/cameron",
+    "homeDir": "/Users/example",
     "fsTree": {
       "/srv/server1/link-out": {
         "type": "symlink",

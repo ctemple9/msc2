@@ -19,19 +19,23 @@
   let repairNotice = '';
   let retrying = false;
 
+  $: worldSettingsFailed =
+    errorCode === 'world_settings_failed' ||
+    failureMessage.startsWith('MSC could not apply the saved world settings');
   $: if (problems !== currentProblems && !repairProblemId) currentProblems = problems;
 
   onMount(() => {
-    if (errorCode !== 'server_startup_timeout') void refreshProblems();
+    if (errorCode !== 'server_startup_timeout' && !worldSettingsFailed) void refreshProblems();
   });
 
   async function refreshProblems(): Promise<void> {
     if (!api) return;
     try {
       const response = await api.get<Schema['HealthProblemsResponseDTO']>('/v1/health/problems');
-      currentProblems = errorCode === 'geyser_plugin_failed'
-        ? response.problems.filter((problem) => /geyser|floodgate/i.test(problem.offenderName))
-        : response.problems;
+      currentProblems =
+        errorCode === 'geyser_plugin_failed'
+          ? response.problems.filter((problem) => /geyser|floodgate/i.test(problem.offenderName))
+          : response.problems;
     } catch {
       // The operation error remains useful when the health route is briefly
       // unavailable, and the console stays available below the diagnosis.
@@ -39,6 +43,7 @@
   }
 
   function titleForCode(): string {
+    if (worldSettingsFailed) return 'The saved world settings could not be applied';
     if (errorCode === 'geyser_plugin_failed' && currentProblems.length) {
       return `${currentProblems[0].offenderName} did not load`;
     }
@@ -115,8 +120,14 @@
     repairNotice = '';
     try {
       if (action === 'update' && /^(geyser(?:-spigot)?|floodgate)$/i.test(problem.offenderName)) {
-        const component = problem.offenderName.toLowerCase().startsWith('geyser') ? 'geyser' : 'floodgate';
-        const result = await mutate<Schema['ComponentUpdateResultDTO']>(api, '/v1/components/update', { component });
+        const component = problem.offenderName.toLowerCase().startsWith('geyser')
+          ? 'geyser'
+          : 'floodgate';
+        const result = await mutate<Schema['ComponentUpdateResultDTO']>(
+          api,
+          '/v1/components/update',
+          { component },
+        );
         repairNotice = result.message;
         return;
       }
@@ -154,12 +165,19 @@
   <div class="failure-heading">
     <p class="msc2-type-overline">Startup diagnosis</p>
     <h2>{titleForCode()}</h2>
-    {#if !currentProblems.length}
+    {#if worldSettingsFailed || !currentProblems.length}
       <p class="summary">{summaryForCode()}</p>
     {/if}
   </div>
 
-  {#if currentProblems.length}
+  {#if worldSettingsFailed}
+    <section class="next-checks" aria-label="World settings checks">
+      <p>
+        Java has not been launched. Review this world’s settings and the pack named above. Keep the
+        existing world; creating another world does not repair this settings failure.
+      </p>
+    </section>
+  {:else if currentProblems.length}
     <section class="findings" aria-label="Startup findings">
       <p class="section-label">
         {errorCode === 'geyser_plugin_failed' ? 'Plugin load failure' : 'What stopped the server'}

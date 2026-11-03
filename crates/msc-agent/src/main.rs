@@ -165,15 +165,29 @@ async fn run_service_with_shutdown(
     println!("msc listening on {bind}");
 
     let auth_state = auth::production_auth_state();
-    if msc_application::host_reset::recover_files(&StdFileSystem, default_app_config_path())
-        .expect("host reset recovery must be readable")
-        .is_some()
-    {
-        auth_state
-            .reset_for_host_reset(&[])
-            .expect("interrupted host reset auth recovery must succeed");
-        msc_application::host_reset::finish_recovery(&StdFileSystem, default_app_config_path())
-            .expect("interrupted host reset marker must be removable");
+    let recovery =
+        msc_application::host_reset::recover_files(&StdFileSystem, default_app_config_path())
+            .and_then(|pending| {
+                if pending.is_some() {
+                    auth_state.reset_for_host_reset(&[]).map_err(|error| {
+                        msc_application::host_reset::HostResetError::Io(error.to_string())
+                    })?;
+                    msc_application::host_reset::finish_recovery(
+                        &StdFileSystem,
+                        default_app_config_path(),
+                    )?;
+                }
+                Ok(())
+            });
+    if let Err(error) = recovery {
+        let message =
+            format!("Host reset recovery paused: {error}. Open Settings > Reset for recovery.");
+        eprintln!("{message}");
+        let _ = msc_application::host_reset::record_failure(
+            &StdFileSystem,
+            &default_app_config_path(),
+            &error.to_string(),
+        );
     }
     #[cfg(target_os = "macos")]
     auth::spawn_local_bootstrap(auth_state.clone());
@@ -182,7 +196,13 @@ async fn run_service_with_shutdown(
         .await
         .map_err(cli::CliError::internal)?;
 
-    let (app, worlds) = build_app_with_auth_and_worlds(auth_state);
+    let (app, worlds, components) = build_app_with_auth_and_worlds(auth_state.clone());
+    #[cfg(unix)]
+    if let Err(error) = routes::components::local_source::start(auth_state, components).await {
+        eprintln!("msc: local source handoff unavailable: {error}");
+    }
+    #[cfg(not(unix))]
+    let _ = components;
     #[cfg(target_os = "windows")]
     windows_service::register_lifecycle(worlds.clone());
     ready()?;
@@ -238,7 +258,11 @@ fn build_app_with_auth(auth_state: auth::AuthState) -> Router {
 
 fn build_app_with_auth_and_worlds(
     auth_state: auth::AuthState,
-) -> (Router, routes::worlds::WorldsRoutesState) {
+) -> (
+    Router,
+    routes::worlds::WorldsRoutesState,
+    routes::components::ComponentsRoutesState,
+) {
     let secret_store = auth::production_secret_store()
         .unwrap_or_else(|error| panic!("failed to initialize production secret store: {error}"));
 
@@ -322,6 +346,10 @@ fn build_app_with_auth_and_worlds(
     let public = Router::new()
         .route("/health", get(routes::health::health))
         .route("/healthz", get(routes::health::healthz))
+        .route(
+            "/host/reset/result/{token}",
+            get(routes::host_reset::completion),
+        )
         .merge(desktop_public)
         .with_state(lifecycle_state.clone());
 
@@ -338,7 +366,9 @@ fn build_app_with_auth_and_worlds(
     let backup_scheduler = Box::leak(Box::new(backup_scheduler::BackupScheduler::new(
         scheduler_backend,
     )));
-    backup_scheduler.reconfigure(&app_config.servers());
+    if !msc_application::host_reset::blocks_mutation(&StdFileSystem, &default_app_config_path()) {
+        backup_scheduler.reconfigure(&app_config.servers());
+    }
 
     let console = Router::new()
         .route("/console/stream", get(ws::console::upgrade))
@@ -352,17 +382,22 @@ fn build_app_with_auth_and_worlds(
     // `BackupsRoutesState` (adds the `&'static BackupScheduler` handle
     // `POST /v1/backups/config` reconfigures on a settings change).
     let shared_staging = routes::worlds::StagingStore::default();
+    shared_staging
+        .native
+        .initialize(&lifecycle_state.servers_root());
     let pending_modpack_imports = routes::components::PendingModpackImports::default();
     let worlds_state = routes::worlds::WorldsRoutesState::with_staging(
         lifecycle_state.clone(),
         shared_staging.clone(),
     );
     let worlds = routes::worlds::router(worlds_state.clone());
-    let components = routes::components::router(routes::components::ComponentsRoutesState::new(
+    let components_state = routes::components::ComponentsRoutesState::new(
         lifecycle_state.clone(),
         shared_staging.clone(),
         pending_modpack_imports.clone(),
-    ));
+    );
+    routes::components::native_upload::spawn_reaper(components_state.clone());
+    let components = routes::components::router(components_state.clone());
     let backups = routes::backups::router(routes::backups::BackupsRoutesState {
         lifecycle: lifecycle_state.clone(),
         scheduler: backup_scheduler,
@@ -400,6 +435,10 @@ fn build_app_with_auth_and_worlds(
         .route("/active-server", post(routes::lifecycle::active_server))
         .route("/start", post(routes::lifecycle::start))
         .route("/stop", post(routes::lifecycle::stop))
+        .route(
+            "/first-start/discard",
+            post(routes::lifecycle::discard_first_start),
+        )
         .route("/command", post(routes::commands::command))
         .route("/time/relative", post(routes::commands::relative_time))
         .route("/status", get(routes::status::status))
@@ -460,11 +499,15 @@ fn build_app_with_auth_and_worlds(
         // A staged modpack is created by the shared upload route but
         // redeemed by server creation, so both route groups need this one
         // in-memory, purpose-tagged store.
-        .layer(Extension(shared_staging))
+        .layer(Extension(shared_staging.clone()))
         .layer(Extension(pending_modpack_imports));
 
     let host_reset = Router::new()
-        .route("/host/reset", post(routes::host_reset::reset))
+        .route(
+            "/host/reset",
+            get(routes::host_reset::status).post(routes::host_reset::reset),
+        )
+        .route("/host/reset/cancel", post(routes::host_reset::cancel))
         .with_state(host_reset_state);
 
     let players = routes::players::router(lifecycle_state.clone());
@@ -514,11 +557,15 @@ fn build_app_with_auth_and_worlds(
                 .with_state(notification_state),
         )
         .merge(worlds)
-        .merge(routes::storage::router(lifecycle_state.clone()))
+        .merge(routes::storage::router(
+            lifecycle_state.clone(),
+            components_state.clone(),
+        ))
         .merge(components)
         .merge(backups)
         .merge(users)
         .merge(routes::help::router(help_content))
+        .layer(Extension(shared_staging))
         .layer(Extension(networking_state))
         .layer(Extension(auth_state.clone()))
         .route_layer(axum::middleware::from_fn_with_state(
@@ -531,6 +578,7 @@ fn build_app_with_auth_and_worlds(
             .nest("/v1", public.merge(protected))
             .layer(axum::middleware::from_fn(security_headers)),
         worlds_state,
+        components_state,
     )
 }
 

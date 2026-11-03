@@ -1,4 +1,5 @@
 //! First-use Java map dependencies, kept outside the Minecraft installation.
+#[cfg(test)]
 use std::collections::HashMap;
 use std::fs;
 use std::io::{Cursor, Read};
@@ -8,8 +9,8 @@ use flate2::read::GzDecoder;
 use msc_infrastructure::config_repository::default_app_data_dir;
 use msc_infrastructure::jar_provider::{HttpTransport, Transport};
 use serde::Deserialize;
+use sha1::Digest;
 use sha1::Sha1;
-use sha2::{Digest, Sha256};
 
 use super::TerrainError;
 
@@ -22,12 +23,6 @@ const REQUIRED_ASSETS: [&str; 3] = [
     "assets/minecraft/models/block/stone.json",
     "assets/minecraft/textures/block/stone.png",
 ];
-
-#[derive(Deserialize)]
-struct RendererRelease {
-    version: String,
-    assets: HashMap<String, (String, String, String)>,
-}
 
 pub(super) fn binary() -> Result<PathBuf, TerrainError> {
     if let Some(path) = std::env::var_os("MSC2_VANTAGE_BIN") {
@@ -53,146 +48,12 @@ pub(super) fn binary() -> Result<PathBuf, TerrainError> {
     {
         return Ok(path);
     }
-    // Older headless updaters installed only msc. Recovery uses the same pin
-    // as packaging and needs no elevation or Minecraft service restart.
-    let release: RendererRelease = serde_json::from_str(include_str!(
-        "../../../../../../tools/release/vantage-release.json"
+    // MSC's persistent tile format requires its bundled renderer change.
+    // Falling back to upstream 0.15.1 would silently rebake every cached tile.
+    Err(TerrainError::new(
+        "renderer_missing",
+        "The Java terrain renderer is missing. Repair MSC on the server host to restore the matching renderer.",
     ))
-    .map_err(|error| {
-        setup_error(
-            "renderer_download_failed",
-            "read the renderer release pin",
-            error,
-        )
-    })?;
-    let platform = format!(
-        "{}-{}",
-        if cfg!(target_os = "macos") {
-            "macos"
-        } else {
-            std::env::consts::OS
-        },
-        std::env::consts::ARCH
-    );
-    let (archive, digest, executable) = release.assets.get(&platform).ok_or_else(|| {
-        TerrainError::new("renderer_missing", "Automatic Java terrain renderer recovery is unavailable on this platform. Repair the MSC installation on the server host.")
-    })?;
-    let root = default_app_data_dir()
-        .join("map-dependencies")
-        .join(format!("vantage-{}-{platform}", release.version));
-    let target = root.join(executable);
-    if target.is_file() {
-        return Ok(target);
-    }
-    let url = format!(
-        "https://github.com/thoughts-on-things/vantage-mc/releases/download/v{}/{archive}",
-        release.version
-    );
-    eprintln!(
-        "Java map: recovering the missing Vantage {} renderer",
-        release.version
-    );
-    let bytes = HttpTransport::new().get(&url, "Vantage renderer", 32 * 1024 * 1024)
-        .map_err(|error| setup_error("renderer_download_failed", "download the Java terrain renderer; check the host's internet connection and retry the map", error))?;
-    if format!("{:x}", Sha256::digest(&bytes)) != *digest {
-        return Err(TerrainError::new(
-            "renderer_download_failed",
-            "The Java terrain renderer download failed checksum verification. Reopen the map to retry.",
-        ));
-    }
-    let staging = Staging::new(&root).map_err(|error| {
-        setup_error(
-            "renderer_download_failed",
-            "create renderer cache storage",
-            error,
-        )
-    })?;
-    let data = renderer_from_archive(archive, executable, &bytes).map_err(|error| {
-        setup_error(
-            "renderer_download_failed",
-            "unpack the verified Java terrain renderer",
-            error,
-        )
-    })?;
-    let staged = staging.0.join(executable);
-    fs::write(&staged, data).map_err(|error| {
-        setup_error(
-            "renderer_download_failed",
-            "write the Java terrain renderer",
-            error,
-        )
-    })?;
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        fs::set_permissions(&staged, fs::Permissions::from_mode(0o755)).map_err(|error| {
-            setup_error(
-                "renderer_download_failed",
-                "set renderer executable permissions",
-                error,
-            )
-        })?;
-    }
-    fs::write(
-        staging.0.join("VANTAGE-LICENSE.txt"),
-        include_str!("../../../../../../tools/release/VANTAGE-LICENSE.txt"),
-    )
-    .map_err(|error| {
-        setup_error(
-            "renderer_download_failed",
-            "write the renderer license",
-            error,
-        )
-    })?;
-    staging.publish(&root).map_err(|error| {
-        setup_error(
-            "renderer_download_failed",
-            "finish renderer installation",
-            error,
-        )
-    })?;
-    Ok(target)
-}
-
-fn renderer_from_archive(archive: &str, name: &str, bytes: &[u8]) -> Result<Vec<u8>, String> {
-    let mut output = Vec::new();
-    if archive.ends_with(".zip") {
-        let mut zip = zip::ZipArchive::new(Cursor::new(bytes)).map_err(|e| e.to_string())?;
-        if zip.len() != 1 {
-            return Err("unexpected renderer ZIP contents".into());
-        }
-        let entry = zip.by_index(0).map_err(|e| e.to_string())?;
-        if entry.name() != name || !entry.is_file() {
-            return Err("renderer executable is missing".into());
-        }
-        entry
-            .take(64 * 1024 * 1024 + 1)
-            .read_to_end(&mut output)
-            .map_err(|e| e.to_string())?;
-    } else {
-        let mut tar = tar::Archive::new(GzDecoder::new(bytes));
-        let mut entries = tar.entries().map_err(|e| e.to_string())?;
-        let entry = entries
-            .next()
-            .ok_or("renderer executable is missing")?
-            .map_err(|e| e.to_string())?;
-        if entry.path().map_err(|e| e.to_string())?.as_ref() != Path::new(name)
-            || !entry.header().entry_type().is_file()
-        {
-            return Err("unexpected renderer tar contents".into());
-        }
-        entry
-            .take(64 * 1024 * 1024 + 1)
-            .read_to_end(&mut output)
-            .map_err(|e| e.to_string())?;
-        if entries.next().is_some() {
-            return Err("unexpected renderer tar contents".into());
-        }
-    }
-    if output.is_empty() || output.len() > 64 * 1024 * 1024 {
-        return Err("renderer executable exceeds its size limit or is empty".into());
-    }
-    Ok(output)
 }
 
 pub(super) fn assets(

@@ -7,7 +7,7 @@
   // exactly two call sites: "xbox-broadcast" and "playit").
   // Xbox Broadcast started here as a port of MSC 1 SidebarView.swift's
   // BedrockCrossPlatformSidebarSection/CrossPlatformAccessSidebarSection;
-  // Playit is Cameron's own addition on top of that, not an oracle port --
+  // Playit is the owner's own addition on top of that, not an oracle port --
   // the oracle has no sidebar Playit control at all. Neither service is the
   // deeper setup surface (that stays BroadcastTab.svelte's job, per the
   // oracle's own contextual-help copy: "use Edit Server for the deeper

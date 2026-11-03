@@ -1,5 +1,7 @@
 # Reference corpus
 
+> Privacy cleanup (2026-10-08): world/server names use sample aliases, and private locations are omitted. Historical counts and results still describe the original private captures. Set `CHUNK_X` and `CHUNK_Z` to a suitable complete tile in your own world before running map commands. Raw private captures are not modified; local corpus copies must use the documented alias paths.
+
 Real-world artifacts used to validate the port against actual MSC 1 usage, not
 synthetic data — per `msc2-port-plan.md` §1 ("Reference corpus"). This is a
 different thing from `fixtures/`: fixtures are small, pinned input/expected
@@ -15,17 +17,17 @@ meant to be checked into source control.
 ## configs/
 
 **Populated by P5.3.** One real, sanitized `server_config_swift.json` from
-Cameron's live MSC 1 install, plus a real MSC 1-generated `.msctransfer`
+the owner's live MSC 1 install, plus a real MSC 1-generated `.msctransfer`
 package (referenced via `$MSC2_PHASE5_TRANSFER_PACKAGE`, not committed here —
 see `configs/README.md`). A second config from a distinct schema era was
-sought but confirmed unavailable anywhere on Cameron's machines; `configs/README.md`
+sought but confirmed unavailable anywhere on the owner's machines; `configs/README.md`
 records that gap and how P5.4/P5.5's fixtures cover the era-diversity behavior
 it would otherwise have exercised. Still useful if one ever surfaces: any real
 `.corrupt-<timestamp>` sibling file produced by the R3 recovery path.
 
 ## logs/
 
-**Empty — needs real files from Cameron.** Complete real Minecraft server
+**Empty — needs real files from the owner.** Complete real Minecraft server
 console/crash logs — Paper, Forge, NeoForge, Fabric, vanilla — covering both
 healthy startup and the failure shapes the P0.8/P0.9 crash-analyzer fixtures
 pin (missing dependency, incompatible version, Connector/Fabric entrypoint
@@ -35,16 +37,16 @@ from real servers would catch shapes a few pinned lines can't.
 
 ## packs/
 
-**Empty — needs real files from Cameron.** Real `.mrpack` and CurseForge-format
+**Empty — needs real files from the owner.** Real `.mrpack` and CurseForge-format
 modpack archives — at minimum something in BMC4's shape (the pack referenced
 throughout the P0.16/P0.18 fixtures) and a real Modrinth pack — to validate
 extraction and parsing end-to-end, beyond the unit-level manifest fixtures
-already extracted. These are large binary files; Cameron would supply them
+already extracted. These are large binary files; the owner would supply them
 from his own collection or a public download.
 
 ## server-dirs/
 
-**Empty — needs real directories from Cameron.** Complete real Minecraft
+**Empty — needs real directories from the owner.** Complete real Minecraft
 server directory trees (`server.properties`, world data, `plugins`/`mods`,
 etc.) for at least one server per flavor MSC 2 must support. Used for
 end-to-end validation beyond the pure-function fixtures in `fixtures/`.

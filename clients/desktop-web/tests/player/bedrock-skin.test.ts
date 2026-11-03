@@ -8,20 +8,20 @@ import {
 
 describe('Bedrock avatar lookup', () => {
   it('uses MSC 1’s dotted gamertag convention and fallback body endpoint', () => {
-    expect(dottedGamertag('Cam Craft')).toBe('.Cam Craft');
-    expect(dottedGamertag('.Cam Craft')).toBe('.Cam Craft');
-    expect(bedrockBodyFallbackUrl('Cam Craft')).toBe(
-      'https://api.mcheads.org/body/.Cam%20Craft/160',
+    expect(dottedGamertag('Example Craft')).toBe('.Example Craft');
+    expect(dottedGamertag('.Example Craft')).toBe('.Example Craft');
+    expect(bedrockBodyFallbackUrl('Example Craft')).toBe(
+      'https://api.mcheads.org/body/.Example%20Craft/160',
     );
   });
 
   it('retries Xbox lookup with spaces when Geyser replaced them with underscores', () => {
-    expect(xboxGamertagCandidates('Cam_Craft')).toEqual(['Cam_Craft', 'Cam Craft']);
-    expect(xboxGamertagCandidates('Cam Craft')).toEqual(['Cam Craft']);
+    expect(xboxGamertagCandidates('Example_Craft')).toEqual(['Example_Craft', 'Example Craft']);
+    expect(xboxGamertagCandidates('Example Craft')).toEqual(['Example Craft']);
   });
 
   it('converts an Xbox XUID into the Floodgate UUID used by MC Heads', () => {
-    expect(floodgateUuidFromXuid('2535443338451450')).toBe('00000000-0000-0000-0009-01f8e78959fa');
+    expect(floodgateUuidFromXuid('123456789')).toBe('00000000-0000-0000-0000-0000075bcd15');
     expect(floodgateUuidFromXuid('not-a-number')).toBeUndefined();
   });
 });

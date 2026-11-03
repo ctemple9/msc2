@@ -199,9 +199,9 @@ pub fn validate(profile: &WorldProfile) -> io::Result<()> {
     }
     for pack in &profile.generation.data_packs {
         if !valid_pack_id(pack) {
-            return Err(io::Error::other(
-                "Data pack names must be pack IDs such as vanilla or file/example.zip",
-            ));
+            return Err(io::Error::other(format!(
+                "Data pack {pack:?} has an invalid ID. Use a pack ID such as vanilla or file/example.zip."
+            )));
         }
     }
     for (name, value) in &profile.gameplay.gamerules {
@@ -454,12 +454,18 @@ pub fn apply_existing_world(
         ));
     }
     let mut enabled = selected_data_packs(profile);
+    // Validate requested packs before adding opaque loader identities from saved metadata.
+    // Those identities may contain absolute paths and are never filesystem targets here.
+    validate_pack_files(fs, server_dir, level_name, &enabled)?;
     // Loader-owned built-in packs are server requirements; never disable them.
     for pack in detected
         .data_packs
         .iter()
         .filter(|pack| !pack.starts_with("file/") || pack.as_str() == "file/msc-world-generation")
     {
+        if pack.starts_with("file/") {
+            validate_pack_files(fs, server_dir, level_name, std::slice::from_ref(pack))?;
+        }
         if !enabled.contains(pack) {
             enabled.push(pack.clone());
         }
@@ -479,7 +485,6 @@ pub fn apply_existing_world(
     {
         enabled.push("file/msc-world-generation".into());
     }
-    validate_pack_files(fs, server_dir, level_name, &enabled)?;
     let (_, mut excluded) = msc_domain::nbt::java_runtime_metadata(&raw);
     excluded.extend(detected.data_packs.iter().cloned());
     excluded.sort();
@@ -517,7 +522,9 @@ fn validate_pack_files(
 ) -> io::Result<()> {
     for pack in packs {
         if !valid_pack_id(pack) {
-            return Err(io::Error::other("Invalid data pack ID"));
+            return Err(io::Error::other(format!(
+                "Data pack {pack:?} has an invalid ID. Select a pack ID such as vanilla or file/example.zip; file packs must use a single filename inside this world’s datapacks folder."
+            )));
         }
         if let Some(name) = pack.strip_prefix("file/")
             && fs

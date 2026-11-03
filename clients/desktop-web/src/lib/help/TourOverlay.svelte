@@ -5,9 +5,8 @@
   // full-screen welcome/done cards, the "Got it" hide-card pattern for a
   // multi-field form step, non-blocking dim so the real target stays
   // clickable) onto web: a single fixed-position box-shadow spotlight
-  // instead of SwiftUI's four-rect dim layer, and no dedicated
-  // "Show tip"/"Skip tour" floating pill row keyed to a sheet frame -- both
-  // are simplifications of the *mechanism*, not the behavior.
+  // instead of SwiftUI's four-rect dim layer. When the card is hidden, its
+  // actions appear in TopBar so they remain reachable without covering controls.
   //
   // docs/msc2/antiAIslop.md: no colored icon-in-circle for the welcome/done
   // cards, no accent-colored glow ring (a plain white ring reads the
@@ -21,7 +20,12 @@
     remeasureAll,
     scrollAnchorIntoView,
   } from './tourAnchors';
-  import { activeTourStep, tourJavaSelectionPending, tourServerCreated } from './onboarding';
+  import {
+    activeTourStep,
+    hiddenTourActions,
+    tourJavaSelectionPending,
+    tourServerCreated,
+  } from './onboarding';
   import type { OnboardingStep } from './types';
 
   export let steps: readonly OnboardingStep[] = [];
@@ -60,6 +64,10 @@
   let scrollRequest = 0;
   let scrollFrame: number | undefined;
   let createCompletionHandled = false;
+  function showTourTip(): void {
+    cardHidden = false;
+  }
+
   $: if (stepIndex !== lastIndex) {
     cardHidden = false;
     lastIndex = stepIndex;
@@ -99,6 +107,9 @@
   });
 
   $: activeTourStep.set(step?.id ?? null);
+  $: hiddenTourActions.set(
+    cardHidden && step ? { showTip: showTourTip, skip: onSkip, skipLabel } : null,
+  );
   // Wait for the real asynchronous create operation before ending this pass of
   // the tour, so the success page is visible and later setup cards do not take
   // over while the wizard is still creating the server.
@@ -109,6 +120,7 @@
   onDestroy(() => {
     if (scrollFrame !== undefined) cancelAnimationFrame(scrollFrame);
     activeTourStep.set(null);
+    hiddenTourActions.set(null);
   });
 
   // Catches spotlights going stale when a layout change moves an anchor without
@@ -195,7 +207,12 @@
 
 <!-- World review waits for the wizard's Continue action without another popup. -->
 {#if step && step.id !== 'world-review' && !(REVIEW_STEP_IDS.has(step.id) && cardHidden)}
-  <div class="tour-root" role="dialog" aria-modal="true" aria-live="polite">
+  <div
+    class="tour-root"
+    role={!cardHidden ? 'dialog' : undefined}
+    aria-modal={!cardHidden ? 'true' : undefined}
+    aria-live="polite"
+  >
     {#if !cardHidden}
       {#if blocking}
         <div class="dim-block" aria-hidden="true"></div>
@@ -210,10 +227,7 @@
     {/if}
 
     {#if cardHidden}
-      <div class="hidden-pills">
-        <Button variant="secondary" size="sm" onclick={() => (cardHidden = false)}>Show tip</Button>
-        <Button variant="secondary" size="sm" onclick={onSkip}>{skipLabel}</Button>
-      </div>
+      <!-- The hidden-card controls are rendered in TopBar. -->
     {:else if REVIEW_STEP_IDS.has(step.id)}
       <div class="bookend-card">
         <h2>{step.title}</h2>
@@ -323,8 +337,7 @@
     transition: none;
   }
   .bookend-card,
-  .anchored-card,
-  .hidden-pills {
+  .anchored-card {
     pointer-events: auto;
   }
   .bookend-card {
@@ -354,13 +367,6 @@
   }
   .anchored-card.no-motion {
     transition: none;
-  }
-  .hidden-pills {
-    position: fixed;
-    top: 16px;
-    right: 16px;
-    display: flex;
-    gap: 8px;
   }
   h2,
   h3 {

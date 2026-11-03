@@ -122,7 +122,7 @@ fn request() -> ServiceInstallRequest {
     )
     .args(["serve", "--bind", "127.0.0.1:48001"])
     .env("MSC2_TEST_BOOTSTRAP_TOKEN", "secret")
-    .run_user("cameron")
+    .run_user("example")
 }
 
 #[test]
@@ -140,7 +140,7 @@ fn install_writes_launchdaemon_plist_with_username_and_expected_port_metadata() 
     let plist_path = temp.path.join("com.msc2.agent.plist");
     let plist = std::fs::read_to_string(&plist_path).expect("plist exists");
     assert!(plist.contains("<key>UserName</key>"));
-    assert!(plist.contains("<string>cameron</string>"));
+    assert!(plist.contains("<string>example</string>"));
     assert!(plist.contains("<key>MSC2_EXPECTED_PORT</key>"));
     assert!(plist.contains("<string>48001</string>"));
     assert_eq!(

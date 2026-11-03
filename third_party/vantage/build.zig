@@ -1,0 +1,150 @@
+const std = @import("std");
+const manifest = @import("build.zig.zon");
+
+pub fn build(b: *std.Build) void {
+    const target = b.standardTargetOptions(.{});
+    const optimize = b.standardOptimizeOption(.{});
+
+    // Single source of truth for `vantage --version`.
+    const options = b.addOptions();
+    options.addOption([]const u8, "version", manifest.version);
+
+    const exe = b.addExecutable(.{
+        .name = "vantage",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/main.zig"),
+            .target = target,
+            .optimize = optimize,
+            // C interop for the vendored decompressor + image decoder: vendor
+            // the fastest C libraries rather than depend on system libs (absent
+            // on Windows) or the churning std.compress. No system dependencies
+            // ⇒ one static binary per OS.
+            .link_libc = true,
+        }),
+    });
+    // codesign adds a load command on Intel macOS. Without reserved header
+    // space it overwrites the beginning of __text (libdeflate_crc32).
+    if (target.result.os.tag == .macos) exe.headerpad_size = 4096;
+    exe.root_module.addOptions("build_options", options);
+    // Intel macOS has crashed inside libdeflate's Adler-32 check while
+    // inflating converted Bedrock regions. Use the system zlib decoder there.
+    if (target.result.os.tag == .macos and target.result.cpu.arch == .x86_64) {
+        exe.root_module.linkSystemLibrary("z", .{});
+    }
+    // Embed the public protocol contract from docs/ into the binary so
+    // `GET /v1/openapi.json`, repository docs, and launcher generation all use
+    // one exact source of truth.
+    exe.root_module.addAnonymousImport("server_openapi", .{ .root_source_file = serverOpenApi(b) });
+    // Embed the standalone viewer app (web/dist-viewer, from `npm run
+    // build:viewer`) so `vantage serve` is a complete map server in one file.
+    // Building without it still works — serve hosts the world data and the
+    // fallback page explains how to get the viewer.
+    exe.root_module.addAnonymousImport("viewer_assets", .{ .root_source_file = viewerAssets(b) });
+    // Vendored libdeflate (chunk/level.dat decompression): whole-buffer zlib +
+    // gzip decode, ~2-3× faster than system zlib. Decompression-only subset.
+    exe.root_module.addIncludePath(b.path("vendor/libdeflate"));
+    // Intel Bedrock map startup crashed in libdeflate's Adler-32 checksum
+    // after zlib inflation. Keep this path on the portable implementation there.
+    // This file also needs the same Zig 0.16 AVX-512 exclusions as libdeflate's
+    // other C files, even though it has platform-specific extra flags.
+    const adler32_flags: []const []const u8 = if (target.result.os.tag == .macos and target.result.cpu.arch == .x86_64)
+        &.{
+            "-std=c99",
+            "-DLIBDEFLATE_ASSEMBLER_DOES_NOT_SUPPORT_AVX512VNNI",
+            "-DLIBDEFLATE_ASSEMBLER_DOES_NOT_SUPPORT_VPCLMULQDQ",
+            "-DLIBDEFLATE_FORCE_GENERIC_ADLER32",
+        }
+    else
+        &.{
+            "-std=c99",
+            "-DLIBDEFLATE_ASSEMBLER_DOES_NOT_SUPPORT_AVX512VNNI",
+            "-DLIBDEFLATE_ASSEMBLER_DOES_NOT_SUPPORT_VPCLMULQDQ",
+        };
+    exe.root_module.addCSourceFile(.{
+        .file = b.path("vendor/libdeflate/lib/adler32.c"),
+        .flags = adler32_flags,
+    });
+    exe.root_module.addCSourceFiles(.{
+        .files = &.{
+            "vendor/libdeflate/lib/crc32.c",
+            "vendor/libdeflate/lib/deflate_compress.c",
+            "vendor/libdeflate/lib/deflate_decompress.c",
+            "vendor/libdeflate/lib/gzip_compress.c",
+            "vendor/libdeflate/lib/gzip_decompress.c",
+            "vendor/libdeflate/lib/utils.c",
+            "vendor/libdeflate/lib/zlib_decompress.c",
+            "vendor/libdeflate/lib/arm/cpu_features.c",
+            "vendor/libdeflate/lib/x86/cpu_features.c",
+        },
+        // Zig 0.16's Clang can expose AVX-512 intrinsics without carrying the
+        // new evex512 feature through libdeflate's per-function target
+        // attributes. Disable only those optional dispatch variants; the
+        // portable, SSE2, PCLMUL, and AVX2 paths remain available.
+        .flags = &.{
+            "-std=c99",
+            "-DLIBDEFLATE_ASSEMBLER_DOES_NOT_SUPPORT_AVX512VNNI",
+            "-DLIBDEFLATE_ASSEMBLER_DOES_NOT_SUPPORT_VPCLMULQDQ",
+        },
+    });
+    // Vendored stb_image (PNG decode) — C interop. PNG-only, decode-from-memory
+    // (see the impl TU).
+    exe.root_module.addIncludePath(b.path("vendor/stb"));
+    exe.root_module.addCSourceFile(.{
+        .file = b.path("vendor/stb/stb_image_impl.c"),
+        .flags = &.{"-std=c99"},
+    });
+    b.installArtifact(exe);
+
+    const run_cmd = b.addRunArtifact(exe);
+    run_cmd.step.dependOn(b.getInstallStep());
+    if (b.args) |args| run_cmd.addArgs(args);
+    const run_step = b.step("run", "Run the vantage CLI");
+    run_step.dependOn(&run_cmd.step);
+
+    const exe_tests = b.addTest(.{ .root_module = exe.root_module });
+    const run_exe_tests = b.addRunArtifact(exe_tests);
+    const test_step = b.step("test", "Run unit tests");
+    test_step.dependOn(&run_exe_tests.step);
+}
+
+fn serverOpenApi(b: *std.Build) std.Build.LazyPath {
+    const wf = b.addWriteFiles();
+    _ = wf.addCopyFile(b.path("docs/server-openapi.json"), "server-openapi.json");
+    return wf.add("server_openapi.zig", "pub const json = @embedFile(\"server-openapi.json\");\n");
+}
+
+/// Generate the `viewer_assets` module for `vantage serve`: every file under
+/// web/dist-viewer, copied into the build cache and @embedFile'd from a
+/// generated source file. When the bundle hasn't been built the module is an
+/// empty list, not an error — the core generator must never require npm.
+fn viewerAssets(b: *std.Build) std.Build.LazyPath {
+    const io = b.graph.io;
+    const wf = b.addWriteFiles();
+    var code: std.ArrayList(u8) = .empty;
+    const a = b.allocator;
+    code.appendSlice(a,
+        \\//! Generated by build.zig — the standalone viewer bundle `vantage serve` hosts.
+        \\pub const File = struct { path: []const u8, bytes: []const u8 };
+        \\pub const files = [_]File{
+        \\
+    ) catch @panic("OOM");
+    scan: {
+        const rel = "web/dist-viewer";
+        var dir = b.build_root.handle.openDir(io, rel, .{ .iterate = true }) catch break :scan;
+        defer dir.close(io);
+        var walker = dir.walk(a) catch break :scan;
+        defer walker.deinit();
+        while (walker.next(io) catch break :scan) |entry| {
+            if (entry.kind != .file) continue;
+            // URL + embed paths always use forward slashes (the walker hands
+            // back platform separators on Windows).
+            const sub = a.dupe(u8, entry.path) catch @panic("OOM");
+            std.mem.replaceScalar(u8, sub, '\\', '/');
+            const src = b.pathJoin(&.{ rel, sub });
+            _ = wf.addCopyFile(b.path(src), sub);
+            code.print(a, "    .{{ .path = \"/{s}\", .bytes = @embedFile(\"{s}\") }},\n", .{ sub, sub }) catch @panic("OOM");
+        }
+    }
+    code.appendSlice(a, "};\n") catch @panic("OOM");
+    return wf.add("viewer_assets.zig", code.items);
+}

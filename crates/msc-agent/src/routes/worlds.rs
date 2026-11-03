@@ -125,6 +125,14 @@ pub fn router(state: WorldsRoutesState) -> Router {
             get(map_terrain::preparation_progress),
         )
         .route("/worlds/map/refresh", post(refresh_map))
+        .route(
+            "/worlds/map/pre-render",
+            get(map_terrain::pre_render::status).post(map_terrain::pre_render::start),
+        )
+        .route(
+            "/worlds/map/pre-render/cancel",
+            post(map_terrain::pre_render::cancel),
+        )
         .route("/worlds/map/players", get(map_players))
         .route("/worlds/map-proof/snapshot", post(snapshot_map_proof))
         .route("/worlds/map-proof/players", get(map_proof_players))
@@ -186,16 +194,36 @@ pub async fn convert_formats(
     if let Some(response) = require_permission(&credential, PermissionCategoryDto::Worlds) {
         return response;
     }
-    let converter = LiveWorldConverter;
-    let java_available = converter.resolve_java_path("").is_some();
-    let installed = converter.is_installed();
-    let formats = if installed && java_available {
-        converter
-            .resolve_java_path("")
-            .map(|path| converter.supported_formats(&path))
-            .unwrap_or_default()
-    } else {
-        Vec::new()
+    let configured_java = lifecycle.app_config_snapshot().java_path;
+    let lookup = tokio::task::spawn_blocking(move || -> Result<_, String> {
+        msc_infrastructure::chunker::migrate_legacy_installation()
+            .map_err(|error| error.to_string())?;
+        let converter = LiveWorldConverter;
+        let installed = converter.is_installed();
+        let (java_available, formats) = if installed {
+            let (_, formats) = converter.runtime_with_formats(&configured_java)?;
+            (true, formats)
+        } else {
+            (
+                converter.resolve_java_path(&configured_java).is_some(),
+                Vec::new(),
+            )
+        };
+        Ok((installed, java_available, formats))
+    })
+    .await;
+    let (installed, java_available, formats) = match lookup {
+        Ok(Ok(result)) => result,
+        Ok(Err(message)) => {
+            return error_response(StatusCode::CONFLICT, "chunker_unavailable", &message);
+        }
+        Err(error) => {
+            return error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "chunker_check_failed",
+                &error.to_string(),
+            );
+        }
     };
     let response = Json(WorldConvertFormatsResponseDto {
         formats,
@@ -362,9 +390,9 @@ pub struct WorldsRoutesState {
 impl WorldsRoutesState {
     pub(crate) fn begin_map_shutdown(&self) {
         self.map_shutdown.store(true, Ordering::Release);
+        self.bedrock_map.set_shutdown(true);
         #[cfg(target_os = "windows")]
         {
-            self.bedrock_map.set_shutdown(true);
             self.map_renderer.set_shutdown(true);
         }
     }
@@ -410,6 +438,8 @@ impl WorldsRoutesState {
 
 #[derive(Debug, Clone)]
 pub(crate) struct StagedUpload {
+    pub(crate) native_guard:
+        Option<std::sync::Arc<super::components::native_upload::ConsumedInput>>,
     pub(crate) purpose: StagedUploadPurposeDto,
     pub(crate) file_name: Option<String>,
     pub(crate) operation_id: Option<String>,
@@ -424,10 +454,18 @@ pub(crate) struct StagedUpload {
 
 #[derive(Debug, Clone)]
 pub(crate) struct StagedDownload {
+    pub(crate) owner: String,
     pub(crate) expires_at_unix: u64,
     pub(crate) path: PathBuf,
 }
 
+#[derive(Clone)]
+pub(crate) struct ActiveDownload {
+    pub(crate) path: PathBuf,
+    pub(crate) owner: String,
+    pub(crate) cancel: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    pub(crate) done: tokio::sync::watch::Sender<bool>,
+}
 /// Bytes live on disk under `<servers_root>/.msc2-staging/{uploads,
 /// downloads}/{id}.{bin,zip}` — `servers_root()` is already an
 /// agent-controlled directory, so nothing user-supplied ever names a
@@ -435,10 +473,28 @@ pub(crate) struct StagedDownload {
 /// does. Metadata lives in memory only (an agent restart loses in-flight
 /// staged transfers, the same "best-effort, not durable" shape this
 /// step's own scope note leaves to a later phase).
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub(crate) struct StagingStore {
-    pub(crate) uploads: std::sync::Arc<Mutex<HashMap<String, StagedUpload>>>,
+    pub(crate) uploads: std::sync::Arc<Mutex<super::components::native_upload::UploadStore>>,
+    pub(crate) native: super::components::native_upload::NativeStore,
     pub(crate) downloads: std::sync::Arc<Mutex<HashMap<String, StagedDownload>>>,
+    pub(crate) active_downloads: std::sync::Arc<Mutex<HashMap<String, ActiveDownload>>>,
+    pub(crate) completed_downloads:
+        std::sync::Arc<Mutex<HashMap<String, (String, std::time::Instant)>>>,
+    pub(crate) transfer_slots: std::sync::Arc<tokio::sync::Semaphore>,
+}
+
+impl Default for StagingStore {
+    fn default() -> Self {
+        Self {
+            uploads: Default::default(),
+            native: Default::default(),
+            downloads: Default::default(),
+            active_downloads: Default::default(),
+            completed_downloads: Default::default(),
+            transfer_slots: std::sync::Arc::new(tokio::sync::Semaphore::new(2)),
+        }
+    }
 }
 
 pub(crate) fn now_unix() -> u64 {
@@ -542,13 +598,13 @@ fn active_server_or_response(state: &LifecycleRoutesState) -> Result<ConfigServe
     Ok(server)
 }
 
-fn find_slot(server_dir: &Path, slot_id: &str) -> Option<WorldSlot> {
+pub(crate) fn find_slot(server_dir: &Path, slot_id: &str) -> Option<WorldSlot> {
     world_store::load_slots(&StdFileSystem, server_dir)
         .into_iter()
         .find(|slot| slot.id == slot_id)
 }
 
-fn resolved_active_slot_id(server_dir: &Path) -> Option<String> {
+pub(crate) fn resolved_active_slot_id(server_dir: &Path) -> Option<String> {
     let slots = world_store::load_slots(&StdFileSystem, server_dir);
     let marker = world_store::load_explicit_active_slot_id(&StdFileSystem, server_dir);
     msc_domain::world::resolve_active_slot_id(&slots, marker.as_deref())
@@ -1118,6 +1174,13 @@ pub async fn install_java_datapack(
                 "Choose a catalog release or an uploaded file, not both.",
             );
         }
+        if !state.staging.native.target_matches(id, &server.id) {
+            return error_response(
+                StatusCode::CONFLICT,
+                "target_mismatch",
+                "Upload belongs to a different server.",
+            );
+        }
         let entry = state.staging.uploads.lock().unwrap().remove(id);
         let Some(entry) = entry else {
             return invalid_body("invalid_upload", "The uploaded datapack is unavailable.");
@@ -1669,6 +1732,18 @@ pub async fn install_bedrock_behavior_pack(
             "Stop the server before changing packs in its active world.",
         );
     }
+    if resolved_active_slot_id(server_dir).as_deref() == Some(slot.id.as_str())
+        && let Err(error) =
+            msc_infrastructure::conversion_resources::require_world_cleanup_ownership(
+                &server_dir.join("worlds"),
+            )
+    {
+        return error_response(
+            StatusCode::CONFLICT,
+            "world_ownership_mismatch",
+            &error.to_string(),
+        );
+    }
     let (archive, source_project_id, source_file_id, source_url) = if let Some(id) = body
         .get("stagedUploadId")
         .and_then(serde_json::Value::as_str)
@@ -1677,6 +1752,13 @@ pub async fn install_bedrock_behavior_pack(
             return invalid_body(
                 "invalid_pack_source",
                 "Choose a catalog file or an uploaded file, not both.",
+            );
+        }
+        if !state.staging.native.target_matches(id, &server.id) {
+            return error_response(
+                StatusCode::CONFLICT,
+                "target_mismatch",
+                "Upload belongs to a different server.",
             );
         }
         let entry = state.staging.uploads.lock().unwrap().remove(id);
@@ -2417,7 +2499,13 @@ pub async fn update_profile(
         }
     }
     if active && running && server.server_type == ServerType::Java {
-        match state.lifecycle.apply_active_java_world_gameplay() {
+        let switch_online_players = changes
+            .iter()
+            .any(|(key, _)| key == "gameplay.default-game-mode");
+        match state
+            .lifecycle
+            .apply_active_java_world_gameplay(switch_online_players)
+        {
             Ok(()) => {
                 for change in &mut report.changes {
                     if matches!(
@@ -2435,8 +2523,10 @@ pub async fn update_profile(
                         change.key.as_str(),
                         "gameplay.gamerules" | "gameplay.difficulty" | "gameplay.default-game-mode"
                     ) {
-                        change.status = worlds::WorldProfileApplyStatus::PendingRestart;
-                        change.reason = Some(format!("runtime_command_failed: {error}"));
+                        change.status = worlds::WorldProfileApplyStatus::Blocked;
+                        change.reason = Some(format!(
+                            "Saved, but the server did not accept every live gameplay command: {error}"
+                        ));
                     }
                 }
             }
@@ -2808,6 +2898,7 @@ pub async fn refresh_map(
         let task_lifecycle = lifecycle.clone();
         let task_operation_id = operation_id.clone();
         let store = state.bedrock_map.clone();
+        let renderer = state.map_renderer.clone();
         tokio::spawn(async move {
             let snapshot_lifecycle = task_lifecycle.clone();
             let result = tokio::task::spawn_blocking(move || {
@@ -2823,25 +2914,42 @@ pub async fn refresh_map(
                     let mut details = BTreeMap::new();
                     details.insert("bytesCopied".to_string(), snapshot.bytes.to_string());
                     details.insert("holdMillis".to_string(), snapshot.hold_millis.to_string());
+                    let refresh_lifecycle = task_lifecycle.clone();
                     match tokio::task::spawn_blocking(move || {
-                        store.use_snapshot(server.id, source_world, snapshot)
+                        store.refresh_shared_snapshot(
+                            &refresh_lifecycle,
+                            &renderer,
+                            server.id,
+                            source_world,
+                            "minecraft:overworld",
+                            snapshot,
+                        )
                     })
                     .await
                     {
                         Ok(Ok(stats)) => {
+                            details.insert(
+                                "regionsReused".to_string(),
+                                stats.reused_regions.to_string(),
+                            );
+                            details.insert(
+                                "regionsChanged".to_string(),
+                                stats.changed_regions.to_string(),
+                            );
+                            details.insert(
+                                "regionsRemoved".to_string(),
+                                stats.removed_regions.to_string(),
+                            );
                             details
-                                .insert("tilesReused".to_string(), stats.reused_tiles.to_string());
-                            details.insert(
-                                "tilesChanged".to_string(),
-                                stats.changed_tiles.to_string(),
-                            );
-                            details.insert(
-                                "tilesRemoved".to_string(),
-                                stats.removed_tiles.to_string(),
-                            );
+                                .insert("sourceUnchanged".to_string(), stats.unchanged.to_string());
+                            let message = if stats.unchanged {
+                                "No Bedrock terrain changes were found; existing map caches remain in use."
+                            } else {
+                                "Changed Bedrock regions are ready; unchanged regions remain cached."
+                            };
                             let _ = task_lifecycle.operations().succeed(
                                 &task_operation_id,
-                                "Current Bedrock terrain is ready.",
+                                message,
                                 details,
                             );
                         }
@@ -2856,7 +2964,7 @@ pub async fn refresh_map(
                             let _ = task_lifecycle.operations().fail(
                                 &task_operation_id,
                                 "renderer_unavailable",
-                                "The Bedrock tile comparison stopped unexpectedly.".to_string(),
+                                "Bedrock region refresh stopped unexpectedly.".to_string(),
                             );
                         }
                     }
@@ -2916,6 +3024,7 @@ pub async fn refresh_map(
     let task_operation_id = operation_id.clone();
     let renderer = state.map_renderer.clone();
     tokio::spawn(async move {
+        let snapshot_started = std::time::Instant::now();
         let snapshot_lifecycle = task_lifecycle.clone();
         let result = tokio::task::spawn_blocking(move || {
             crate::backup_operations::snapshot_java_world(
@@ -2927,6 +3036,12 @@ pub async fn refresh_map(
         .await;
         match result {
             Ok(Ok(snapshot)) => {
+                eprintln!(
+                    "Java map: refresh snapshot captured in {:.1}s ({} bytes; {}ms save hold)",
+                    snapshot_started.elapsed().as_secs_f64(),
+                    snapshot.bytes,
+                    snapshot.hold_millis
+                );
                 let mut details = BTreeMap::new();
                 details.insert("bytesCopied".to_string(), snapshot.bytes.to_string());
                 details.insert("holdMillis".to_string(), snapshot.hold_millis.to_string());
@@ -3477,12 +3592,12 @@ pub async fn rename(
     .await
 }
 
-/// `POST /v1/worlds/replace` — **corrected post-review (Cameron)**: this
+/// `POST /v1/worlds/replace` — **corrected post-review (the owner)**: this
 /// is `WorldSlotManager.copySlotIntoExisting(source, into: dest, ...)`,
 /// a saved-slot-to-saved-slot copy, not `AppViewModel+WorldManagement
 /// .swift::replaceWorld`'s live-world operation the original P6.21 pass
 /// guessed at (that guess is what the "flagged as a genuinely open
-/// question" comment previously here recorded — Cameron's answer:
+/// question" comment previously here recorded — the owner's answer:
 /// "slotId is the existing destination slot, and sourceSlotId is the
 /// slot whose saved contents replace it. This is not a concurrency
 /// check and does not operate on the live world."). No new level name
@@ -3986,6 +4101,17 @@ pub async fn set_thumbnail(
     let Some(slot) = find_slot(server_dir, &slot_id) else {
         return slot_not_found(&slot_id);
     };
+    if !state
+        .staging
+        .native
+        .target_matches(&body.staged_upload_id, &server.id)
+    {
+        return error_response(
+            StatusCode::CONFLICT,
+            "target_mismatch",
+            "Upload belongs to a different server.",
+        );
+    }
     let entry = {
         state
             .staging
@@ -4108,7 +4234,10 @@ pub async fn begin_staged_upload(
         StagedUploadPurposeDto::ModpackArchive
         | StagedUploadPurposeDto::AddonLocalFile
         | StagedUploadPurposeDto::CurseforgeManualFile
-        | StagedUploadPurposeDto::ModpackUnresolvedFile => {
+        | StagedUploadPurposeDto::ModpackUnresolvedFile
+        | StagedUploadPurposeDto::RawServerArchive
+        | StagedUploadPurposeDto::RawServerFolder
+        | StagedUploadPurposeDto::MscTransferArchive => {
             return invalid_body(
                 "invalid_purpose",
                 "This staged upload route only accepts world import purposes.",
@@ -4131,6 +4260,7 @@ pub async fn begin_staged_upload(
     state.staging.uploads.lock().unwrap().insert(
         id.clone(),
         StagedUpload {
+            native_guard: None,
             purpose: body.purpose,
             file_name: body.file_name.clone(),
             operation_id: body.operation_id.clone(),
@@ -4174,6 +4304,13 @@ pub async fn upload_staged_bytes(
 ) -> Response {
     if let Some(response) = require_permission(&credential, PermissionCategoryDto::Worlds) {
         return response;
+    }
+    if state.staging.native.contains(&id) {
+        return error_response(
+            StatusCode::CONFLICT,
+            "native_upload",
+            "Use the native stream endpoint.",
+        );
     }
     let entry = { state.staging.uploads.lock().unwrap().get(&id).cloned() };
     let Some(entry) = entry else {
@@ -4243,7 +4380,7 @@ pub use import_activation::*;
 // (phase6-api.md SS3: Chunker's process lifetime).
 // =====================================================================
 
-/// **Corrected post-review (Cameron).** MSC 1 conversion always names a
+/// **Corrected post-review (the owner).** MSC 1 conversion always names a
 /// separate, opposite-edition *target* server
 /// (`AppViewModel+WorldConversion.swift::performWorldConversion`'s own
 /// `sourceServer`/`targetServer` parameters,
@@ -4341,21 +4478,29 @@ pub async fn convert(
     };
 
     let converter = LiveWorldConverter;
-    let Some(resolved_java_path) = converter.resolve_java_path("") else {
-        return error_response(
-            StatusCode::CONFLICT,
-            "capability_unavailable",
-            "No Java runtime could be resolved for Chunker.",
-        );
+    let configured_java = lifecycle.app_config_snapshot().java_path;
+    let lookup = tokio::task::spawn_blocking(move || {
+        msc_infrastructure::chunker::migrate_legacy_installation()
+            .map_err(|error| error.to_string())?;
+        if !LiveWorldConverter.is_installed() {
+            return Err("Chunker is not installed on this agent.".into());
+        }
+        LiveWorldConverter.runtime_with_formats(&configured_java)
+    })
+    .await;
+    let (resolved_java_path, supported_formats) = match lookup {
+        Ok(Ok(result)) => result,
+        Ok(Err(message)) => {
+            return error_response(StatusCode::CONFLICT, "chunker_unavailable", &message);
+        }
+        Err(error) => {
+            return error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "chunker_check_failed",
+                &error.to_string(),
+            );
+        }
     };
-    if !converter.is_installed() {
-        return error_response(
-            StatusCode::CONFLICT,
-            "capability_unavailable",
-            "Chunker is not installed on this agent.",
-        );
-    }
-    let supported_formats = converter.supported_formats(&resolved_java_path);
     if !supported_formats.contains(&body.target_format) {
         return invalid_body(
             "unsupported_target_format",
@@ -4558,10 +4703,8 @@ pub async fn convert(
 }
 
 // =====================================================================
-// Production `WorldConverter` — real java-path resolution and a real
-// Chunker jar-path check; deliberately does **not** implement the
-// GitHub-release auto-download flow (a separate, larger feature with no
-// route/fixture in this contract calling for it) — see the P6.21 report.
+// Production converter: shared managed-Java discovery, bounded format probes,
+// and the same resolved runtime for preflight and conversion.
 // =====================================================================
 
 #[derive(Default)]
@@ -4571,6 +4714,126 @@ impl LiveWorldConverter {
     fn chunker_jar_path() -> PathBuf {
         msc_infrastructure::chunker::jar_path()
     }
+
+    fn java_candidates(configured: &str) -> Vec<String> {
+        use msc_infrastructure::java_runtime_detection::{
+            detect_installed_java_runtimes, normalized_java_executable_path,
+        };
+        let mut candidates = Vec::new();
+        if !configured.trim().is_empty() {
+            candidates.push(configured.to_string());
+        }
+        // Use the same managed and system locations as MSC's Java settings.
+        candidates.extend(
+            detect_installed_java_runtimes(
+                &StdFileSystem,
+                &super::versions::java_runtime_search_roots(),
+            )
+            .into_iter()
+            .map(|runtime| runtime.executable_path),
+        );
+        if let Some(home) = std::env::var_os("JAVA_HOME") {
+            candidates.push(PathBuf::from(home).to_string_lossy().into_owned());
+        }
+        candidates.extend(
+            [
+                "java",
+                "/usr/bin/java",
+                "/usr/local/bin/java",
+                "/opt/homebrew/bin/java",
+            ]
+            .map(str::to_string),
+        );
+        let mut normalized = Vec::new();
+        for candidate in candidates {
+            if let Ok(path) = normalized_java_executable_path(&StdFileSystem, &candidate)
+                && !normalized.contains(&path)
+            {
+                normalized.push(path);
+            }
+        }
+        normalized
+    }
+
+    fn runtime_with_formats(&self, configured: &str) -> Result<(String, Vec<String>), String> {
+        msc_infrastructure::chunker::select_runtime_with_formats(
+            Self::java_candidates(configured),
+            Self::query_formats,
+        )
+    }
+
+    fn query_formats(java: &str) -> Result<Vec<String>, String> {
+        let jar = Self::chunker_jar_path();
+        let jar = jar
+            .to_str()
+            .ok_or_else(|| "Chunker path is not valid UTF-8".to_string())?;
+        let output = bounded_java_output(java, &["-jar", jar, "-f", "?"])?;
+        let combined = format!(
+            "{} {}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let mut formats = Vec::new();
+        for token in combined.split(|c: char| !c.is_alphanumeric() && c != '_') {
+            if is_chunker_format_token(token) && !formats.iter().any(|format| format == token) {
+                formats.push(token.to_string());
+            }
+        }
+        // Chunker deliberately uses an invalid format to print its supported list,
+        // so a nonzero exit with real format tokens is a successful discovery.
+        if formats.is_empty() {
+            return Err(format!(
+                "{java}: Chunker returned no conversion formats ({}). {}",
+                output.status,
+                combined.trim().chars().take(2000).collect::<String>()
+            ));
+        }
+        Ok(formats)
+    }
+}
+
+/// Bound discovery time/output so a broken runtime cannot hang the agent.
+fn bounded_java_output(java: &str, args: &[&str]) -> Result<std::process::Output, String> {
+    use std::io::Read;
+    use std::process::{Command, Stdio};
+    let mut child = Command::new(java)
+        .args(args)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|error| format!("{java}: {error}"))?;
+    let stdout = child.stdout.take().expect("piped stdout");
+    let stderr = child.stderr.take().expect("piped stderr");
+    let read = |stream: Box<dyn Read + Send>| {
+        let mut bytes = Vec::new();
+        let _ = stream.take(64 * 1024).read_to_end(&mut bytes);
+        bytes
+    };
+    let out = std::thread::spawn(move || read(Box::new(stdout)));
+    let err = std::thread::spawn(move || read(Box::new(stderr)));
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
+    let status = loop {
+        match child.try_wait() {
+            Ok(Some(status)) => break Ok(status),
+            Ok(None) if std::time::Instant::now() < deadline => {
+                std::thread::sleep(std::time::Duration::from_millis(25))
+            }
+            result => {
+                let _ = child.kill();
+                let _ = child.wait();
+                break Err(format!(
+                    "{java}: Java/Chunker discovery failed or exceeded 20 seconds: {result:?}"
+                ));
+            }
+        }
+    };
+    let stdout = out.join().unwrap_or_default();
+    let stderr = err.join().unwrap_or_default();
+    Ok(std::process::Output {
+        status: status?,
+        stdout,
+        stderr,
+    })
 }
 
 impl WorldConverter for LiveWorldConverter {
@@ -4579,32 +4842,19 @@ impl WorldConverter for LiveWorldConverter {
     }
 
     fn resolve_java_path(&self, configured_java_path: &str) -> Option<String> {
-        if !configured_java_path.trim().is_empty()
-            && let Ok(path) =
-                msc_infrastructure::java_runtime_detection::normalized_java_executable_path(
-                    &StdFileSystem,
-                    configured_java_path,
-                )
-        {
-            return Some(path);
-        }
-        for candidate in [
-            "/usr/bin/java",
-            "/usr/local/bin/java",
-            "/opt/homebrew/bin/java",
-        ] {
-            if std::fs::metadata(candidate).is_ok() {
-                return Some(candidate.to_string());
-            }
-        }
-        std::process::Command::new("which")
-            .arg("java")
-            .output()
-            .ok()
-            .filter(|output| output.status.success())
-            .and_then(|output| String::from_utf8(output.stdout).ok())
-            .map(|s| s.trim().to_string())
-            .filter(|s| !s.is_empty())
+        Self::java_candidates(configured_java_path)
+            .into_iter()
+            .find(|candidate| {
+                bounded_java_output(candidate, &["-version"]).is_ok_and(|output| {
+                    output.status.success()
+                        && msc_domain::java_runtime::parse_major(&format!(
+                            "{} {}",
+                            String::from_utf8_lossy(&output.stdout),
+                            String::from_utf8_lossy(&output.stderr)
+                        ))
+                        .is_some_and(|major| major >= 17)
+                })
+            })
     }
 
     fn convert(
@@ -4615,78 +4865,18 @@ impl WorldConverter for LiveWorldConverter {
         java_path: &str,
         progress: &mut dyn FnMut(&str),
     ) -> Result<(), String> {
-        use std::io::{BufRead, BufReader};
-        use std::process::{Command, Stdio};
-
-        let jar_path = Self::chunker_jar_path();
-        let mut child = Command::new(java_path)
-            .arg("-jar")
-            .arg(&jar_path)
-            .arg("-i")
-            .arg(input_dir)
-            .arg("-f")
-            .arg(target_format)
-            .arg("-o")
-            .arg(output_dir)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .map_err(|error| format!("failed to start Chunker: {error}"))?;
-
-        if let Some(stdout) = child.stdout.take() {
-            for line in BufReader::new(stdout).lines().map_while(Result::ok) {
-                let trimmed = line.trim();
-                if !trimmed.is_empty() {
-                    progress(trimmed);
-                }
-            }
-        }
-        if let Some(stderr) = child.stderr.take() {
-            for line in BufReader::new(stderr).lines().map_while(Result::ok) {
-                let trimmed = line.trim();
-                if !trimmed.is_empty() {
-                    progress(trimmed);
-                }
-            }
-        }
-
-        let status = child
-            .wait()
-            .map_err(|error| format!("Chunker process error: {error}"))?;
-        if status.success() {
-            Ok(())
-        } else {
-            Err(format!(
-                "Chunker exited with code {}",
-                status.code().unwrap_or(-1)
-            ))
-        }
+        msc_infrastructure::chunker::run_conversion(
+            &Self::chunker_jar_path(),
+            input_dir,
+            output_dir,
+            target_format,
+            java_path,
+            progress,
+        )
     }
 
     fn supported_formats(&self, resolved_java_path: &str) -> Vec<String> {
-        use std::process::Command;
-
-        let jar_path = Self::chunker_jar_path();
-        let Ok(output) = Command::new(resolved_java_path)
-            .arg("-jar")
-            .arg(&jar_path)
-            .arg("-f")
-            .arg("?")
-            .output()
-        else {
-            return Vec::new();
-        };
-        let mut combined = String::from_utf8_lossy(&output.stdout).into_owned();
-        combined.push(' ');
-        combined.push_str(&String::from_utf8_lossy(&output.stderr));
-
-        let mut results = Vec::new();
-        for token in combined.split(|c: char| !c.is_alphanumeric() && c != '_') {
-            if is_chunker_format_token(token) && !results.contains(&token.to_string()) {
-                results.push(token.to_string());
-            }
-        }
-        results
+        Self::query_formats(resolved_java_path).unwrap_or_default()
     }
 }
 
@@ -5558,16 +5748,28 @@ mod tests {
         let exported: WorldExportResultDto = json_body(exported).await;
         assert!(exported.size_bytes > 0);
 
-        let first = download_staged_bytes(
-            State(state.clone()),
+        let first = crate::routes::components::download_staged_bytes(
+            State(crate::routes::components::ComponentsRoutesState::new(
+                state.lifecycle.clone(),
+                state.staging.clone(),
+                crate::routes::components::PendingModpackImports::default(),
+            )),
             AxumPath(exported.staged_download_id.clone()),
+            Extension(credential.clone()),
+            None,
         )
         .await;
         assert_eq!(first.status(), StatusCode::OK);
 
-        let second = download_staged_bytes(
-            State(state.clone()),
+        let second = crate::routes::components::download_staged_bytes(
+            State(crate::routes::components::ComponentsRoutesState::new(
+                state.lifecycle.clone(),
+                state.staging.clone(),
+                crate::routes::components::PendingModpackImports::default(),
+            )),
             AxumPath(exported.staged_download_id.clone()),
+            Extension(credential.clone()),
+            None,
         )
         .await;
         assert_eq!(second.status(), StatusCode::NOT_FOUND);

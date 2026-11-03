@@ -1,6 +1,6 @@
 {
   "domain": "player-nbt",
-  "case": "real-campak-stats-and-stacked-inventory",
+  "case": "real-modded-sample-stats-and-stacked-inventory",
   "source": {
     "file": "PlayerNBTReader.swift",
     "test": "readAll(from:) -> extractStats(from:) + extractInventory(from:)",
@@ -8,9 +8,9 @@
   },
   "input": {
     "encoding": "gzip-compressed big-endian NBT",
-    "dat_file": "fixtures/player-nbt/samples/campak-live-player.dat",
+    "dat_file": "fixtures/player-nbt/samples/modded-sample-live-player.dat",
     "real_sample": {
-      "source": "Cameron's live MSC 1 Java server campak playerdata capture",
+      "source": "the owner's live MSC 1 Java server modded-sample playerdata capture",
       "sha256": "46ca7f184e7871d55843e4917aa5c7fb56f3a9b243f1c8733f3c3de04ab51329",
       "sanitization": "Copied unchanged; raw bytes are local-only and ignored by this directory."
     }

@@ -19,7 +19,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--poll", action="store_true",
                         help="poll authenticated console tail instead of reading stdin")
-    parser.add_argument("--server", default="theboyslatest")
+    parser.add_argument("--server", default="bedrock-sample")
     args = parser.parse_args()
     last_received = None
     stale_reported = False

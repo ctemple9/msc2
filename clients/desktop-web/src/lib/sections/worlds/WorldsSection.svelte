@@ -22,7 +22,7 @@
   // inline card confirm like Activate/Delete (WorldSlotCard.svelte).
   //
   // Per-card actions (Set as Active/Convert/Rename/Duplicate/Delete) were a
-  // persistent 5-button grid; Cameron's follow-up call collapsed that into
+  // persistent 5-button grid; the owner's follow-up call collapsed that into
   // the same anchored `Menu` list ComponentsSection.svelte's addon rows and
   // ManageSheet.svelte's server rows already use, one shared overlay owned
   // here (`actionMenu`) rather than one per card.
@@ -50,6 +50,11 @@
   import type { Schema, ScreenProps } from '../shared/types';
   import { bytesLabel, call, mutate } from '../shared/types';
   import {
+    clearWorldNavigationRequest,
+    worldNavigationRequest,
+    type WorldNavigationRequest,
+  } from './world-navigation';
+  import {
     backupPaths,
     demoBackups,
     demoSlots,
@@ -73,6 +78,8 @@
   export let active = true;
 
   let worlds: Schema['WorldSlotsResponseDTO'] = { slots: demoSlots, serverRunning: false };
+  let worldsLoadedKey = '';
+  let thumbnailRequest: { id: number; slotId: string } | undefined;
   let backups: Schema['BackupItemDTO'][] = demoBackups;
   let servers: Schema['ServerDTO'][] = [];
   let backupConfig: Schema['BackupConfigResponseDTO'] | undefined;
@@ -83,7 +90,7 @@
   let confirming: { slotId: string; kind: 'activate' | 'delete' | 'duplicate' } | undefined;
   let confirmingBackupDeleteId: string | undefined;
   let packProject: { projectId: string; title: string } | undefined;
-  let datapackMenu: { pack: Schema['WorldPackRecordDTO']; x: number; y: number } | undefined;
+  let packMenu: { pack: Schema['WorldPackRecordDTO']; x: number; y: number } | undefined;
   let confirmingPackDeleteId: string | undefined;
   let busy = false;
   let notice: string | undefined;
@@ -117,7 +124,10 @@
     busy = false;
   }
 
-  $: if (activation && (activation.api !== api || activation.serverId !== serverId || activation.hostId !== hostId)) {
+  $: if (
+    activation &&
+    (activation.api !== api || activation.serverId !== serverId || activation.hostId !== hostId)
+  ) {
     stopActivationMonitoring();
   }
 
@@ -145,7 +155,16 @@
 
   $: activeServer = servers.find((server) => server.id === serverId);
   $: isBedrock = activeServer?.serverType === 'bedrock';
+  $: currentWorldsKey = `${hostId}:${serverId}`;
+  $: if (worldsLoadedKey && worldsLoadedKey !== currentWorldsKey) {
+    worldsLoadedKey = '';
+    selectedSlotId = undefined;
+    mapOpen = false;
+  }
   $: selectedSlot = worlds.slots.find((slot) => slot.id === selectedSlotId);
+  $: if ($worldNavigationRequest && active && worldsLoadedKey === currentWorldsKey) {
+    handleOverviewWorldNavigation($worldNavigationRequest);
+  }
   $: selectedBedrockPacks = selectedSlot
     ? (profiles[selectedSlot.id]?.profile.packs ?? []).filter((pack) => pack.edition === 'bedrock')
     : [];
@@ -163,8 +182,56 @@
     message: string;
   };
 
+  function applyWorlds(
+    updated: Schema['WorldSlotsResponseDTO'],
+    scopeKey = `${hostId}:${serverId}`,
+  ): void {
+    const sameScope = worldsLoadedKey === scopeKey;
+    const selectionStillExists =
+      selectedSlotId !== undefined && updated.slots.some((slot) => slot.id === selectedSlotId);
+    const selectionWasFollowingActiveWorld = selectedSlotId === worlds.activeSlotId;
+    const activeWorldChanged = updated.activeSlotId !== worlds.activeSlotId;
+
+    worlds = updated;
+    if (
+      !sameScope ||
+      !selectionStillExists ||
+      selectionWasFollowingActiveWorld ||
+      activeWorldChanged
+    ) {
+      selectedSlotId = updated.activeSlotId ?? undefined;
+    }
+    worldsLoadedKey = scopeKey;
+  }
+
   async function loadWorlds(): Promise<void> {
-    worlds = await call(api, worlds, worldPaths.list);
+    const loadKey = `${hostId}:${serverId}`;
+    const updated = await call(api, worlds, worldPaths.list);
+    if (loadKey !== `${hostId}:${serverId}`) return;
+    applyWorlds(updated, loadKey);
+  }
+
+  function handleOverviewWorldNavigation(request: WorldNavigationRequest): void {
+    clearWorldNavigationRequest(request.id);
+    if (request.hostId !== hostId || request.serverId !== serverId) return;
+
+    const target = worlds.slots.find((slot) => slot.id === request.slotId);
+    if (!target?.isActive) {
+      flash('The active world changed before this action could open. Refresh and try again.');
+      return;
+    }
+
+    selectedSlotId = target.id;
+    if (request.action === 'view-map') {
+      mapOpen = true;
+    } else {
+      mapOpen = false;
+      thumbnailRequest = { id: request.id, slotId: target.id };
+    }
+  }
+
+  function onThumbnailPickerStarted(requestId: number): void {
+    if (thumbnailRequest?.id === requestId) thumbnailRequest = undefined;
   }
   async function loadBackups(): Promise<void> {
     const response = await call<Schema['BackupsResponseDTO']>(api, { backups }, backupPaths.list);
@@ -214,10 +281,7 @@
     }
   }
 
-  async function changeWorldPack(
-    pack: Schema['WorldPackRecordDTO'],
-    action: 'toggle' | 'delete',
-  ) {
+  async function changeWorldPack(pack: Schema['WorldPackRecordDTO'], action: 'toggle' | 'delete') {
     if (!selectedSlot || !api || busy || worlds.serverRunning) return;
     const slot = selectedSlot;
     const current = profiles[slot.id]?.profile.packs ?? [];
@@ -234,12 +298,22 @@
       });
       profiles = { ...profiles, [slot.id]: result.slot };
       confirmingPackDeleteId = undefined;
-      datapackMenu = undefined;
+      packMenu = undefined;
     } catch (error) {
       notice = error instanceof Error ? error.message : String(error);
     } finally {
       busy = false;
     }
+  }
+
+  function openPackMenu(event: MouseEvent, pack: Schema['WorldPackRecordDTO']): void {
+    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    packMenu = {
+      pack,
+      x: event.detail === 0 ? rect.left : event.clientX,
+      y: event.detail === 0 ? rect.bottom : event.clientY,
+    };
+    confirmingPackDeleteId = undefined;
   }
 
   async function loadBackupConfig(): Promise<void> {
@@ -271,7 +345,7 @@
   }
 
   function onWorldsCreatedOrRenamed(updated: Schema['WorldSlotsResponseDTO']): void {
-    worlds = updated;
+    applyWorlds(updated);
     void loadProfiles();
   }
 
@@ -423,7 +497,8 @@
       mounted &&
       generation === activationGeneration &&
       api === activationApi &&
-      serverId === activationServerId && hostId === activationHostId;
+      serverId === activationServerId &&
+      hostId === activationHostId;
     confirming = undefined;
     busy = true;
     notice = undefined;
@@ -520,8 +595,9 @@
       const result = await mutate<Schema['WorldMutationResultDTO']>(api, worldPaths.delete, {
         slotId,
       });
-      if (result.updated) worlds = result.updated;
-      if (selectedSlotId === slotId) selectedSlotId = undefined;
+      const selectedSlotWasDeleted = selectedSlotId === slotId;
+      if (result.updated) applyWorlds(result.updated);
+      else if (selectedSlotWasDeleted) selectedSlotId = worlds.activeSlotId ?? undefined;
     } catch (error) {
       flash(error instanceof Error ? error.message : 'Failed to delete this slot.');
     } finally {
@@ -538,7 +614,7 @@
       const result = await mutate<Schema['WorldMutationResultDTO']>(api, worldPaths.duplicate, {
         slotId,
       });
-      if (result.updated) worlds = result.updated;
+      if (result.updated) applyWorlds(result.updated);
       flash('World slot duplicated.');
     } catch (error) {
       flash(error instanceof Error ? error.message : 'Failed to duplicate this slot.');
@@ -551,7 +627,7 @@
     busy = true;
     try {
       const result = await mutate<Schema['WorldMutationResultDTO']>(api, worldPaths.saveCurrent);
-      if (result.updated) worlds = result.updated;
+      if (result.updated) applyWorlds(result.updated);
       flash('Active world saved.');
     } catch (error) {
       flash(error instanceof Error ? error.message : 'Failed to save the current world.');
@@ -631,7 +707,7 @@
         name: legacyImportName(backup),
         backupId: backup.id,
       });
-      if (result.updated) worlds = result.updated;
+      if (result.updated) applyWorlds(result.updated);
       flash(`Imported "${legacyImportName(backup)}" as a new slot.`);
     } catch (error) {
       flash(error instanceof Error ? error.message : 'Failed to import this backup as a slot.');
@@ -681,183 +757,196 @@
 
 {#if mapOpen && selectedSlot?.isActive}
   {#key `${serverId}:${selectedSlot.id}`}
-    <WorldMapViewer {api} {serverId} worldName={selectedSlot.name} onClose={() => (mapOpen = false)} />
+    <WorldMapViewer
+      {api}
+      {serverId}
+      worldName={selectedSlot.name}
+      onClose={() => (mapOpen = false)}
+    />
   {/key}
 {:else}
-<div class="worlds">
-  <section class="zone">
-    <div class="section-header">
-      <div class="overline">
-        <span class="msc2-type-overline">World Slots</span>
+  <div class="worlds">
+    <section class="zone">
+      <div class="section-header">
+        <div class="overline">
+          <span class="msc2-type-overline">World Slots</span>
+        </div>
+        <div class="header-actions">
+          {#if selectedSlot?.isActive}
+            <Button size="sm" variant="secondary" onclick={() => (mapOpen = true)}>View Map</Button>
+          {/if}
+          {#if isBedrock}
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={busy || worlds.serverRunning}
+              onclick={() => (repairOpen = true)}
+            >
+              Repair World
+            </Button>
+          {/if}
+          <Button size="sm" variant="primary" disabled={busy} onclick={() => (showCreate = true)}>
+            Create New World
+          </Button>
+          <Button size="sm" variant="secondary" disabled={busy} onclick={openHeaderMenu}>…</Button>
+        </div>
       </div>
-      <div class="header-actions">
-        {#if selectedSlot?.isActive}
-          <Button size="sm" variant="secondary" onclick={() => (mapOpen = true)}>View Map</Button>
-        {/if}
-        {#if isBedrock}
+
+      <p class="ownership">
+        World settings travel with each slot. Server settings—ports, player limits, access, MOTD,
+        runtime, and network helpers—apply to every world and stay in Settings.
+      </p>
+
+      {#if activation}
+        <div class="activation-progress" aria-label="World activation progress">
+          <div class="activation-stage">
+            <span role="status">{activation.stage}</span>
+            {#if activation.total > 0}
+              <span
+                >{Math.min(100, Math.floor((100 * activation.current) / activation.total))}%</span
+              >
+            {/if}
+          </div>
+          {#if activation.total > 0}
+            <progress
+              aria-label={activation.stage}
+              max={activation.total}
+              value={Math.min(activation.current, activation.total)}
+            ></progress>
+            <p>{bytesLabel(activation.current)} of {bytesLabel(activation.total)}</p>
+          {/if}
+          <p>
+            Elapsed {elapsedLabel(activationClock - activation.startedAt)}
+            {#if activation.connectionError}
+              · Last agent contact {elapsedLabel(activationClock - activation.lastContactAt)} ago
+            {/if}
+          </p>
+          {#if activation.connectionError}
+            <p class="activation-connection" role="status">
+              Cannot read activation status. Retrying; activation may still be running.
+              {activation.connectionError}
+            </p>
+          {/if}
+        </div>
+      {/if}
+      {#if notice}<p class="notice" role="status">{notice}</p>{/if}
+
+      {#if worlds.slots.length === 0}
+        <EmptyState
+          title="No world slots yet"
+          message="Create a new world slot, or save the current active world back into its slot."
+        >
+          <Icon name="world" size={26} slot="icon" />
+          <div slot="action" class="empty-action">
+            <Button size="sm" variant="primary" onclick={() => (showCreate = true)}>
+              Create New World
+            </Button>
+          </div>
+        </EmptyState>
+      {:else}
+        <div class="grid">
+          {#each worlds.slots as slot (slot.id)}
+            <WorldSlotCard
+              {api}
+              {slot}
+              profile={profiles[slot.id]?.profile}
+              selected={selectedSlotId === slot.id}
+              {busy}
+              confirming={confirming?.slotId === slot.id ? confirming.kind : undefined}
+              onSelect={() => {
+                packMenu = undefined;
+                confirmingPackDeleteId = undefined;
+                selectedSlotId = slot.id;
+              }}
+              onOpenMenu={(event) => openActionMenu(event, slot)}
+              onConfirmActivate={() => void confirmActivate()}
+              onConfirmDuplicate={() => void confirmDuplicate()}
+              onConfirmDelete={() => void confirmDelete()}
+              onCancelConfirm={cancelConfirm}
+              onThumbnailUpdated={() => void loadWorlds()}
+              thumbnailRequestId={thumbnailRequest?.slotId === slot.id
+                ? thumbnailRequest.id
+                : undefined}
+              {onThumbnailPickerStarted}
+            />
+          {/each}
+        </div>
+      {/if}
+    </section>
+
+    {#if headerMenu}
+      <Menu
+        x={headerMenu.x}
+        y={headerMenu.y}
+        onClose={() => (headerMenu = undefined)}
+        items={[
+          { label: 'Save Current World', disabled: busy, onSelect: () => void saveCurrentWorld() },
+          { label: 'Import ZIP…', disabled: busy, onSelect: () => (importZipOpen = true) },
+          { label: 'Replace World…', disabled: busy, onSelect: () => (replaceOpen = true) },
+        ]}
+      />
+    {/if}
+
+    <section class="zone">
+      <div class="section-header">
+        <div class="overline">
+          <span class="msc2-type-overline">{isBedrock ? 'World Packs' : 'Datapacks'}</span>
+        </div>
+        {#if !isBedrock}
           <Button
             size="sm"
             variant="secondary"
-            disabled={busy || worlds.serverRunning}
-            onclick={() => (repairOpen = true)}
+            disabled={!selectedSlot || busy || worlds.serverRunning}
+            title={!selectedSlot
+              ? 'Select a world slot first'
+              : worlds.serverRunning
+                ? 'Stop the server before installing a datapack'
+                : undefined}
+            onclick={() => (showPackBrowser = true)}
           >
-            Repair World
+            Browse Datapacks
           </Button>
         {/if}
-        <Button size="sm" variant="primary" disabled={busy} onclick={() => (showCreate = true)}>
-          Create New World
-        </Button>
-        <Button size="sm" variant="secondary" disabled={busy} onclick={openHeaderMenu}>…</Button>
       </div>
-    </div>
-
-    <p class="ownership">
-      World settings travel with each slot. Server settings—ports, player limits, access, MOTD,
-      runtime, and network helpers—apply to every world and stay in Settings.
-    </p>
-
-    {#if activation}
-      <div class="activation-progress" aria-label="World activation progress">
-        <div class="activation-stage">
-          <span role="status">{activation.stage}</span>
-          {#if activation.total > 0}
-            <span
-              >{Math.min(100, Math.floor((100 * activation.current) / activation.total))}%</span
-            >
-          {/if}
-        </div>
-        {#if activation.total > 0}
-          <progress
-            aria-label={activation.stage}
-            max={activation.total}
-            value={Math.min(activation.current, activation.total)}
-          ></progress>
-          <p>{bytesLabel(activation.current)} of {bytesLabel(activation.total)}</p>
-        {/if}
-        <p>
-          Elapsed {elapsedLabel(activationClock - activation.startedAt)}
-          {#if activation.connectionError}
-            · Last agent contact {elapsedLabel(activationClock - activation.lastContactAt)} ago
-          {/if}
-        </p>
-        {#if activation.connectionError}
-          <p class="activation-connection" role="status">
-            Cannot read activation status. Retrying; activation may still be running.
-            {activation.connectionError}
-          </p>
-        {/if}
-      </div>
-    {/if}
-    {#if notice}<p class="notice" role="status">{notice}</p>{/if}
-
-    {#if worlds.slots.length === 0}
-      <EmptyState
-        title="No world slots yet"
-        message="Create a new world slot, or save the current active world back into its slot."
-      >
-        <Icon name="world" size={26} slot="icon" />
-        <div slot="action" class="empty-action">
-          <Button size="sm" variant="primary" onclick={() => (showCreate = true)}>
-            Create New World
-          </Button>
-        </div>
-      </EmptyState>
-    {:else}
-      <div class="grid">
-        {#each worlds.slots as slot (slot.id)}
-          <WorldSlotCard
-            {api}
-            {slot}
-            profile={profiles[slot.id]?.profile}
-            selected={selectedSlotId === slot.id}
-            {busy}
-            confirming={confirming?.slotId === slot.id ? confirming.kind : undefined}
-            onSelect={() => { datapackMenu = undefined; confirmingPackDeleteId = undefined; selectedSlotId = selectedSlotId === slot.id ? undefined : slot.id; }}
-            onOpenMenu={(event) => openActionMenu(event, slot)}
-            onConfirmActivate={() => void confirmActivate()}
-            onConfirmDuplicate={() => void confirmDuplicate()}
-            onConfirmDelete={() => void confirmDelete()}
-            onCancelConfirm={cancelConfirm}
-            onThumbnailUpdated={() => void loadWorlds()}
-          />
-        {/each}
-      </div>
-    {/if}
-  </section>
-
-  {#if headerMenu}
-    <Menu
-      x={headerMenu.x}
-      y={headerMenu.y}
-      onClose={() => (headerMenu = undefined)}
-      items={[
-        { label: 'Save Current World', disabled: busy, onSelect: () => void saveCurrentWorld() },
-        { label: 'Import ZIP…', disabled: busy, onSelect: () => (importZipOpen = true) },
-        { label: 'Replace World…', disabled: busy, onSelect: () => (replaceOpen = true) },
-      ]}
-    />
-  {/if}
-
-  <section class="zone">
-    <div class="section-header">
-      <div class="overline">
-        <span class="msc2-type-overline">{isBedrock ? 'World Packs' : 'Datapacks'}</span>
-      </div>
-      {#if !isBedrock}
-        <Button
-          size="sm"
-          variant="secondary"
-          disabled={!selectedSlot || busy || worlds.serverRunning}
-          title={!selectedSlot
-            ? 'Select a world slot first'
-            : worlds.serverRunning
-              ? 'Stop the server before installing a datapack'
-              : undefined}
-          onclick={() => (showPackBrowser = true)}
-        >
-          Browse Datapacks
-        </Button>
-      {/if}
-    </div>
-    {#if isBedrock}
-      <Card>
-        <div class="pack-summary-row">
-          <span class="section-summary">
-            {selectedBedrockPacks.length}
-            {selectedBedrockPacks.length === 1 ? 'pack' : 'packs'} ·
-            {selectedBedrockPackSizesAvailable
-              ? `${bytesLabel(selectedBedrockPackBytes)} total`
-              : 'size unavailable'}
-          </span>
-          <div class="pack-panel-actions">
-            {#if selectedSlot}
-              <div class="aligned-toggle">
-                <Toggle
-                  label="Required"
-                  checked={profiles[selectedSlot.id]?.profile.gameplay.supportedToggles?.[
-                    'require-resource-packs'
-                  ] ?? false}
-                  disabled={busy || worlds.serverRunning || !profiles[selectedSlot.id]}
-                  onchange={(value) => void setRequireResourcePacks(value)}
-                />
-                <span>Required</span>
+      {#if isBedrock}
+        <Card>
+          <div class="pack-summary-row">
+            <span class="section-summary">
+              {selectedBedrockPacks.length}
+              {selectedBedrockPacks.length === 1 ? 'pack' : 'packs'} ·
+              {selectedBedrockPackSizesAvailable
+                ? `${bytesLabel(selectedBedrockPackBytes)} total`
+                : 'size unavailable'}
+            </span>
+            <div class="pack-panel-actions">
+              {#if selectedSlot}
+                <div class="aligned-toggle">
+                  <Toggle
+                    label="Required"
+                    checked={profiles[selectedSlot.id]?.profile.gameplay.supportedToggles?.[
+                      'require-resource-packs'
+                    ] ?? false}
+                    disabled={busy || worlds.serverRunning || !profiles[selectedSlot.id]}
+                    onchange={(value) => void setRequireResourcePacks(value)}
+                  />
+                  <span>Required</span>
+                </div>
+              {/if}
+              <div class="section-action">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={!selectedSlot || busy || worlds.serverRunning}
+                  title={!selectedSlot
+                    ? 'Select a world slot first'
+                    : worlds.serverRunning
+                      ? 'Stop the server before installing a world pack'
+                      : undefined}
+                  onclick={() => (showPackBrowser = true)}>Browse Packs</Button
+                >
               </div>
-            {/if}
-            <div class="section-action">
-              <Button
-                size="sm"
-                variant="secondary"
-                disabled={!selectedSlot || busy || worlds.serverRunning}
-                title={!selectedSlot
-                  ? 'Select a world slot first'
-                  : worlds.serverRunning
-                    ? 'Stop the server before installing a world pack'
-                    : undefined}
-                onclick={() => (showPackBrowser = true)}>Browse Packs</Button
-              >
             </div>
           </div>
-        </div>
         {#if !selectedSlot}
           <EmptyState title="Select a world slot" message="Select a slot to manage its packs.">
             <Icon name="folder" size={26} slot="icon" />
@@ -866,163 +955,202 @@
           <EmptyState title="No packs installed" message="Use Browse Packs to download a pack.">
             <Icon name="box" size={26} slot="icon" />
           </EmptyState>
-        {:else}
+        {/if}
+      </Card>
+      {#if selectedSlot && selectedBedrockPacks.length > 0}
           <div class="pack-list">
-            {#each selectedBedrockPacks as pack, index (pack.id)}
-              <div class="pack-row" class:bordered={index > 0}>
-                <div class="pack-info" class:disabled={!pack.enabled}>
-                  <span class="pack-name">{pack.name}</span>
-                  <span class="pack-version"
-                    >{pack.source.version ?? pack.source.versionId ?? ''}</span
-                  >
-                </div>
-                <div class="pack-actions">
+            {#each selectedBedrockPacks as pack (pack.id)}
+              <Card padding="0">
+                <div class="pack-row" class:pack-selected={packMenu?.pack.id === pack.id}>
                   {#if confirmingPackDeleteId === pack.id}
+                    <div class="pack-info"><span class="pack-name">{pack.name}</span></div>
                     <span class="confirm">Delete this pack?</span>
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      disabled={busy}
-                      onclick={() => void changeWorldPack(pack, 'delete')}>Delete</Button
-                    >
                     <Button
                       size="sm"
                       variant="secondary"
                       onclick={() => (confirmingPackDeleteId = undefined)}>Cancel</Button
                     >
-                  {:else}
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      disabled={busy || worlds.serverRunning}
-                      onclick={() => void changeWorldPack(pack, 'toggle')}
-                      >{pack.enabled ? 'Disable' : 'Enable'}</Button
-                    >
                     <Button
                       size="sm"
                       variant="destructive"
                       disabled={busy || worlds.serverRunning}
-                      onclick={() => (confirmingPackDeleteId = pack.id)}>Delete</Button
+                      onclick={() => void changeWorldPack(pack, 'delete')}>Delete</Button
                     >
+                  {:else}
+                    <button
+                      type="button"
+                      class="pack-row-link"
+                      aria-label={`Actions for ${pack.name}`}
+                      aria-haspopup="menu"
+                      aria-expanded={packMenu?.pack.id === pack.id}
+                      onclick={(event) => openPackMenu(event, pack)}
+                    >
+                      <div class="pack-info" class:disabled={!pack.enabled}>
+                        <span class="pack-name">{pack.name}</span>
+                        <span class="pack-version"
+                          >{pack.source.version ?? pack.source.versionId ?? ''}</span
+                        >
+                      </div>
+                      <Badge variant="status" tone={pack.enabled ? 'ok' : 'warn'}
+                        >{pack.enabled ? 'Enabled' : 'Disabled'}</Badge
+                      >
+                      <span class="pack-affordance"><Icon name="chevron" size={10} /></span>
+                    </button>
                   {/if}
                 </div>
-              </div>
+              </Card>
             {/each}
           </div>
-        {/if}
-      </Card>
-    {:else}
-      {#if !selectedSlot}
-        <p class="ownership">Select a world slot to see its datapacks.</p>
-      {:else if worlds.serverRunning}
-        <p class="ownership">Stop the server before installing packs into a world slot.</p>
       {/if}
-      {#if selectedSlot}
-        {@const packs = profiles[selectedSlot.id]?.profile.packs ?? []}
-        {#if packs.length === 0}
-          <p class="ownership">No datapacks recorded for {selectedSlot.name}.</p>
-        {:else}
-          <Card padding="0">
-            {#each packs.filter((pack) => pack.edition === 'java') as pack, index (pack.id)}
-              <div class="pack-row" class:bordered={index > 0} class:pack-selected={datapackMenu?.pack.id === pack.id}>
-                {#if confirmingPackDeleteId === pack.id}
-                  <div class="pack-info"><span class="pack-name">{pack.name}</span></div>
-                  <span class="ownership">Uninstall?</span>
-                  <Button size="sm" variant="secondary" disabled={busy} onclick={() => confirmingPackDeleteId = undefined}>Cancel</Button>
-                  <Button size="sm" variant="destructive" disabled={busy || worlds.serverRunning} onclick={() => void changeWorldPack(pack, 'delete')}>Uninstall</Button>
-                {:else}
-                  <button type="button" class="datapack-row" onclick={(event) => {
-                    const rect = event.currentTarget.getBoundingClientRect();
-                    datapackMenu = { pack, x: event.detail === 0 ? rect.left : event.clientX, y: event.detail === 0 ? rect.bottom : event.clientY };
-                    confirmingPackDeleteId = undefined;
-                  }}>
-                    <div class="pack-info">
-                      <span class="pack-name">{pack.name} <Icon name="chevron" size={10} /></span>
-                      <span class="ownership">{pack.source.provider ?? 'Source unavailable'} · {pack.source.version ?? pack.source.versionId ?? ''}</span>
-                    </div>
-                    <Badge variant="status" tone={pack.enabled ? 'ok' : 'warn'}>{pack.enabled ? 'Enabled' : 'Disabled'}</Badge>
-                  </button>
-                {/if}
-              </div>
-            {/each}
-          </Card>
+      {:else}
+        {#if !selectedSlot}
+          <p class="ownership">Select a world slot to see its datapacks.</p>
+        {:else if worlds.serverRunning}
+          <p class="ownership">Stop the server before installing packs into a world slot.</p>
+        {/if}
+        {#if selectedSlot}
+          {@const packs = profiles[selectedSlot.id]?.profile.packs ?? []}
+          {#if packs.length === 0}
+            <p class="ownership">No datapacks recorded for {selectedSlot.name}.</p>
+          {:else}
+            <div class="pack-list">
+              {#each packs.filter((pack) => pack.edition === 'java') as pack (pack.id)}
+                <Card padding="0">
+                  <div class="pack-row" class:pack-selected={packMenu?.pack.id === pack.id}>
+                    {#if confirmingPackDeleteId === pack.id}
+                      <div class="pack-info"><span class="pack-name">{pack.name}</span></div>
+                      <span class="confirm">Delete this datapack?</span>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        disabled={busy}
+                        onclick={() => (confirmingPackDeleteId = undefined)}>Cancel</Button
+                      >
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        disabled={busy || worlds.serverRunning}
+                        onclick={() => void changeWorldPack(pack, 'delete')}>Delete</Button
+                      >
+                    {:else}
+                      <button
+                        type="button"
+                        class="pack-row-link"
+                        aria-label={`Actions for ${pack.name}`}
+                        aria-haspopup="menu"
+                        aria-expanded={packMenu?.pack.id === pack.id}
+                        onclick={(event) => openPackMenu(event, pack)}
+                      >
+                        <div class="pack-info">
+                          <span class="pack-name">{pack.name}</span>
+                          <span class="ownership"
+                            >{pack.source.provider ?? 'Source unavailable'} · {pack.source
+                              .version ??
+                              pack.source.versionId ??
+                              ''}</span
+                          >
+                        </div>
+                        <Badge variant="status" tone={pack.enabled ? 'ok' : 'warn'}
+                          >{pack.enabled ? 'Enabled' : 'Disabled'}</Badge
+                        >
+                        <span class="pack-affordance"><Icon name="chevron" size={10} /></span>
+                      </button>
+                    {/if}
+                  </div>
+                </Card>
+              {/each}
+            </div>
+          {/if}
         {/if}
       {/if}
+    </section>
+
+    {#if actionMenu}
+      {@const menuSlot = actionMenu.slot}
+      <Menu
+        x={actionMenu.x}
+        y={actionMenu.y}
+        onClose={() => (actionMenu = undefined)}
+        items={[
+          ...(menuSlot.isActive
+            ? []
+            : [
+                {
+                  label: 'Set as Active',
+                  disabled: worlds.serverRunning,
+                  onSelect: () => requestActivate(menuSlot.id),
+                },
+              ]),
+          {
+            label: 'Convert World…',
+            disabled: worlds.serverRunning,
+            onSelect: () => (convertingSlot = menuSlot),
+          },
+          { label: 'World Settings…', onSelect: () => void openWorldSettings(menuSlot) },
+          { label: 'Rename…', onSelect: () => (renamingSlot = menuSlot) },
+          { label: 'Duplicate…', onSelect: () => requestDuplicate(menuSlot.id) },
+          {
+            label: 'Delete This World Slot',
+            tone: 'destructive',
+            disabled: menuSlot.isActive,
+            onSelect: () => requestDelete(menuSlot.id),
+          },
+        ]}
+      />
     {/if}
-  </section>
 
-  {#if actionMenu}
-    {@const menuSlot = actionMenu.slot}
-    <Menu
-      x={actionMenu.x}
-      y={actionMenu.y}
-      onClose={() => (actionMenu = undefined)}
-      items={[
-        ...(menuSlot.isActive
-          ? []
-          : [
-              {
-                label: 'Set as Active',
-                disabled: worlds.serverRunning,
-                onSelect: () => requestActivate(menuSlot.id),
-              },
-            ]),
-        {
-          label: 'Convert World…',
-          disabled: worlds.serverRunning,
-          onSelect: () => (convertingSlot = menuSlot),
-        },
-        { label: 'World Settings…', onSelect: () => void openWorldSettings(menuSlot) },
-        { label: 'Rename…', onSelect: () => (renamingSlot = menuSlot) },
-        { label: 'Duplicate…', onSelect: () => requestDuplicate(menuSlot.id) },
-        {
-          label: 'Delete This World Slot',
-          tone: 'destructive',
-          disabled: menuSlot.isActive,
-          onSelect: () => requestDelete(menuSlot.id),
-        },
-      ]}
+    <BackupsPanel
+      {backups}
+      slots={worlds.slots}
+      {selectedSlot}
+      activeSlotId={worlds.activeSlotId}
+      serverRunning={worlds.serverRunning}
+      {isBedrock}
+      config={backupConfig}
+      {busy}
+      confirmingDeleteId={confirmingBackupDeleteId}
+      onBackUpNow={() => void backUpNow()}
+      onRestore={(backup) => void restoreBackup(backup)}
+      onDeleteRequest={(id) => (confirmingBackupDeleteId = id)}
+      onDeleteConfirm={() => void deleteBackupConfirmed()}
+      onDeleteCancel={() => (confirmingBackupDeleteId = undefined)}
+      onToggleAuto={(enabled) => void toggleAuto(enabled)}
+      onIntervalChange={(minutes) => void changeInterval(minutes)}
+      onImportLegacy={(backup) => void importLegacyBackup(backup)}
     />
-  {/if}
-
-  <BackupsPanel
-    {backups}
-    slots={worlds.slots}
-    {selectedSlot}
-    activeSlotId={worlds.activeSlotId}
-    serverRunning={worlds.serverRunning}
-    {isBedrock}
-    config={backupConfig}
-    {busy}
-    confirmingDeleteId={confirmingBackupDeleteId}
-    onBackUpNow={() => void backUpNow()}
-    onRestore={(backup) => void restoreBackup(backup)}
-    onDeleteRequest={(id) => (confirmingBackupDeleteId = id)}
-    onDeleteConfirm={() => void deleteBackupConfirmed()}
-    onDeleteCancel={() => (confirmingBackupDeleteId = undefined)}
-    onToggleAuto={(enabled) => void toggleAuto(enabled)}
-    onIntervalChange={(minutes) => void changeInterval(minutes)}
-    onImportLegacy={(backup) => void importLegacyBackup(backup)}
-  />
-</div>
+  </div>
 {/if}
 
-{#if datapackMenu && selectedSlot}
-  {@const menuPack = datapackMenu.pack}
-  <Menu x={datapackMenu.x} y={datapackMenu.y} onClose={() => datapackMenu = undefined}
+{#if packMenu && selectedSlot}
+  {@const menuPack = packMenu.pack}
+  <Menu
+    x={packMenu.x}
+    y={packMenu.y}
+    onClose={() => (packMenu = undefined)}
     items={[
       {
-        label: 'View',
-        disabled: menuPack.source.provider !== 'modrinth' || !menuPack.source.projectId,
-        onSelect: () => {
-          if (!menuPack.source.projectId) return;
-          packProject = { projectId: menuPack.source.projectId, title: menuPack.name };
-          showPackBrowser = true;
-        },
+        label: menuPack.enabled ? 'Disable' : 'Enable',
+        disabled: busy || worlds.serverRunning,
+        onSelect: () => void changeWorldPack(menuPack, 'toggle'),
       },
+      ...(menuPack.edition === 'java'
+        ? [
+            {
+              label: 'View',
+              disabled: menuPack.source.provider !== 'modrinth' || !menuPack.source.projectId,
+              onSelect: () => {
+                if (!menuPack.source.projectId) return;
+                packProject = { projectId: menuPack.source.projectId, title: menuPack.name };
+                showPackBrowser = true;
+              },
+            },
+          ]
+        : []),
       {
-        label: 'Uninstall', tone: 'destructive', disabled: busy || worlds.serverRunning,
-        onSelect: () => confirmingPackDeleteId = menuPack.id,
+        label: 'Delete',
+        tone: 'destructive',
+        disabled: busy || worlds.serverRunning,
+        onSelect: () => (confirmingPackDeleteId = menuPack.id),
       },
     ]}
   />
@@ -1034,7 +1162,10 @@
     initialProject={packProject}
     bedrock={isBedrock}
     slotId={selectedSlot.id}
-    onClose={() => { showPackBrowser = false; packProject = undefined; }}
+    onClose={() => {
+      showPackBrowser = false;
+      packProject = undefined;
+    }}
     onInstalled={() => void loadProfiles()}
   />
 {/if}
@@ -1078,7 +1209,7 @@
     {api}
     onClose={() => (importZipOpen = false)}
     onImported={(updated) => {
-      worlds = updated;
+      applyWorlds(updated);
       flash('Imported ZIP as a new world slot.');
     }}
   />
@@ -1204,13 +1335,6 @@
     color: var(--msc2-text-tertiary);
     font-size: 11px;
   }
-  .pack-actions {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 8px;
-    margin-left: auto;
-  }
   .pack-panel-actions {
     display: flex;
     align-items: center;
@@ -1224,6 +1348,7 @@
   .pack-list {
     display: flex;
     flex-direction: column;
+    gap: 8px;
   }
   .worlds {
     display: flex;
@@ -1359,10 +1484,9 @@
   .empty-action {
     margin-top: 10px;
   }
-  .datapack-row {
+  .pack-row-link {
     display: flex;
     align-items: center;
-    justify-content: space-between;
     gap: 12px;
     width: 100%;
     padding: 0;
@@ -1373,7 +1497,18 @@
     cursor: pointer;
     font: inherit;
   }
-  .pack-row:has(.datapack-row):hover { background: rgba(255, 255, 255, 0.04); }
+  .pack-row:has(.pack-row-link):hover {
+    background: rgba(255, 255, 255, 0.04);
+  }
+  .pack-row-link:focus-visible {
+    outline: 2px solid var(--msc2-selection);
+    outline-offset: 4px;
+  }
+  .pack-affordance {
+    display: inline-flex;
+    color: var(--msc2-text-tertiary);
+    margin-left: 2px;
+  }
   .pack-selected {
     border-radius: var(--msc2-radius-2);
     background: rgba(59, 130, 246, 0.06);
@@ -1387,14 +1522,12 @@
     gap: 14px;
     padding: 12px 16px;
   }
-  .pack-row.bordered {
-    border-top: 1px solid var(--msc2-hairline-faint);
-  }
   .pack-info {
     display: flex;
     flex-direction: column;
     gap: 4px;
     min-width: 0;
+    flex: 1;
   }
   .pack-info.disabled .pack-name,
   .pack-info.disabled .pack-version {

@@ -1,14 +1,65 @@
 use bedrock_world::{
-    BedrockWorld, ChunkKey, ChunkPos, ChunkRecordTag, Dimension, NbtTag, OpenOptions,
-    SubChunkFormat, WorldScanOptions,
+    BedrockWorld, ChunkKey, ChunkPos, ChunkRecordTag, Dimension, NbtTag, OpenOptions, ProgressSink,
+    SubChunkFormat, WorldChunkQueryRegion, WorldScanOptions,
 };
 use std::collections::{BTreeMap, BTreeSet};
 use std::env;
 use std::error::Error;
 use std::fs;
+use std::io::{self, BufRead, Write};
 use std::path::Path;
+use std::sync::mpsc;
+use std::time::{Duration, Instant};
 
+mod anvil_convert;
+mod anvil_probe;
 mod render;
+
+#[cfg(target_os = "macos")]
+fn raise_open_file_limit(report_effective: bool) {
+    const TARGET: libc::rlim_t = 65_536;
+    let mut limit = libc::rlimit {
+        rlim_cur: 0,
+        rlim_max: 0,
+    };
+    if unsafe { libc::getrlimit(libc::RLIMIT_NOFILE, &mut limit) } != 0 {
+        eprintln!(
+            "Bedrock map: could not read the open-file limit: {}",
+            std::io::Error::last_os_error()
+        );
+        return;
+    }
+    let target = TARGET.min(limit.rlim_max);
+    if limit.rlim_cur < target {
+        limit.rlim_cur = target;
+        if unsafe { libc::setrlimit(libc::RLIMIT_NOFILE, &limit) } != 0 {
+            eprintln!(
+                "Bedrock map: could not raise the open-file limit to {target}: {}",
+                std::io::Error::last_os_error()
+            );
+        }
+    }
+    // Catalog is the expensive scan; record its actual limit in the agent log
+    // so a launchd limit can be distinguished from a reader failure.
+    if report_effective {
+        if unsafe { libc::getrlimit(libc::RLIMIT_NOFILE, &mut limit) } != 0 {
+            eprintln!(
+                "Bedrock map: could not verify the open-file limit: {}",
+                std::io::Error::last_os_error()
+            );
+            return;
+        }
+        let hard = if limit.rlim_max == libc::RLIM_INFINITY {
+            "unlimited".to_string()
+        } else {
+            limit.rlim_max.to_string()
+        };
+        eprintln!(
+            "Bedrock map: open-file limit soft={} hard={hard} (requested {TARGET})",
+            limit.rlim_cur
+        );
+    }
+}
 
 fn map_dimension(id: &str) -> Result<Dimension, Box<dyn Error>> {
     match id {
@@ -283,15 +334,134 @@ fn main() -> Result<(), Box<dyn Error>> {
         println!("msc-bedrock-map {}", env!("CARGO_PKG_VERSION"));
         return Ok(());
     }
+    // A large converted world can span more LevelDB tables than launchd's
+    // default 256-file soft limit. Only this short-lived exporter needs more.
+    #[cfg(target_os = "macos")]
+    raise_open_file_limit(args.get(1).is_some_and(|arg| {
+        arg == "catalog"
+            || arg == "catalog-nearby"
+            || arg == "tile-session"
+            || arg == "anvil-convert"
+    }));
     if args.get(1).is_some_and(|arg| arg == "compare") {
         return compare_tiles(&args);
+    }
+    if args.get(1).is_some_and(|arg| arg == "anvil-probe") {
+        return anvil_probe::run(&args);
+    }
+    if args.get(1).is_some_and(|arg| arg == "anvil-convert") {
+        return anvil_convert::run(&args);
     }
     if args.get(1).is_some_and(|arg| arg == "diff-catalogs") {
         return diff_catalogs(&args);
     }
+    if args.get(1).is_some_and(|arg| arg == "tile-session") {
+        let path = Path::new(args.get(2).ok_or("saved world path required")?);
+        let pack = Path::new(args.get(3).ok_or("resource pack path required")?);
+        let output = Path::new(args.get(4).ok_or("output directory required")?);
+        let dimension = map_dimension(
+            args.get(5)
+                .map(String::as_str)
+                .unwrap_or("minecraft:overworld"),
+        )?;
+        let opened_at = Instant::now();
+        let world = BedrockWorld::open_blocking(path, OpenOptions::default())?;
+        eprintln!(
+            "Bedrock map: tile-session LevelDB open {:.2}s",
+            opened_at.elapsed().as_secs_f64()
+        );
+        let mut replies = io::stdout().lock();
+        let (sender, requests) = mpsc::channel();
+        std::thread::spawn(move || {
+            for line in io::stdin().lock().lines() {
+                if sender.send(line).is_err() {
+                    break;
+                }
+            }
+        });
+        while let Ok(line) = requests.recv_timeout(Duration::from_secs(120)) {
+            let line = line?;
+            if let Some(region) = line.strip_prefix("region ") {
+                let region_started = Instant::now();
+                let result = (|| -> Result<Vec<(i32, i32)>, Box<dyn Error>> {
+                    let (x, z) = region.split_once(' ').ok_or("invalid region request")?;
+                    let x = x
+                        .parse::<i32>()?
+                        .checked_mul(16)
+                        .ok_or("region outside world")?;
+                    let z = z
+                        .parse::<i32>()?
+                        .checked_mul(16)
+                        .ok_or("region outside world")?;
+                    let positions = world.list_chunk_positions_in_region_blocking(
+                        WorldChunkQueryRegion {
+                            dimension,
+                            min_chunk_x: x,
+                            min_chunk_z: z,
+                            max_chunk_x: x.checked_add(15).ok_or("region outside world")?,
+                            max_chunk_z: z.checked_add(15).ok_or("region outside world")?,
+                        },
+                        WorldScanOptions::default(),
+                    )?;
+                    Ok(positions
+                        .iter()
+                        .map(|p| (p.x.div_euclid(4), p.z.div_euclid(4)))
+                        .collect::<BTreeSet<_>>()
+                        .into_iter()
+                        .collect())
+                })();
+                match result {
+                    Ok(anchors) => {
+                        writeln!(replies, "region {}", serde_json::to_string(&anchors)?)?
+                    }
+                    Err(error) => {
+                        eprintln!("Bedrock map: tile-session {line}: {error}");
+                        replies.write_all(b"error\n")?;
+                    }
+                }
+                if region_started.elapsed() >= Duration::from_millis(250) {
+                    eprintln!(
+                        "Bedrock map: tile-session region query {:.2}s",
+                        region_started.elapsed().as_secs_f64()
+                    );
+                }
+                replies.flush()?;
+                continue;
+            }
+            let tile_started = Instant::now();
+            let result = (|| -> Result<(), Box<dyn Error>> {
+                let (preview, request) = line
+                    .strip_prefix("preview ")
+                    .map_or((false, line.as_str()), |request| (true, request));
+                let (x, z) = request.split_once(' ').ok_or("invalid tile request")?;
+                let x = x.parse::<i32>()?;
+                let z = z.parse::<i32>()?;
+                if x.rem_euclid(4) != 0 || z.rem_euclid(4) != 0 {
+                    return Err("tile origin must align to four chunks".into());
+                }
+                if preview {
+                    render::render_catalog_preview_tile(&world, (x, z), pack, output, dimension)
+                } else {
+                    render::render_catalog_tile(&world, (x, z), pack, output, dimension)
+                }
+            })();
+            if let Err(error) = &result {
+                eprintln!("Bedrock map: tile-session {line}: {error}");
+            }
+            if tile_started.elapsed() >= Duration::from_secs(1) {
+                eprintln!(
+                    "Bedrock map: tile-session tile export {:.2}s",
+                    tile_started.elapsed().as_secs_f64()
+                );
+            }
+            replies.write_all(if result.is_ok() { b"ok\n" } else { b"error\n" })?;
+            replies.flush()?;
+        }
+        return Ok(());
+    }
     if args
         .get(1)
-        .is_some_and(|arg| arg == "catalog" || arg == "tile")
+        .is_some_and(|arg| arg == "catalog" || arg == "catalog-nearby" || arg == "tile")
     {
         let path = Path::new(args.get(2).ok_or("saved world path required")?);
         let pack = Path::new(args.get(3).ok_or("resource pack path required")?);
@@ -301,7 +471,12 @@ fn main() -> Result<(), Box<dyn Error>> {
             .map(String::as_str)
             .unwrap_or("minecraft:overworld");
         let dimension = map_dimension(dimension_id)?;
+        let opened_at = Instant::now();
         let world = BedrockWorld::open_blocking(path, OpenOptions::default())?;
+        eprintln!(
+            "Bedrock map: catalog LevelDB open {:.2}s",
+            opened_at.elapsed().as_secs_f64()
+        );
         if args[1] == "tile" {
             let x = args.get(6).ok_or("tile chunk x required")?.parse::<i32>()?;
             let z = args.get(7).ok_or("tile chunk z required")?.parse::<i32>()?;
@@ -310,15 +485,6 @@ fn main() -> Result<(), Box<dyn Error>> {
             }
             return render::render_catalog_tile(&world, (x, z), pack, output, dimension);
         }
-        let positions: Vec<_> = world
-            .list_render_chunk_positions_blocking(WorldScanOptions::default())?
-            .into_iter()
-            .filter(|p| p.dimension == dimension)
-            .collect();
-        let anchors: BTreeSet<_> = positions
-            .iter()
-            .map(|p| (p.x.div_euclid(4) * 4, p.z.div_euclid(4) * 4))
-            .collect();
         let spawn = (dimension == Dimension::Overworld)
             .then(|| world.read_level_dat_blocking().ok())
             .flatten()
@@ -333,7 +499,48 @@ fn main() -> Result<(), Box<dyn Error>> {
                 };
                 (-64..320).contains(y).then_some((*x, *y, *z))
             });
-        return render::create_catalog(
+        let started = Instant::now();
+        let positions: Vec<_> = if args[1] == "catalog-nearby" {
+            let (x, z) = spawn.map_or((0, 0), |(x, _, z)| (x.div_euclid(16), z.div_euclid(16)));
+            world.list_chunk_positions_in_region_blocking(
+                WorldChunkQueryRegion {
+                    dimension,
+                    min_chunk_x: x.saturating_sub(8),
+                    min_chunk_z: z.saturating_sub(8),
+                    max_chunk_x: x.saturating_add(8),
+                    max_chunk_z: z.saturating_add(8),
+                },
+                WorldScanOptions::default(),
+            )?
+        } else {
+            world
+                .list_render_chunk_positions_blocking(WorldScanOptions {
+                    progress: Some(ProgressSink::new(|progress| {
+                        if progress.entries_seen.is_multiple_of(1_048_576) {
+                            eprintln!(
+                                "Bedrock map: indexed {} database keys",
+                                progress.entries_seen
+                            );
+                        }
+                    })),
+                    ..WorldScanOptions::default()
+                })?
+                .into_iter()
+                .filter(|p| p.dimension == dimension)
+                .collect()
+        };
+        eprintln!(
+            "Bedrock map: {} indexed {} chunks in {:.1}s",
+            args[1],
+            positions.len(),
+            started.elapsed().as_secs_f64()
+        );
+        let anchors: BTreeSet<_> = positions
+            .iter()
+            .map(|p| (p.x.div_euclid(4) * 4, p.z.div_euclid(4) * 4))
+            .collect();
+        let started = Instant::now();
+        let result = render::create_catalog(
             &world,
             &positions,
             &anchors.into_iter().collect::<Vec<_>>(),
@@ -341,7 +548,14 @@ fn main() -> Result<(), Box<dyn Error>> {
             output,
             spawn,
             dimension_id,
+            args[1] == "catalog",
         );
+        eprintln!(
+            "Bedrock map: {} wrote catalog in {:.1}s",
+            args[1],
+            started.elapsed().as_secs_f64()
+        );
+        return result;
     }
     if args.get(1).is_some_and(|arg| arg == "grid") {
         let path = Path::new(args.get(2).ok_or("grid requires saved world path")?);

@@ -1,0 +1,137 @@
+// Pure biome helpers shared by the renderer and UI: a categorical colour palette
+// and name formatting. No three.js, no DOM.
+
+import type { DecodedTile, SurfaceMap } from './tile.js';
+
+/** An RGB triple in 0..1. */
+export type Rgb = readonly [number, number, number];
+
+function hsv2rgb(h: number, s: number, v: number): Rgb {
+  const i = Math.floor(h * 6);
+  const f = h * 6 - i;
+  const p = v * (1 - s);
+  const q = v * (1 - f * s);
+  const t = v * (1 - (1 - f) * s);
+  const table: Rgb[] = [
+    [v, t, p],
+    [q, v, p],
+    [p, v, t],
+    [p, q, v],
+    [t, p, v],
+    [v, p, q],
+  ];
+  return table[i % 6]!;
+}
+
+/**
+ * A categorical palette of `n` well-separated hues (golden-angle spacing) so
+ * adjacent biomes never collide and borders read at a glance. Index 0 is the
+ * "no data" sentinel and maps to a neutral gray.
+ */
+export function biomePalette(n: number): Rgb[] {
+  const out: Rgb[] = new Array(n);
+  for (let i = 0; i < n; i++) {
+    if (i === 0) {
+      out[i] = [0.55, 0.55, 0.6];
+      continue;
+    }
+    const h = ((i - 1) * 0.61803398875) % 1;
+    const sat = 0.55 + (0.12 * ((i * 7) % 3)) / 2; // slight jitter for separation
+    out[i] = hsv2rgb(h, sat, 0.96);
+  }
+  return out;
+}
+
+/** Strip a `minecraft:` namespace prefix for display. */
+export function stripNamespace(name: string): string {
+  const c = name.indexOf(':');
+  return c >= 0 ? name.slice(c + 1) : name;
+}
+
+/** A biome present in a tile, with its colour and share of the surface. */
+export interface BiomeEntry {
+  id: number;
+  name: string;
+  /** Display name with the namespace stripped. */
+  label: string;
+  color: Rgb;
+  /** Exposed surface area (in block² units) carrying this biome. */
+  count: number;
+  /** Share of named, present surface area (0..1). */
+  fraction: number;
+}
+
+/** Turn per-biome area counts + a legend into sorted {@link BiomeEntry}s. */
+function toEntries(counts: number[], names: string[], pal: Rgb[]): BiomeEntry[] {
+  const present: BiomeEntry[] = [];
+  let total = 0;
+  for (let id = 0; id < names.length; id++) {
+    const count = counts[id]!;
+    if (count > 0 && names[id]!.length > 0) {
+      present.push({ id, name: names[id]!, label: stripNamespace(names[id]!), color: pal[id] ?? pal[0]!, count, fraction: 0 });
+      total += count;
+    }
+  }
+  present.sort((a, b) => b.count - a.count);
+  const denom = total || 1;
+  for (const e of present) e.fraction = e.count / denom;
+  return present;
+}
+
+/**
+ * Summarize biomes from a tile's top-down surface map: one block² per column,
+ * empty columns skipped. O(columns) instead of O(triangles) — the streaming
+ * path uses this so an arriving tile costs no pass over its mesh; the map-area
+ * share it reports is also the more intuitive number for a map legend.
+ */
+export function summarizeSurfaceBiomes(surface: SurfaceMap, names: string[], palette?: Rgb[]): BiomeEntry[] {
+  const pal = palette ?? biomePalette(names.length);
+  const counts = new Array<number>(names.length).fill(0);
+  const { biome, height } = surface;
+  for (let i = 0; i < biome.length; i++) {
+    if (height[i]! < 1) continue; // empty-column sentinel
+    const id = biome[i]!;
+    if (id < counts.length) counts[id]!++;
+  }
+  return toEntries(counts, names, pal);
+}
+
+/**
+ * Summarize the biomes actually present in a tile, most common first. Returns an
+ * empty list for tiles without biome data. Pass a `palette` to reuse one already
+ * built for rendering; otherwise one is derived from the legend length.
+ *
+ * Biomes are weighted by exposed triangle *area*, not vertex count: greedy
+ * meshing merges a run of identical faces into one big quad with the same 4
+ * vertices, so a vertex tally would under-count flat, mergeable biomes. Area is
+ * mesh-independent — the share is the same whether or not the faces were merged.
+ */
+export function summarizeBiomes(tile: DecodedTile, palette?: Rgb[]): BiomeEntry[] {
+  const names = tile.biomeNames;
+  const biome = tile.biome;
+  if (!names || !biome) return [];
+  const pal = palette ?? biomePalette(names.length);
+
+  const counts = new Array<number>(names.length).fill(0);
+  const pos = tile.positions;
+  const idx = tile.indices;
+  for (let t = 0; t + 2 < idx.length; t += 3) {
+    const a = idx[t]!;
+    const b = idx[t + 1]!;
+    const c = idx[t + 2]!;
+    // Triangle area via half the cross-product magnitude of two edges. All three
+    // vertices of a face share a biome, so attributing to `a` is exact.
+    const e1x = pos[b * 3]! - pos[a * 3]!;
+    const e1y = pos[b * 3 + 1]! - pos[a * 3 + 1]!;
+    const e1z = pos[b * 3 + 2]! - pos[a * 3 + 2]!;
+    const e2x = pos[c * 3]! - pos[a * 3]!;
+    const e2y = pos[c * 3 + 1]! - pos[a * 3 + 1]!;
+    const e2z = pos[c * 3 + 2]! - pos[a * 3 + 2]!;
+    const crx = e1y * e2z - e1z * e2y;
+    const cry = e1z * e2x - e1x * e2z;
+    const crz = e1x * e2y - e1y * e2x;
+    counts[biome[a]! | 0]! += 0.5 * Math.hypot(crx, cry, crz);
+  }
+
+  return toEntries(counts, names, pal);
+}

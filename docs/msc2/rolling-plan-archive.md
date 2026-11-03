@@ -1,6 +1,8 @@
 # MSC 2 — Rolling Plan Archive
 
-Completed phases and historical corrective steps moved out of `rolling-plan.md` to keep that file focused. Everything here is historical: Setup, Phases 0 through 12, completed Phases 14 and 15, the P14.38–P14.101 corrective-step records archived on 2026-09-28 with their statuses set to awaiting verification, and Phase 16 step records and dated audits archived after the v0.1.18 publication. The Phase 16 exit gate remains open in `rolling-plan.md` and `release/phase16-acceptance.md`. Phase 17 and Phase 18 step records were archived on 2026-10-02 at Cameron's direction. Their Done statuses do not close outstanding physical acceptance, deferred checks or independent phase reviews; current dispositions remain in `rolling-plan.md` and `phase18-map-acceptance.md`.
+> Privacy cleanup (2026-10-08): personal account paths and captured network addresses in this record have been replaced with examples. Substitute your own paths and addresses when following commands; example values are not the original observations. Personal world/player labels now use aliases; private world locations are omitted.
+
+Completed phases and historical corrective steps moved out of `rolling-plan.md` to keep that file focused. Everything here is historical: Setup, Phases 0 through 12, completed Phases 14 and 15, the P14.38–P14.101 corrective-step records archived on 2026-09-28 with their statuses set to awaiting verification, and Phase 16 step records and dated audits archived after the v0.1.18 publication. The Phase 16 exit gate remains open in `release/phase16-acceptance.md`. Phase 17 and Phase 18 step records were archived on 2026-10-02 at Cameron's direction; Phase 20 and Phase 21 implementation steps were archived on 2026-10-17, with the remaining implemented follow-ups archived on 2026-10-19 and the Java/Bedrock saved-terrain work archived on 2026-10-21. The October 23 cleanup moved implemented owner-testing findings and release history here while retaining their verification instructions. Done statuses do not close outstanding physical acceptance, deferred checks or independent phase reviews; current dispositions remain in `pending-acceptance.md` and the phase-specific acceptance records.
 
 ## Retired full-screen terminal client record
 
@@ -2635,7 +2637,7 @@ Not fixed here — `fs.rs` is outside this step's own `Files:` list, and the reg
 **Commit:** `P4.33: fix launchctl start/stop target syntax — bare label, not system/<label>`
 **Batch:** stop-after
 **Why three wrong turns before this one, honestly recorded:** each prior fix (retry loop, signing) was a reasonable hypothesis given the evidence available at the time — silent failures with no error text give few clues — and each was tested and ruled out with real evidence rather than assumed correct, which is what eventually surfaced the actual bug. Recorded plainly per this file's own convention rather than only keeping the step that turned out to be right.
-**Confirmed on real hardware:** Cameron's next run — `sudo tools/phase4/macos-service-lifecycle.sh --server-dir /Users/camerontemple/MinecraftServers/java/paper` against his real, already-existing Paper server — printed `macOS LaunchDaemon lifecycle check passed`. This is P4.22's own outstanding integration-script proof, closed: real LaunchDaemon install under `/Library/LaunchDaemons` with `UserName` set to the installing user, real Paper import and start through the public CLI/API path, the running agent and Java server both confirmed alive with no client connected, P4.4's keychain/TCC check run in the real daemon context, then a clean stop and uninstall. CI is also green on this commit (`7a8ea59`) on all three platforms.
+**Confirmed on real hardware:** Cameron's next run — `sudo tools/phase4/macos-service-lifecycle.sh --server-dir /Users/example/MinecraftServers/java/paper` against his real, already-existing Paper server — printed `macOS LaunchDaemon lifecycle check passed`. This is P4.22's own outstanding integration-script proof, closed: real LaunchDaemon install under `/Library/LaunchDaemons` with `UserName` set to the installing user, real Paper import and start through the public CLI/API path, the running agent and Java server both confirmed alive with no client connected, P4.4's keychain/TCC check run in the real daemon context, then a clean stop and uninstall. CI is also green on this commit (`7a8ea59`) on all three platforms.
 
 ### P4.34 — Relabel the Linux integration script's `/tmp` run directory for SELinux — real bug, only reachable on an SELinux-enforcing host
 
@@ -2653,12 +2655,12 @@ Not fixed here — `fs.rs` is outside this step's own `Files:` list, and the reg
 **Files:** `tools/phase4/linux-service-lifecycle.sh`
 **What:** P4.34's fix got past the original denial, but the very next run hit two more real problems in sequence, found the same way — run, read the real error, fix exactly that, run again:
 1. **`cargo` not found under a plain `sudo` invocation.** `require_tool cargo` failed even though `cargo` works fine in an interactive shell, because `sudo`'s `secure_path` doesn't include the installing user's `~/.cargo/bin` — `rustup` never installs system-wide, only per-user. Not SELinux, just a `PATH` gap the script's own `require_tool` check should have been robust to. Fixed by having the script add the installing user's `~/.cargo/bin` to `PATH` itself (resolved via `getent passwd "${TARGET_USER}"`, not assumed) if `cargo` isn't already reachable — works whether the script is invoked as bare `sudo tools/phase4/...` or with the caller's `PATH` threaded through.
-2. **The agent's own exec was denied**, once the unit actually started: `journalctl -u <unit>` showed `Unable to locate executable '.../target/debug/msc': Permission denied` / `Failed at step EXEC ... Permission denied`. Running the exact same binary directly, as the exact same user, worked fine — ruling out a DAC or build problem. `sudo ausearch -m avc -ts recent` showed nothing for this one, yet it was still SELinux: Fedora's targeted policy commonly marks "a system service tried to execute something out of a user's home directory" `dontaudit`, suppressing it from the log precisely because it's expected to be blocked. Confirmed directly instead of guessing: `ls -Z` on the binary and every parent directory back to `/home/camerontemple` showed `user_home_t`, a type `init_t` (the domain this ad hoc unit's process runs in, regardless of its `User=`) is essentially never allowed to execute. The obvious first fix — copy the binary into `RUN_DIR`, already relabeled `tmp_t` by P4.34 — produced a **third**, this time genuinely audited, denial: `avc: denied { execute } ... tcontext=unconfined_u:object_r:tmp_t:s0`. `tmp_t` covers writable scratch content, but SELinux does not treat it as an executable type regardless of Unix permission bits — confirmed empirically (a fresh `tmp_t` test file could not be exec-tested via the same path as the AVC, and the real denial is exactly this). Confirmed `bin_t` — the type ordinary system executables carry — is both settable by an unconfined process (`chcon -t bin_t` succeeded on a throwaway test file) and the type `init_t` is actually allowed to run; switching the copied binary's label from `tmp_t` to `bin_t` (leaving the rest of `RUN_DIR` at `tmp_t`, which is correct for its actual use — log/journal/state writes, not execution) was the fix that finally got the script running end to end.
+2. **The agent's own exec was denied**, once the unit actually started: `journalctl -u <unit>` showed `Unable to locate executable '.../target/debug/msc': Permission denied` / `Failed at step EXEC ... Permission denied`. Running the exact same binary directly, as the exact same user, worked fine — ruling out a DAC or build problem. `sudo ausearch -m avc -ts recent` showed nothing for this one, yet it was still SELinux: Fedora's targeted policy commonly marks "a system service tried to execute something out of a user's home directory" `dontaudit`, suppressing it from the log precisely because it's expected to be blocked. Confirmed directly instead of guessing: `ls -Z` on the binary and every parent directory back to `/home/example` showed `user_home_t`, a type `init_t` (the domain this ad hoc unit's process runs in, regardless of its `User=`) is essentially never allowed to execute. The obvious first fix — copy the binary into `RUN_DIR`, already relabeled `tmp_t` by P4.34 — produced a **third**, this time genuinely audited, denial: `avc: denied { execute } ... tcontext=unconfined_u:object_r:tmp_t:s0`. `tmp_t` covers writable scratch content, but SELinux does not treat it as an executable type regardless of Unix permission bits — confirmed empirically (a fresh `tmp_t` test file could not be exec-tested via the same path as the AVC, and the real denial is exactly this). Confirmed `bin_t` — the type ordinary system executables carry — is both settable by an unconfined process (`chcon -t bin_t` succeeded on a throwaway test file) and the type `init_t` is actually allowed to run; switching the copied binary's label from `tmp_t` to `bin_t` (leaving the rest of `RUN_DIR` at `tmp_t`, which is correct for its actual use — log/journal/state writes, not execution) was the fix that finally got the script running end to end.
 **Verify:** `bash -n tools/phase4/linux-service-lifecycle.sh` (confirmed clean)
 **Commit:** `P4.35: fix cargo PATH under sudo and SELinux exec-type for the copied agent binary`
 **Batch:** stop-after
 **Why three real, sequential bugs across P4.23's first attempt and P4.34/P4.35, honestly recorded:** each was found by running the actual script, reading the actual `journalctl`/`ausearch` output, and fixing exactly what that evidence showed — never assumed correct because a fix "looked right." Same method as P4.31→P4.33's macOS trail, and the same root cause class the handoff explicitly predicted before any of this started: Fedora's SELinux enforcement (and, this time, its interaction with `sudo`'s `secure_path`) surfacing real gaps that Debian, this step's original target, structurally cannot surface.
-**Confirmed on real hardware:** run against the real Fedora 44 box, real SELinux Enforcing, a real freshly-generated Paper 1.21.8 test server — `sudo tools/phase4/linux-service-lifecycle.sh --server-dir /home/camerontemple/msc2-phase4-server-linux` printed `Linux systemd lifecycle check passed`. This is P4.23's own outstanding integration-script proof, closed: real `systemd` unit install under `/etc/systemd/system` running as the installing user, real Paper import and start through the public CLI/API path, the agent and Java server both confirmed alive with no client connected, the credential-helper socket/service installed with correct ownership/permissions/mode checked directly, then a clean stop and uninstall. This run was executed under a narrowly-scoped `NOPASSWD` sudoers rule Cameron set up specifically for this debugging session (`systemctl`, `journalctl`, `ausearch`, and this exact script — nothing broader), not run by Cameron's own hands on the keyboard for this particular pass; Cameron later explicitly closed the remaining verification status, so this entry is now `DONE` on that determination.
+**Confirmed on real hardware:** run against the real Fedora 44 box, real SELinux Enforcing, a real freshly-generated Paper 1.21.8 test server — `sudo tools/phase4/linux-service-lifecycle.sh --server-dir /home/example/msc2-phase4-server-linux` printed `Linux systemd lifecycle check passed`. This is P4.23's own outstanding integration-script proof, closed: real `systemd` unit install under `/etc/systemd/system` running as the installing user, real Paper import and start through the public CLI/API path, the agent and Java server both confirmed alive with no client connected, the credential-helper socket/service installed with correct ownership/permissions/mode checked directly, then a clean stop and uninstall. This run was executed under a narrowly-scoped `NOPASSWD` sudoers rule Cameron set up specifically for this debugging session (`systemctl`, `journalctl`, `ausearch`, and this exact script — nothing broader), not run by Cameron's own hands on the keyboard for this particular pass; Cameron later explicitly closed the remaining verification status, so this entry is now `DONE` on that determination.
 
 ### P4.36 — Fix a Windows PowerShell 5.1 compatibility bug in the service lifecycle script's platform guard — real bug, found on Cameron's first real run
 
@@ -2708,7 +2710,7 @@ Also left in place from earlier triage: a defensive top-level `try`/`catch` in t
 - `cargo nextest run --workspace` — `398 tests run: 398 passed, 0 skipped`
 - `tools/phase4/cli-lifecycle-smoke.sh` — `cli lifecycle smoke passed`
 - `tools/phase4/power-policy-check.sh --dry-run` — `ok power-policy-dry-run`
-- `python3 tools/phase4/live-paper-lifecycle-check.py --server-dir /Users/camerontemple/MinecraftServers/java/paper --base-url http://127.0.0.1:48400` — `live Paper lifecycle check passed` (no port-bind workaround needed this time, unlike P4.28's original run)
+- `python3 tools/phase4/live-paper-lifecycle-check.py --server-dir /Users/example/MinecraftServers/java/paper --base-url http://127.0.0.1:48400` — `live Paper lifecycle check passed` (no port-bind workaround needed this time, unlike P4.28's original run)
 - D-021 headless no-GUI-link check — not re-run locally (the local `target/phase4-headless/{linux,windows}` artifacts on this machine are stale 512-byte stubs from 2026-08-02, not real cross-compiled binaries); instead confirmed against the actual authority for this check — the latest GitHub Actions run on this exact commit (`31468299346`) — where "Headless no-GUI link check" passed using each platform's own native CI-built artifact, the same way this check has always really been proven.
 - CI on commit `3934b77`: all jobs green (`Repo invariants`, `Toolchain` × macOS/Linux/Windows, `Headless no-GUI link check`).
 
@@ -3025,7 +3027,7 @@ Two scope points raised with Cameron before writing code, both confirmed via `As
 **Files:** `corpus/configs/README.md`
 **What:** Run P5.24's Rust-backed exercise mode against the real evidence collected in P5.3 and record the per-file and transfer-package results in the corpus README. Recheck the local package hash before and after to prove the checker did not mutate it. If any config fails load/save/reload, if the package fails inspect/apply, or if the evidence is missing, stop: fixtures cannot substitute for the port plan's historical-corpus and MSC 1-package deliverables.
 
-**Actual result:** Ran with `$MSC2_PHASE5_TRANSFER_PACKAGE` pointed at Cameron's real `.msctransfer` package on his Desktop (the one recorded in P5.3's corpus README: format v2, 629,955,199 bytes, SHA-256 `ea6dfe75…`). Both real readers passed against real evidence: `server-config-2026-08-11.json` round-trips through `load_app_config` → `save_app_config` → `load_app_config` with equal decodes and unchanged source bytes; the real transfer package inspects and applies into a fresh temporary root with both bundled servers (`campack`, `Paper`) arriving non-empty, and its SHA-256 is identical before and after. Full per-file/per-package results recorded in `corpus/configs/README.md`'s new "P5.25 — real corpus exercise results" section, including a hash comparison table. **Verify-line discrepancy, not silently worked around:** this step's own Verify line (and P5.26's, which repeats it) passes `--require-configs 2`, which fails immediately (`found 1 config file(s), need at least 2`) without ever reaching the Rust readers — a leftover from before P5.3 discovered no second config era survives anywhere and got Cameron's approval to relax the bar to one (recorded in `phase5-scope.md` and mirrored in the checker's own inventory-mode default, which is already `1`). Ran the substance of this step with `--require-configs 1` instead, matching the already-approved evidence bar, and recorded the mismatch in the corpus README for Cameron to resolve in the plan text — not fixed here since editing another step's (P5.26's) Verify line is outside this step's own scope. See "the exact Verify command to run" below for the corrected invocation.
+**Actual result:** Ran with `$MSC2_PHASE5_TRANSFER_PACKAGE` pointed at Cameron's real `.msctransfer` package on his Desktop (the one recorded in P5.3's corpus README: format v2, 629,955,199 bytes, SHA-256 `ea6dfe75…`). Both real readers passed against real evidence: `server-config-2026-08-11.json` round-trips through `load_app_config` → `save_app_config` → `load_app_config` with equal decodes and unchanged source bytes; the real transfer package inspects and applies into a fresh temporary root with both bundled servers (`modded-sample`, `Paper`) arriving non-empty, and its SHA-256 is identical before and after. Full per-file/per-package results recorded in `corpus/configs/README.md`'s new "P5.25 — real corpus exercise results" section, including a hash comparison table. **Verify-line discrepancy, not silently worked around:** this step's own Verify line (and P5.26's, which repeats it) passes `--require-configs 2`, which fails immediately (`found 1 config file(s), need at least 2`) without ever reaching the Rust readers — a leftover from before P5.3 discovered no second config era survives anywhere and got Cameron's approval to relax the bar to one (recorded in `phase5-scope.md` and mirrored in the checker's own inventory-mode default, which is already `1`). Ran the substance of this step with `--require-configs 1` instead, matching the already-approved evidence bar, and recorded the mismatch in the corpus README for Cameron to resolve in the plan text — not fixed here since editing another step's (P5.26's) Verify line is outside this step's own scope. See "the exact Verify command to run" below for the corrected invocation.
 
 **Verify:** `MSC2_PHASE5_TRANSFER_PACKAGE=/path/to/your.msctransfer python3 tools/phase5/real-corpus-check.py --exercise --configs-dir corpus/configs --transfer-package "$MSC2_PHASE5_TRANSFER_PACKAGE" --require-configs 1 --require-transfer` (the plan's original `--require-configs 2` fails on evidence-count alone — see "Actual result")
 **Commit:** `P5.25: validate the real MSC 1 migration corpus`
@@ -3346,7 +3348,7 @@ workflow change was made in this macOS-only pass; cross-OS execution remains
 part of P5.34's gate. Verified with
 `tools/phase5/phase5-gate-smoke.sh --real-config
 corpus/configs/server-config-2026-08-11.json --real-transfer
-/Users/camerontemple/Desktop/MinecraftServers-2026-08-11.msctransfer.msctransfer`
+/Users/example/Desktop/MinecraftServers-2026-08-11.msctransfer.msctransfer`
 (`phase5 gate smoke passed`), `cargo fmt --check`, and `cargo clippy
 --workspace --all-targets -- -D warnings`.
 
@@ -3390,7 +3392,7 @@ persistence evidence. Locally on macOS, the gate legs passed: `cargo fmt
 fixtures/config-corpus-dimensions --expect 8` (`ok 8`); and
 `tools/phase5/phase5-gate-smoke.sh --real-config
 corpus/configs/server-config-2026-08-11.json --real-transfer
-/Users/camerontemple/Desktop/MinecraftServers-2026-08-11.msctransfer.msctransfer`
+/Users/example/Desktop/MinecraftServers-2026-08-11.msctransfer.msctransfer`
 (`phase5 gate smoke passed`). Fedora had already rerun the same Phase 5 smoke
 path after P5.35 against the real config and real transfer package and reported
 it clean. The remaining Verify leg for this exact commit is the
@@ -3474,7 +3476,7 @@ without silently weakening production startup.
 **Files:** `corpus/worlds/`, `corpus/backups/`, `corpus/worlds/README.md`, `corpus/backups/README.md`, `tools/phase6/corpus-check.py`, `tools/phase6/fixtures/no-dimension-evidence/`
 **What:** Inventory the real world-slot and backup material already present in Cameron's MSC 1 installation and the real `.msctransfer` package used in Phase 5. Commit only small sanitized structural evidence whose player/world data can be removed without changing layout, metadata keys, archive member names, or dimension relationships; keep large/private archives outside git behind environment paths. Record source, sanitization, byte size, and SHA-256. If the required Java slot/backup evidence is unavailable, stop instead of inventing it.
 
-**Actual result:** An initial thorough search (both MSC 1-managed Java servers, an older unmanaged copy of the same modpack, Desktop/Downloads, local Time Machine snapshots) found real `world_slots/` metadata but every real slot archive-less and no real backup anywhere. Cameron chose to generate the missing evidence live rather than relax the checker's bar: MSC 1's real **Back Up** and **Save Current World** actions, run against both `campack` and `paper`, 2026-08-13 22:29. Real evidence is staged in `corpus/worlds/` and `corpus/backups/` — two real live Java worlds, one real archived `world.zip` slot, and two real backup zips, each hashed and provenance-recorded in a committed `manifest.json`; the actual bytes are git-ignored (`.gitignore` in each directory) since they carry real per-player NBT data, matching how `$MSC2_PHASE5_TRANSFER_PACKAGE` kept the Phase 5 transfer package out of git. This closed two of the three original gaps (archive-less slots, missing backups). The third didn't close by generating fresh evidence, because it was structural, not a missing-sample problem: neither real world has a `<name>_nether`/`<name>_the_end` sibling directory next to `level.dat` — `campack` is Fabric, whose vanilla world format nests dimensions inside the main world folder (`DIM-1`/`DIM1`) and can never produce sibling folders, and `paper` uses a newer nested `Paper/dimensions/minecraft/{overworld,the_nether,the_end}/` layout instead of the classic sibling convention `WorldSlotManager.swift`'s multi-folder assumption was written against. Asked Cameron, who chose to relax the checker rather than chase evidence for a layout neither real server produces (P5.3 precedent: relaxing an unmeetable evidence bar once real data proves it wrong, not weakening the gate arbitrarily). `tools/phase6/corpus-check.py`'s `check_worlds_structure` now accepts any of three real shapes — classic sibling folders, vanilla/Fabric nested `DIM-1`/`DIM1`, or current-PaperMC nested `dimensions/minecraft/the_nether`/`the_end` — and a new self-test fixture, `tools/phase6/fixtures/no-dimension-evidence/`, pins that a world with none of the three still fails, so the relaxation didn't quietly turn the check into a no-op. Full detail in `corpus/worlds/README.md`'s "P6.3 real evidence collected" section.
+**Actual result:** An initial thorough search (both MSC 1-managed Java servers, an older unmanaged copy of the same modpack, Desktop/Downloads, local Time Machine snapshots) found real `world_slots/` metadata but every real slot archive-less and no real backup anywhere. Cameron chose to generate the missing evidence live rather than relax the checker's bar: MSC 1's real **Back Up** and **Save Current World** actions, run against both `modded-sample` and `paper`, 2026-08-13 22:29. Real evidence is staged in `corpus/worlds/` and `corpus/backups/` — two real live Java worlds, one real archived `world.zip` slot, and two real backup zips, each hashed and provenance-recorded in a committed `manifest.json`; the actual bytes are git-ignored (`.gitignore` in each directory) since they carry real per-player NBT data, matching how `$MSC2_PHASE5_TRANSFER_PACKAGE` kept the Phase 5 transfer package out of git. This closed two of the three original gaps (archive-less slots, missing backups). The third didn't close by generating fresh evidence, because it was structural, not a missing-sample problem: neither real world has a `<name>_nether`/`<name>_the_end` sibling directory next to `level.dat` — `modded-sample` is Fabric, whose vanilla world format nests dimensions inside the main world folder (`DIM-1`/`DIM1`) and can never produce sibling folders, and `paper` uses a newer nested `Paper/dimensions/minecraft/{overworld,the_nether,the_end}/` layout instead of the classic sibling convention `WorldSlotManager.swift`'s multi-folder assumption was written against. Asked Cameron, who chose to relax the checker rather than chase evidence for a layout neither real server produces (P5.3 precedent: relaxing an unmeetable evidence bar once real data proves it wrong, not weakening the gate arbitrarily). `tools/phase6/corpus-check.py`'s `check_worlds_structure` now accepts any of three real shapes — classic sibling folders, vanilla/Fabric nested `DIM-1`/`DIM1`, or current-PaperMC nested `dimensions/minecraft/the_nether`/`the_end` — and a new self-test fixture, `tools/phase6/fixtures/no-dimension-evidence/`, pins that a world with none of the three still fails, so the relaxation didn't quietly turn the check into a no-op. Full detail in `corpus/worlds/README.md`'s "P6.3 real evidence collected" section.
 **Verify:** `python3 tools/phase6/corpus-check.py --selftest && python3 tools/phase6/corpus-check.py --inventory --worlds corpus/worlds --backups corpus/backups`
 **Commit:** `P6.3: collect real MSC 1 world/backup evidence and relax the checker's dimension-layout bar`
 **Batch:** stop-after
@@ -3518,7 +3520,7 @@ without silently weakening production startup.
 **Files:** `fixtures/world-nbt/`, `fixtures/world-conversion/`
 **What:** Extract real small `level.dat` samples where sanitization preserves binary shape, then characterize the minimal NBT reader: compressed big-endian Java, headered little-endian Bedrock, every tag type the parser accepts, key-path fallbacks, seed/difficulty/gamemode/day-time extraction, ZIP member selection, and adjacent backup metadata precedence. Characterize conversion guards, nested-world discovery, temp cleanup, converter arguments, output packaging, new-slot versus replace-slot placement, mandatory target backup, atomic archive replacement, and failure after each stage. Do not characterize client navigation state.
 
-**Actual result:** Read `WorldSlotManager.swift`'s NBT section (lines 1084-1493; no dedicated MSC 1 XCTest file exists for this either, same pattern as P6.4-P6.6) plus `ChunkerManager.swift` and `AppViewModel+WorldConversion.swift` in full. For the real-sample requirement, parsed both real level.dat files already staged locally by P6.3 (`corpus/worlds/campack/level.dat`, `corpus/worlds/Paper/level.dat`, git-ignored, never modified in place) with a from-scratch Python NBT reader mirroring `WorldSlotManager.swift`'s algorithm byte-for-byte, confirmed both real files round-trip through it, then re-serialized ONLY the Data-compound keys the Swift extractors actually inspect (GameType, Difficulty, DataVersion, Time, DayTime, LevelName, WorldGenSettings.seed / difficulty_settings) into two new minimal gzip-compressed NBT files with LevelName replaced by a placeholder — same binary shape (valid gzip, big-endian NBT, root Data compound), every kept value and its original NBT tag type genuinely read off the real bytes, everything else (mod generator subtrees, spawn coordinates, version strings) dropped. These carry no player data (a multiplayer server's level.dat has none — player state lives in `playerdata/`, untouched) and are committed at `fixtures/world-nbt/samples/` (144 and 142 bytes). The two real samples turned up a genuine, non-obvious finding: `campack` (older DataVersion 3465, Fabric) has every legacy field (`Data.Difficulty` int, `Data.WorldGenSettings.seed`, `Data.DayTime`) present and extracts cleanly, while `Paper` (current 2026 PaperMC, DataVersion 4903) has NEITHER a legacy `Data.Difficulty` tag NOR any seed field under `Data` at all — difficulty moved to a string under `Data.difficulty_settings.difficulty`, and the seed isn't stored under `Data` in any form `extractSeedString`/`findInteger` would recognize. `extractSeedString`/`extractDifficultyString` genuinely return `nil` against this real, current server; `extractDayTime` falls through its Java-preferred `Data.DayTime` (absent) to `Data.Time` (present). `fixtures/world-nbt/` (14 cases) pairs these two real fixtures with synthetic characterization (grounded in Swift source, same as every prior P6.4-P6.6 case) of: gzip-failure-before-parse vs. malformed-NBT-after-gunzip vs. non-compound-root as three distinct failure points; the Bedrock 8-byte little-endian header detection and its unheadered fallback (no real Bedrock evidence exists per P6.2's never-fabricate rule, so — like every other fixture domain before Bedrock support lands — this is synthesized from the source, not stood in as real evidence); all twelve NBT tag types round-tripping through the reader; the Java-path seed/dayTime preference order when multiple candidates exist; the recursive `findInteger` fallback; every difficulty/gamemode enum value including the unmapped case; `firstLevelDatPath`'s positional (not shortest-path) ZIP member selection with `__MACOSX` exclusion; and the adjacent `.meta.json` sidecar's seed taking precedence over a parsed level.dat's seed. `fixtures/world-conversion/` (10 cases) covers `performWorldConversion`'s guard order (Java-path-missing checked before jar-not-installed; empty/whitespace slot name rejected before any file I/O; missing source archive aborts before the temp directory even exists), `findInputWorldFolder`'s Java (lexicographically-sorted fallback) vs. Bedrock (unsorted, enumeration-order-dependent fallback) discovery, `cleanup()` running on both the success and every mid-pipeline failure path via `try?`, the exact five-flag Chunker CLI invocation with streamed stdout/stderr and non-zero-exit handling, `packageOutput`'s Java (`{name}/`) vs. Bedrock (`worlds/{name}/`) zip layout and its empty-output refusal, and two real gaps worth flagging rather than silently fixing: `replaceSlotWithConvertedZip` removes the previous archive before copying the new one in (not the temp-file-then-atomic-rename pattern P6.5 found everywhere else in `WorldSlotManager`), so a copy failure mid-replace can leave a slot with no archive at all; and the mandatory pre-conversion target backup only logs a warning on failure and lets conversion proceed (unlike `activateSlot`'s own hard-abort-on-backup-failure guard, characterized in P6.5), while a later activation failure leaves the newly written/replaced slot on disk, unactivated and unreverted. `cargo fmt`/`cargo clippy` not applicable — no Rust exists yet for this domain, matching P6.4-P6.6's own schema-only verify.
+**Actual result:** Read `WorldSlotManager.swift`'s NBT section (lines 1084-1493; no dedicated MSC 1 XCTest file exists for this either, same pattern as P6.4-P6.6) plus `ChunkerManager.swift` and `AppViewModel+WorldConversion.swift` in full. For the real-sample requirement, parsed both real level.dat files already staged locally by P6.3 (`corpus/worlds/modded-sample/level.dat`, `corpus/worlds/Paper/level.dat`, git-ignored, never modified in place) with a from-scratch Python NBT reader mirroring `WorldSlotManager.swift`'s algorithm byte-for-byte, confirmed both real files round-trip through it, then re-serialized ONLY the Data-compound keys the Swift extractors actually inspect (GameType, Difficulty, DataVersion, Time, DayTime, LevelName, WorldGenSettings.seed / difficulty_settings) into two new minimal gzip-compressed NBT files with LevelName replaced by a placeholder — same binary shape (valid gzip, big-endian NBT, root Data compound), every kept value and its original NBT tag type genuinely read off the real bytes, everything else (mod generator subtrees, spawn coordinates, version strings) dropped. These carry no player data (a multiplayer server's level.dat has none — player state lives in `playerdata/`, untouched) and are committed at `fixtures/world-nbt/samples/` (144 and 142 bytes). The two real samples turned up a genuine, non-obvious finding: `modded-sample` (older DataVersion 3465, Fabric) has every legacy field (`Data.Difficulty` int, `Data.WorldGenSettings.seed`, `Data.DayTime`) present and extracts cleanly, while `Paper` (current 2026 PaperMC, DataVersion 4903) has NEITHER a legacy `Data.Difficulty` tag NOR any seed field under `Data` at all — difficulty moved to a string under `Data.difficulty_settings.difficulty`, and the seed isn't stored under `Data` in any form `extractSeedString`/`findInteger` would recognize. `extractSeedString`/`extractDifficultyString` genuinely return `nil` against this real, current server; `extractDayTime` falls through its Java-preferred `Data.DayTime` (absent) to `Data.Time` (present). `fixtures/world-nbt/` (14 cases) pairs these two real fixtures with synthetic characterization (grounded in Swift source, same as every prior P6.4-P6.6 case) of: gzip-failure-before-parse vs. malformed-NBT-after-gunzip vs. non-compound-root as three distinct failure points; the Bedrock 8-byte little-endian header detection and its unheadered fallback (no real Bedrock evidence exists per P6.2's never-fabricate rule, so — like every other fixture domain before Bedrock support lands — this is synthesized from the source, not stood in as real evidence); all twelve NBT tag types round-tripping through the reader; the Java-path seed/dayTime preference order when multiple candidates exist; the recursive `findInteger` fallback; every difficulty/gamemode enum value including the unmapped case; `firstLevelDatPath`'s positional (not shortest-path) ZIP member selection with `__MACOSX` exclusion; and the adjacent `.meta.json` sidecar's seed taking precedence over a parsed level.dat's seed. `fixtures/world-conversion/` (10 cases) covers `performWorldConversion`'s guard order (Java-path-missing checked before jar-not-installed; empty/whitespace slot name rejected before any file I/O; missing source archive aborts before the temp directory even exists), `findInputWorldFolder`'s Java (lexicographically-sorted fallback) vs. Bedrock (unsorted, enumeration-order-dependent fallback) discovery, `cleanup()` running on both the success and every mid-pipeline failure path via `try?`, the exact five-flag Chunker CLI invocation with streamed stdout/stderr and non-zero-exit handling, `packageOutput`'s Java (`{name}/`) vs. Bedrock (`worlds/{name}/`) zip layout and its empty-output refusal, and two real gaps worth flagging rather than silently fixing: `replaceSlotWithConvertedZip` removes the previous archive before copying the new one in (not the temp-file-then-atomic-rename pattern P6.5 found everywhere else in `WorldSlotManager`), so a copy failure mid-replace can leave a slot with no archive at all; and the mandatory pre-conversion target backup only logs a warning on failure and lets conversion proceed (unlike `activateSlot`'s own hard-abort-on-backup-failure guard, characterized in P6.5), while a later activation failure leaves the newly written/replaced slot on disk, unactivated and unreverted. `cargo fmt`/`cargo clippy` not applicable — no Rust exists yet for this domain, matching P6.4-P6.6's own schema-only verify.
 **Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/world-nbt --expect 14 && python3 tools/fixture-runner/run.py --validate-dir fixtures/world-conversion --expect 10`
 **Commit:** `P6.7: characterize world metadata and conversion`
 **Batch:** solo
@@ -3881,7 +3883,7 @@ Not run: `cargo fmt`/`cargo clippy`/`cargo nextest` — no Rust changed by this 
 **Files:** `tools/phase6/corpus-check.py`, `crates/msc-application/tests/real_world_backup_corpus.rs`, `corpus/worlds/README.md`, `corpus/backups/README.md`, `crates/msc-application/Cargo.toml`
 **What:** Add exercise mode and run the real material collected in P6.3 through repository load, import reconciliation, safe archive validation, metadata/NBT parsing, a non-destructive restore into a temporary root, and save/reload. Hash every source before/after and report each independently. Run the real package/world/backup through the public Phase 6 smoke where size permits; a direct library-only pass is insufficient for the gate.
 
-**Actual result:** `corpus-check.py` gains `--exercise` (runs every inventory check first, hashes every evidence file, shells to `cargo test -p msc-application --test real_world_backup_corpus` pointed at the worlds/backups directories via `MSC2_WORLDS_CORPUS_DIR`/`MSC2_BACKUPS_CORPUS_DIR`, re-hashes and diffs afterward) and `--private-root`, mirroring `tools/phase5/real-corpus-check.py`'s P5.24 shape. `real_world_backup_corpus.rs` (new dev-dependency `sha2`, `crates/msc-application/Cargo.toml`, flagged — outside this step's own `Files:` list) is a no-op pass when the two env vars are unset (`cargo nextest run --workspace` stays green on a clone with no real corpus staged — confirmed, 756/756 passed) and otherwise runs three tests against the real P6.3 evidence: repository load (`world_store::load_slots`) + archive-safety validation (`archive::validate_archive_safety`, every real `.zip`) + NBT parsing (`imported_world_metadata_from_level_dat`, both real `level.dat` files — `Paper` parses to `gamemode=survival`, `campack` to `difficulty=normal, gamemode=survival`) all read-only against both real worlds; `worlds::reconcile_imported_worlds` against a temporary copy of the smaller real world (`Paper`) plus its `world_slots/` (real result: `RecoverySnapshotCreated`, not `LiveFoldersProvenIdenticalToRecordedSlot` — the live folder and the recorded slot's archive aren't byte-identical, neither forced nor assumed); and `backups::restore_backup` restoring the real `Paper_manual_...zip` into a temporary root followed by `create_slot_from_current_world` + repository reload + re-extraction, proving a save/reload round trip is byte-identical. Every real file touched is hashed before/after both inside the Rust test (`--nocapture`, printed per-file) and again by the Python wrapper, independently. `campack` (~11MB, Fabric-modded) is exercised by every read-only check but not doubled through the write-path ones — this step's own "where size permits" text, recorded in both corpus READMEs' new "P6.26 real evidence exercised" sections.
+**Actual result:** `corpus-check.py` gains `--exercise` (runs every inventory check first, hashes every evidence file, shells to `cargo test -p msc-application --test real_world_backup_corpus` pointed at the worlds/backups directories via `MSC2_WORLDS_CORPUS_DIR`/`MSC2_BACKUPS_CORPUS_DIR`, re-hashes and diffs afterward) and `--private-root`, mirroring `tools/phase5/real-corpus-check.py`'s P5.24 shape. `real_world_backup_corpus.rs` (new dev-dependency `sha2`, `crates/msc-application/Cargo.toml`, flagged — outside this step's own `Files:` list) is a no-op pass when the two env vars are unset (`cargo nextest run --workspace` stays green on a clone with no real corpus staged — confirmed, 756/756 passed) and otherwise runs three tests against the real P6.3 evidence: repository load (`world_store::load_slots`) + archive-safety validation (`archive::validate_archive_safety`, every real `.zip`) + NBT parsing (`imported_world_metadata_from_level_dat`, both real `level.dat` files — `Paper` parses to `gamemode=survival`, `modded-sample` to `difficulty=normal, gamemode=survival`) all read-only against both real worlds; `worlds::reconcile_imported_worlds` against a temporary copy of the smaller real world (`Paper`) plus its `world_slots/` (real result: `RecoverySnapshotCreated`, not `LiveFoldersProvenIdenticalToRecordedSlot` — the live folder and the recorded slot's archive aren't byte-identical, neither forced nor assumed); and `backups::restore_backup` restoring the real `Paper_manual_...zip` into a temporary root followed by `create_slot_from_current_world` + repository reload + re-extraction, proving a save/reload round trip is byte-identical. Every real file touched is hashed before/after both inside the Rust test (`--nocapture`, printed per-file) and again by the Python wrapper, independently. `modded-sample` (~11MB, Fabric-modded) is exercised by every read-only check but not doubled through the write-path ones — this step's own "where size permits" text, recorded in both corpus READMEs' new "P6.26 real evidence exercised" sections.
 
 One requirement not built, flagged rather than silently declared done: "run the real package/world/backup through the public Phase 6 smoke where size permits." `tools/phase6/phase6-gate-smoke.sh` (P6.25) only has a `--synthetic` mode; giving it a real-corpus mode is real, scoped work this step's own `Files:` list doesn't cover (the smoke script isn't in it), and P6.25's own comment left that mode for "P6.26's own job" without expanding P6.26's `Files:` to match. Rather than silently expand scope into a 700+-line script that drives real Java/Fabric server jars, or silently skip the requirement, `--private-root` (present in the Verify command below) currently only detects whether a private corpus root was supplied — absent, it passes with a note; present but nonexistent, it fails loudly; present and existing, it passes but reports the public-smoke leg itself still isn't wired. See QUESTION 1 below.
 
@@ -3915,7 +3917,7 @@ Beyond the three named `Files:`, one out-of-list fix was necessary to make the W
 
 Cameron reviewed and chose to apply the fix rather than defer it to a separate planned step. Correction (same commit as this entry): in `crates/msc-application/tests/backup_online_consistency.rs`, split the single `msc_application::backups` import so `self`/`BackupError` (only used by the two Unix-only tests) sit behind their own `#[cfg(unix)]` `use`, and gated `ServerType`, `world`, `StdFileSystem`, `std::fs`, `std::path::{Path, PathBuf}`, the `TempDir` type/impls, and `make_live_folder` all behind `#[cfg(unix)]` — none of them are used outside the two Unix-gated tests. `BackupConsole` and the four `wait_for_*`/`pause_saves_for_backup`/`resume_saves_after_backup` functions stayed ungated (used by the platform-independent `FakeBackupConsole` tests). `cargo fmt` re-run clean after the split (rustfmt reordered the two `backups` imports). Re-verified all three clippy targets clean (native, `x86_64-unknown-linux-gnu`, `x86_64-pc-windows-msvc`), and `cargo nextest run -p msc-application --test backup_online_consistency` still passes all 10 cases on macOS, including both `#[cfg(unix)]` tests (one flagged `LEAK` by nextest's process-leak detector, not a failure — pre-existing, unrelated to this change).
 
-With the clippy leg fixed, ran the rest of the local gate: `cargo nextest run --workspace` — 756 tests run, 756 passed, 0 skipped (502s). `python3 tools/api-contract-check.py --v1-summary` — `namespace: ok 95, missing-category: 0, non-errordto-responses: 0, missing-helpid: 0, routes: 105`. `python3 tools/phase6/capability-matrix-check.py docs/msc2/client-capability-matrix.csv` — `ok: 107 contract operations, all matched`. `tools/phase6/phase6-gate-smoke.sh --synthetic` — passed: raw-Java-world import/reconciliation, slot CRUD, running-server activation guard, injected archive-creation failure, both manual backups (confirmed and best-effort-timeout paths), activation with mandatory safety backup, restore guards, a real restore, both restart-mid-transaction races (`prior_moved`, landed on attempt 1 each), final health check — `phase6 gate smoke (synthetic) passed`. `python3 tools/phase6/corpus-check.py --exercise --worlds corpus/worlds --backups corpus/backups --private-root "$MSC2_PHASE6_PRIVATE_CORPUS"` — all three real-corpus tests pass (archive safety on all three real zips, real backup restore + save/reload byte-identical, real `level.dat` parses for both `Paper` and `campack`, non-destructive reconciliation against a temp copy of `Paper`), 9 evidence files hashed unchanged before/after; `--private-root` unset so the public-smoke leg is reported not-exercised rather than silently skipped, matching P6.26's own precedent.
+With the clippy leg fixed, ran the rest of the local gate: `cargo nextest run --workspace` — 756 tests run, 756 passed, 0 skipped (502s). `python3 tools/api-contract-check.py --v1-summary` — `namespace: ok 95, missing-category: 0, non-errordto-responses: 0, missing-helpid: 0, routes: 105`. `python3 tools/phase6/capability-matrix-check.py docs/msc2/client-capability-matrix.csv` — `ok: 107 contract operations, all matched`. `tools/phase6/phase6-gate-smoke.sh --synthetic` — passed: raw-Java-world import/reconciliation, slot CRUD, running-server activation guard, injected archive-creation failure, both manual backups (confirmed and best-effort-timeout paths), activation with mandatory safety backup, restore guards, a real restore, both restart-mid-transaction races (`prior_moved`, landed on attempt 1 each), final health check — `phase6 gate smoke (synthetic) passed`. `python3 tools/phase6/corpus-check.py --exercise --worlds corpus/worlds --backups corpus/backups --private-root "$MSC2_PHASE6_PRIVATE_CORPUS"` — all three real-corpus tests pass (archive safety on all three real zips, real backup restore + save/reload byte-identical, real `level.dat` parses for both `Paper` and `modded-sample`, non-destructive reconciliation against a temp copy of `Paper`), 9 evidence files hashed unchanged before/after; `--private-root` unset so the public-smoke leg is reported not-exercised rather than silently skipped, matching P6.26's own precedent.
 
 Only leg left: the exact-commit GitHub Actions macOS/Linux/Windows watch. That needs this commit pushed to `origin/phase5-corrections` first — the branch is currently 7 commits ahead of `origin` — which is a shared-visibility action outside this step's own authority to take unprompted. Cameron approved the push. `ci.yml` triggers only on `push: [main]` and `pull_request` (`.github/workflows/ci.yml:4-7`), not on pushing a feature branch, so a plain push produced no run — matching the P5 gate's own precedent (`31757826552` was a `workflow_dispatch` run, not a `push`/`pull_request` one), dispatched `gh workflow run CI --ref phase5-corrections`, which queued run `31937386317` against the exact pushed commit (`23c0333`).
 
@@ -4496,7 +4498,7 @@ script's existing helpers rather than inventing parallel ones:
   checks the exit code — the same shape `check_exercise` already uses for
   the Rust corpus test) instead of only reporting "not wired yet."
   Verified end to end against `$HOME/MinecraftServers` (real
-  MSC-1-managed `campack`/`paper` server directories) — `campack` (the
+  MSC-1-managed `modded-sample`/`paper` server directories) — `modded-sample` (the
   larger, ~11MB, Fabric-modded one) sorts first alphabetically under that
   root and is what the leg actually exercises.
 
@@ -4506,7 +4508,7 @@ not in this step's `Files:` list) calls `create_backup` with
 `raw_level_name: None`, which resolves to the Java default `"world"`
 rather than re-reading `server.properties` — so a live server whose real
 `level-name` isn't literally `"world"` (true of both real corpus
-servers, `campack` and `Paper`) fails its own mandatory pre-activation
+servers, `modded-sample` and `Paper`) fails its own mandatory pre-activation
 safety backup. The private-corpus mode stages its copy of the real world
 folder under the name `world` (with a matching `level-name=world` line in
 its copy of `server.properties`) to work around this — every byte
@@ -4557,8 +4559,8 @@ mandatory safety backup right before activating/replacing a world) always
 assumes the server's world folder is named "world". Every server this
 project has tested against until now happened to use that name, so
 nobody had hit it. Driving P6.35's new real-corpus smoke against
-Cameron's actual `campack`/`paper` servers (whose real world folders are
-named `campack`/`Paper`) hit it directly: activation's own safety backup
+Cameron's actual `modded-sample`/`paper` servers (whose real world folders are
+named `modded-sample`/`Paper`) hit it directly: activation's own safety backup
 failed outright.
 
 The choice: (A) leave it as a known, flagged gap — the private-corpus
@@ -4859,7 +4861,7 @@ unchanged when the CLI response timeout was manually raised.
 
 The gate still does not hold under the ordinary product path. With the timeout
 override absent, `server import` times out after five seconds while the agent
-continues copying and reconciling the real `campack` world synchronously; the
+continues copying and reconciling the real `modded-sample` world synchronously; the
 caller sees failure before the operation ID is returned. The cancellation
 handler also performs its accept-and-snapshot sequence through separate locks,
 so a worker can become terminal between them and produce `202 Accepted` with a
@@ -4935,8 +4937,8 @@ The URL-protocol test injection now also reaches the long-timeout install sessio
 **Files:** `docs/msc2/client-capability-matrix.csv`, `docs/msc2/rolling-plan.md`
 **What:** Correct the gate review's three stale capability cells so the matrix reports the copied iOS and CLI operation polling/cancellation paths and P6.46's copied-iOS server-import path truthfully. Then run the entire Phase 6 working gate without omitting the private corpus: focused copied-iOS import tests; formatting; native, Linux, and Windows Clippy; the full workspace suite; API, Phase 6 contract, and matrix checks; synthetic and non-default-level-name public smokes; the real private world/backup corpus at its documented local path with `MSC2_CLI_RESPONSE_TIMEOUT_SECS` absent; and macOS/Linux/Windows GitHub Actions on the exact pushed P6.48 commit. Inspect the private source hashes and public-operation outcomes. Do not change product code, a timeout, a checker, a fixture, a corpus path, or a workflow to make a failure green.
 
-**Actual result:** Corrected the three factual tracking gaps found by gate review: copied iOS and CLI operation reads/cancellation are `Implemented`, and copied-iOS server import is `Implemented` after P6.46. Ran every local gate leg in order with no timeout, checker, fixture, corpus-path, workflow, or product-code change. The focused copied-iOS import suite passed; formatting and native/Linux/Windows Clippy were clean; the complete workspace suite passed 799/799; the API summary reported 106 routes; all 86 Phase 6 contract checks and all 108 capability rows passed; both public smokes passed, including scheduled firing, save pause/resume, interruption recovery, cancellation cleanup, non-default Java level names, and backup-retention validation. The formerly missing real private-corpus leg ran with `MSC2_CLI_RESPONSE_TIMEOUT_SECS` absent against `/Users/camerontemple/MinecraftServers`: it imported and reconciled the real `campack` world, round-tripped its real bytes through bounded staged upload/export/import, activated it with the mandatory safety backup, created and restored a manual backup, and confirmed all nine evidence files were unchanged. The exact-commit CI result is reported in the P6.48 handoff after this commit is pushed and its workflow completes.
-**Verify:** `xcodebuild test -project clients/ios/MSCRemoteiOS.xcodeproj -scheme MSCRemoteiOS -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -only-testing:MSCRemoteiOSTests/Phase6ServerImportOperationTests && cargo fmt --check && cargo clippy --workspace --all-targets -- -D warnings && cargo clippy --workspace --all-targets --target x86_64-unknown-linux-gnu -- -D warnings && cargo clippy --workspace --all-targets --target x86_64-pc-windows-msvc -- -D warnings && cargo nextest run --workspace && python3 tools/api-contract-check.py --v1-summary && python3 tools/contract-conformance-check.py --phase6 && python3 tools/phase6/capability-matrix-check.py docs/msc2/client-capability-matrix.csv && tools/phase6/phase6-gate-smoke.sh --synthetic && tools/phase6/phase6-gate-smoke.sh --custom-level-name && env -u MSC2_CLI_RESPONSE_TIMEOUT_SECS python3 tools/phase6/corpus-check.py --exercise --worlds corpus/worlds --backups corpus/backups --private-root /Users/camerontemple/MinecraftServers && candidate_sha=$(git rev-parse HEAD) && git push origin HEAD:phase5-corrections && gh workflow run ci.yml --ref phase5-corrections && for attempt in {1..30}; do run_id=$(gh run list --workflow ci.yml --commit "$candidate_sha" --event workflow_dispatch --limit 1 --json databaseId,headSha --jq 'map(select(.headSha == "'"$candidate_sha"'"))[0].databaseId'); test -n "$run_id" && break; sleep 2; done && test -n "$run_id" && gh run watch "$run_id" --exit-status`
+**Actual result:** Corrected the three factual tracking gaps found by gate review: copied iOS and CLI operation reads/cancellation are `Implemented`, and copied-iOS server import is `Implemented` after P6.46. Ran every local gate leg in order with no timeout, checker, fixture, corpus-path, workflow, or product-code change. The focused copied-iOS import suite passed; formatting and native/Linux/Windows Clippy were clean; the complete workspace suite passed 799/799; the API summary reported 106 routes; all 86 Phase 6 contract checks and all 108 capability rows passed; both public smokes passed, including scheduled firing, save pause/resume, interruption recovery, cancellation cleanup, non-default Java level names, and backup-retention validation. The formerly missing real private-corpus leg ran with `MSC2_CLI_RESPONSE_TIMEOUT_SECS` absent against `/Users/example/MinecraftServers`: it imported and reconciled the real `modded-sample` world, round-tripped its real bytes through bounded staged upload/export/import, activated it with the mandatory safety backup, created and restored a manual backup, and confirmed all nine evidence files were unchanged. The exact-commit CI result is reported in the P6.48 handoff after this commit is pushed and its workflow completes.
+**Verify:** `xcodebuild test -project clients/ios/MSCRemoteiOS.xcodeproj -scheme MSCRemoteiOS -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -only-testing:MSCRemoteiOSTests/Phase6ServerImportOperationTests && cargo fmt --check && cargo clippy --workspace --all-targets -- -D warnings && cargo clippy --workspace --all-targets --target x86_64-unknown-linux-gnu -- -D warnings && cargo clippy --workspace --all-targets --target x86_64-pc-windows-msvc -- -D warnings && cargo nextest run --workspace && python3 tools/api-contract-check.py --v1-summary && python3 tools/contract-conformance-check.py --phase6 && python3 tools/phase6/capability-matrix-check.py docs/msc2/client-capability-matrix.csv && tools/phase6/phase6-gate-smoke.sh --synthetic && tools/phase6/phase6-gate-smoke.sh --custom-level-name && env -u MSC2_CLI_RESPONSE_TIMEOUT_SECS python3 tools/phase6/corpus-check.py --exercise --worlds corpus/worlds --backups corpus/backups --private-root /Users/example/MinecraftServers && candidate_sha=$(git rev-parse HEAD) && git push origin HEAD:phase5-corrections && gh workflow run ci.yml --ref phase5-corrections && for attempt in {1..30}; do run_id=$(gh run list --workflow ci.yml --commit "$candidate_sha" --event workflow_dispatch --limit 1 --json databaseId,headSha --jq 'map(select(.headSha == "'"$candidate_sha"'"))[0].databaseId'); test -n "$run_id" && break; sleep 2; done && test -n "$run_id" && gh run watch "$run_id" --exit-status`
 **Commit:** `P6.48: close the phase 6 gate`
 **Batch:** solo
 
@@ -5446,7 +5448,7 @@ Health cards take already-resolved inputs rather than doing their own I/O — `c
 
 **Record:** a short result note under this section — device/simulator used, which of the 8 numbered checks passed, and any bug found with the exact screen/action that exposed it. If everything passes, that closes P7.26's own "still open" item; if something fails, it's a new, real finding to fix before P7.30 closes the gate.
 
-**Actual result (2026-08-19):** Run live over LAN — Cameron's own iOS device paired against a real `msc-agent` foreground process (`msc serve --bind 10.0.0.142:48400`) on his Mac, `MSC2_TEST_BOOTSTRAP_TOKEN` used as the bearer token via the app's own manual Base URL/Token pairing form (Settings), no QR/CLI-challenge flow exercised. This is a resumed session — the conversation that started it was lost mid-way; picked back up by diffing the working tree against the last commit to recover what had already been found and fixed, then continued live.
+**Actual result (2026-08-19):** Run live over LAN — Cameron's own iOS device paired against a real `msc-agent` foreground process (`msc serve --bind 192.168.1.10:48400`) on his Mac, `MSC2_TEST_BOOTSTRAP_TOKEN` used as the bearer token via the app's own manual Base URL/Token pairing form (Settings), no QR/CLI-challenge flow exercised. This is a resumed session — the conversation that started it was lost mid-way; picked back up by diffing the working tree against the last commit to recover what had already been found and fixed, then continued live.
 
 **Two real precondition bugs found and fixed before any checklist item could run** (both verified: `cargo fmt`/`clippy -D warnings` clean, `cargo nextest run -p msc-agent -p msc-api` 197/197 green, real `xcodebuild build` of `MSCRemoteiOS` succeeded):
 1. **`GET /v1/me` was never wired on the agent**, despite `DashboardViewModel.swift`'s own refresh cycle (`refreshAll`, line ~142) already calling `client.getMe()` since the Phase 4 pairing work — `connectedRole`/`connectedName`/`connectedPermissions` silently never populated (the call is wrapped in `try?`, so a 404 just meant the fields stayed `nil` forever, not a visible error). `client-capability-matrix.csv` had correctly tracked this as `Planned` everywhere; it just never got built in any phase through P7. Fixed: added `MeResponseDto` (`crates/msc-api/src/dto/capabilities.rs`, matching `openapi.json`'s `MeResponseDTO` exactly), the `me` handler (`crates/msc-agent/src/routes/capabilities.rs`, reading straight off the `AuthenticatedCredential` the auth middleware already attaches — no extra lookup), and the route registration (`main.rs`); made `auth::role_to_string` `pub(crate)` so the handler can reuse it instead of duplicating it. Matrix updated: `agent_status`/`ios_status` → `Implemented` (iOS already had the call site); `cli_status`/`desktop_web_status` left `Planned` (no CLI command, Phase 11 respectively — out of this session's scope). Confirmed live: the Components screen's "Server Version" card, which is gated on `vm.connectedRole != "guest"`, now renders — it was the first live proof this fix actually works, since that gate depends entirely on `getMe()` succeeding.
@@ -7524,16 +7526,16 @@ not advance.
 **Batch:** solo
 
 ### P11.31 — Finish and land the local-agent auto-bootstrap auth
-**Status:** DONE. Full account in `toughproblems/local-agent-auth-bootstrap.md` — read that before touching this area again. Discovered during P12.2 visual verification (same as P11.30): the real Tauri app could not connect to the local agent at all, through six stacked, independent bugs. Found `git stash@{0}` ("WIP: local-agent auto-bootstrap auth (pre-P12.1)") — Cameron's own substantial prior implementation of the same-machine bootstrap channel `docs/msc2/clients/phase11-auth.md` describes but this codebase never actually had working — and applied it (clean; only `App.svelte` had a trivial non-conflicting overlap with P12.2) rather than rewriting from scratch. Fixed forward from there: (1) the LaunchDaemon needs macOS admin elevation to start/stop, now done via `osascript ... with administrator privileges`; (2) ad-hoc-signing an already-running dev binary invalidates its own live code identity, fixed by signing-then-re-exec at startup instead of signing in place; (3) **keychain-based storage for the installation key and the store's root key was removed entirely** — both are now plain 0600 files under the agent's own secrets directory, since the agent and its desktop shell always run as the same regular user and keychain's ACL/session semantics kept failing in non-interactive-daemon contexts in ways that were each individually correct-looking and still wrong in practice; (4) a `ClientProof` struct was missing `#[serde(rename_all = "camelCase")]`, so every bootstrap proof submission failed JSON parsing (`hostId` sent, `host_id` expected) before it was ever checked. Real dev-workflow caveat recorded in the toughproblems doc: the installed plist's `MSC2_MACOS_DESKTOP_REQUIREMENT` snapshots one specific run's ad-hoc cdhash, which changes on every `tauri dev` relaunch — click "Repair service" once, right after the app under test opens, and don't restart it again before testing.
-**Files:** `crates/msc-platform-macos/src/service.rs`, `crates/msc-platform-macos/src/secret_store.rs`, `crates/msc-platform-macos/Cargo.toml`, `crates/msc-agent/src/auth.rs`, `crates/msc-agent/src/auth/desktop.rs`, new `crates/msc-agent/src/auth/local_bootstrap.rs`, `crates/msc-agent/src/main.rs`, `crates/msc-agent/Cargo.toml`, `clients/desktop-web/src-tauri/src/lib.rs`, `clients/desktop-web/src-tauri/Cargo.toml`, `clients/desktop-web/src/App.svelte`, `clients/desktop-web/src/lib/auth/desktop.ts`, `clients/desktop-web/src/lib/platform/{index,browser,tauri,types}.ts`, `clients/desktop-web/src/lib/sections/setup/AgentSetupSection.svelte`, associated tests, new `toughproblems/local-agent-auth-bootstrap.md`
+**Status:** DONE. Full account in `docs/msc2/local-agent-auth-bootstrap.md` — read that before touching this area again. Discovered during P12.2 visual verification (same as P11.30): the real Tauri app could not connect to the local agent at all, through six stacked, independent bugs. Found `git stash@{0}` ("WIP: local-agent auto-bootstrap auth (pre-P12.1)") — Cameron's own substantial prior implementation of the same-machine bootstrap channel `docs/msc2/clients/phase11-auth.md` describes but this codebase never actually had working — and applied it (clean; only `App.svelte` had a trivial non-conflicting overlap with P12.2) rather than rewriting from scratch. Fixed forward from there: (1) the LaunchDaemon needs macOS admin elevation to start/stop, now done via `osascript ... with administrator privileges`; (2) ad-hoc-signing an already-running dev binary invalidates its own live code identity, fixed by signing-then-re-exec at startup instead of signing in place; (3) **keychain-based storage for the installation key and the store's root key was removed entirely** — both are now plain 0600 files under the agent's own secrets directory, since the agent and its desktop shell always run as the same regular user and keychain's ACL/session semantics kept failing in non-interactive-daemon contexts in ways that were each individually correct-looking and still wrong in practice; (4) a `ClientProof` struct was missing `#[serde(rename_all = "camelCase")]`, so every bootstrap proof submission failed JSON parsing (`hostId` sent, `host_id` expected) before it was ever checked. Real dev-workflow caveat recorded in `docs/msc2/local-agent-auth-bootstrap.md`: the installed plist's `MSC2_MACOS_DESKTOP_REQUIREMENT` snapshots one specific run's ad-hoc cdhash, which changes on every `tauri dev` relaunch — click "Repair service" once, right after the app under test opens, and don't restart it again before testing.
+**Files:** `crates/msc-platform-macos/src/service.rs`, `crates/msc-platform-macos/src/secret_store.rs`, `crates/msc-platform-macos/Cargo.toml`, `crates/msc-agent/src/auth.rs`, `crates/msc-agent/src/auth/desktop.rs`, new `crates/msc-agent/src/auth/local_bootstrap.rs`, `crates/msc-agent/src/main.rs`, `crates/msc-agent/Cargo.toml`, `clients/desktop-web/src-tauri/src/lib.rs`, `clients/desktop-web/src-tauri/Cargo.toml`, `clients/desktop-web/src/App.svelte`, `clients/desktop-web/src/lib/auth/desktop.ts`, `clients/desktop-web/src/lib/platform/{index,browser,tauri,types}.ts`, `clients/desktop-web/src/lib/sections/setup/AgentSetupSection.svelte`, associated tests, new `docs/msc2/local-agent-auth-bootstrap.md`
 **What:** Make the real Tauri app able to authenticate to its own freshly-installed local agent without any manual pairing step, end to end, on macOS.
 **Verify:** `cargo nextest run -p msc-platform-macos && cargo nextest run -p msc-agent --test browser_auth --test desktop_auth`; `npm --prefix clients/desktop-web run test:tauri-boundary && npx vitest run clients/desktop-web/tests/agent-install/agent-install.test.ts && npm --prefix clients/desktop-web run test:auth-desktop`. Cameron's own real-app verification: fresh install → Repair service → Reconnect connects without a manual pairing code.
 **Commit:** `P11.31: land the local-agent auto-bootstrap auth`
 **Batch:** solo
 
 ### P11.31a — Move the desktop app's own stored credential off keychain too
-**Status:** DONE. Cameron hit a real login-keychain access prompt ("msc2-desktop-web wants to use your confidential information stored in 'com.ctemple.msc2.desktop'...") during P12.3 verification and correctly recalled that keychain had been removed — P11.31's "removed entirely" only covered two *agent-daemon* secrets (installation key, store root key). A third secret was missed: the Tauri desktop app's own stored pairing credential (`StoredDesktopCredential`), still going through `MacosSecretStore::default_keychain_for_service` (the real login keychain) in `desktop_secret_store()`. Fixed to `MacosSecretStore::system()` — the same self-provisioning, file-rooted store the agent itself uses, sharing `agent_data_directory()`'s `secrets/` directory with the `local-bootstrap.key` file this same process already writes there directly (same user, same reasoning P11.31 already established for the other two secrets). Removed the now-unused `DESKTOP_SECRET_SERVICE` constant. Left `crates/msc-agent/src/auth.rs`'s own `default_keychain_for_service` call untouched — that one backs the foreground-`msc serve`-smoke-harness path the module's own doc comment already carves out as deliberate, not a fourth instance of this gap. Full account appended to `toughproblems/local-agent-auth-bootstrap.md` (§5).
-**Files:** `clients/desktop-web/src-tauri/src/lib.rs`, `toughproblems/local-agent-auth-bootstrap.md`
+**Status:** DONE. Cameron hit a real login-keychain access prompt ("msc2-desktop-web wants to use your confidential information stored in 'com.ctemple.msc2.desktop'...") during P12.3 verification and correctly recalled that keychain had been removed — P11.31's "removed entirely" only covered two *agent-daemon* secrets (installation key, store root key). A third secret was missed: the Tauri desktop app's own stored pairing credential (`StoredDesktopCredential`), still going through `MacosSecretStore::default_keychain_for_service` (the real login keychain) in `desktop_secret_store()`. Fixed to `MacosSecretStore::system()` — the same self-provisioning, file-rooted store the agent itself uses, sharing `agent_data_directory()`'s `secrets/` directory with the `local-bootstrap.key` file this same process already writes there directly (same user, same reasoning P11.31 already established for the other two secrets). Removed the now-unused `DESKTOP_SECRET_SERVICE` constant. Left `crates/msc-agent/src/auth.rs`'s own `default_keychain_for_service` call untouched — that one backs the foreground-`msc serve`-smoke-harness path the module's own doc comment already carves out as deliberate, not a fourth instance of this gap. Full account appended to `docs/msc2/local-agent-auth-bootstrap.md` (§5).
+**Files:** `clients/desktop-web/src-tauri/src/lib.rs`, `docs/msc2/local-agent-auth-bootstrap.md`
 **What:** Stop the Tauri desktop app's own credential store from touching the macOS login keychain, matching the reasoning and pattern P11.31 already applied to the agent's two other secrets.
 **Verify:** `cd clients/desktop-web/src-tauri && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test`. Cameron's own real-app verification: fresh pair/reconnect on macOS no longer shows a Keychain access prompt.
 **Commit:** `P11.31a: move the desktop app's own stored credential off keychain too`
@@ -8034,7 +8036,7 @@ If a screen needs a UI pattern not covered by the locked S0 primitives, stop and
 ### P12.2b — Extract Java player-data NBT fixtures
 **Status:** DONE
 **Files:** `fixtures/player-nbt/`
-**What:** Extract fixtures characterizing `PlayerNBTReader.swift`'s Java player `.dat` parsing (378 lines, gzip-compressed big-endian NBT): the `extractStats` fields (health/maxHealth/foodLevel/xpLevel/xpTotal/gameMode/posX/posY/posZ/dimensionDisplay/score — these already match `PlayerStatsDTO` in `docs/msc2/api-contract/openapi.json` field-for-field, confirming the frozen contract was modeled on this exact reader) and `extractInventory` (slot/itemID/iconName/count/displayName/enchantments/damage — matching `InventoryItemDTO`), plus corrupt/truncated/non-compound-root failure cases (same three-way split P6.7 used for `level.dat`). `crates/msc-domain/src/nbt.rs` (P6.9) already implements a general big-endian tag-level reader — this step's characterization must say explicitly which of `PlayerNBTReader`'s behavior is generic tag parsing already covered by `nbt.rs` versus player-`.dat`-specific extraction rules, so P12.2c doesn't rebuild the reader from scratch. Per the P6.3/P6.7 real-evidence precedent, at least one real player `.dat` sample is required rather than an entirely synthetic fixture set — but per that same precedent, "real evidence" means *at least one genuine file proving the gzip/parse pipeline works end-to-end*, not that every tag variant must be physically demonstrated in a live save. P6.7 itself paired two real `level.dat` files with synthetic characterization for cases no real evidence existed for (the Bedrock little-endian header, "synthesized from the source, not stood in as real evidence" — see that step's own committed note in `rolling-plan-archive.md`). Apply the same split here: any already-available real player `.dat` with at least one inventory item (a stacked item is enough — MSC 1's live `campak` server already has one, no new server session or manual enchanting/damaging needed) satisfies the real-evidence bar. Enchantment, damage, custom-name, and other tag-shape variants `extractInventory` handles may be characterized with hand-built synthetic NBT bytes grounded in `PlayerNBTReader.swift`'s own field-reading code, clearly labeled synthetic in the fixture, exactly like P6.7's Bedrock-header cases. Git-ignore the real sample's raw bytes the same way `fixtures/world-nbt/samples/` does.
+**What:** Extract fixtures characterizing `PlayerNBTReader.swift`'s Java player `.dat` parsing (378 lines, gzip-compressed big-endian NBT): the `extractStats` fields (health/maxHealth/foodLevel/xpLevel/xpTotal/gameMode/posX/posY/posZ/dimensionDisplay/score — these already match `PlayerStatsDTO` in `docs/msc2/api-contract/openapi.json` field-for-field, confirming the frozen contract was modeled on this exact reader) and `extractInventory` (slot/itemID/iconName/count/displayName/enchantments/damage — matching `InventoryItemDTO`), plus corrupt/truncated/non-compound-root failure cases (same three-way split P6.7 used for `level.dat`). `crates/msc-domain/src/nbt.rs` (P6.9) already implements a general big-endian tag-level reader — this step's characterization must say explicitly which of `PlayerNBTReader`'s behavior is generic tag parsing already covered by `nbt.rs` versus player-`.dat`-specific extraction rules, so P12.2c doesn't rebuild the reader from scratch. Per the P6.3/P6.7 real-evidence precedent, at least one real player `.dat` sample is required rather than an entirely synthetic fixture set — but per that same precedent, "real evidence" means *at least one genuine file proving the gzip/parse pipeline works end-to-end*, not that every tag variant must be physically demonstrated in a live save. P6.7 itself paired two real `level.dat` files with synthetic characterization for cases no real evidence existed for (the Bedrock little-endian header, "synthesized from the source, not stood in as real evidence" — see that step's own committed note in `rolling-plan-archive.md`). Apply the same split here: any already-available real player `.dat` with at least one inventory item (a stacked item is enough — MSC 1's live `modded-sample` server already has one, no new server session or manual enchanting/damaging needed) satisfies the real-evidence bar. Enchantment, damage, custom-name, and other tag-shape variants `extractInventory` handles may be characterized with hand-built synthetic NBT bytes grounded in `PlayerNBTReader.swift`'s own field-reading code, clearly labeled synthetic in the fixture, exactly like P6.7's Bedrock-header cases. Git-ignore the real sample's raw bytes the same way `fixtures/world-nbt/samples/` does.
 **Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/player-nbt --expect 13`
 **Commit:** `P12.2b: extract Java player-data NBT fixtures`
 **Batch:** solo
@@ -8300,7 +8302,7 @@ Register all 4 routes in `main.rs` next to the existing `/v1/players/*` routes.
 **Batch:** solo
 
 ### P12.3 — Players tab
-**Status:** DONE. Rebuilt against the now-real P12.2b–j backend: `OnlineNowCard` (Online Now / Seen This Session), `BedrockAllowlistCard` (Bedrock-only), `SessionLogCard` (filter/day-grouping/show-more/clear), `PlayerDataCard` (search/sort/hidden-toggle grid) → `PlayerDetailSheet` (identity, skin lookup override, stats, inventory via a new `InventoryGrid`, and the 4 approved mutations — migrate-offline, migrate-custom, duplicate, delete — plus hide/unhide). New `crates`-adjacent client files only; no backend touched. Regenerated `src/lib/api/generated.ts` from the current contract (P12.2g's routes weren't in it yet). Real gap found and handled the same way as this file's other honest gaps rather than built around quietly: `GET /v1/session-log` is *also* frozen-but-unimplemented (zero handler anywhere in `crates/`) — Session Log is derived client-side from `/v1/console/tail` by reusing `chatFeed.ts`'s existing join/leave parsing (already built for Overview's Chat card) rather than adding a second backend detour; "Clear Log" is client-local per host+server (localStorage cutoff timestamp), same "no server field yet" treatment `notes.ts` already established, since the console tail is a bounded recent buffer with nothing durable on the agent to send a clear mutation to. **Follow-up planned, not just noted:** P12.3a–c (below) give this a real backend — MSC 1's own `SessionLogManager.swift`/`session_log.json` ported directly, plus wiring the Java join/leave events `lifecycle.rs` already detects and currently discards. A later client step (not yet written) swaps this section over to it. `copyPlayerData` stays deferred per this file's 2026-08-25 note — only 4 of 5 mutation actions are wired, matching P12.2g–j. Two design decisions confirmed with Cameron mid-build rather than improvised per his own added S0-extension note: kept 2 new `Icon.svelte` glyphs (`clock`, `id-card`, same 24x24/stroke-1.8 language as the existing set); kept an inline expand-in-place delete confirmation (no modal) over migrating the still-Phase-11-styled `ConfirmDialog.svelte`. Anti-slop self-review caught and removed two accent colors I'd introduced outside the locked status ramp (a gold Operator badge, a blue enchanted-item glow) — fixed to neutral before commit. **Not verified: live browser check against real agent data.** Got the dev server running and the shell rendering (past the first-launch splash) via Playwright, but reaching Players requires a paired agent + registered server, and touching Cameron's real local agent/server registration to manufacture that felt like the wrong call to make unprompted — leaving that verification to Cameron, who already has real servers (`test`, `campak`, `test_2`) to check it against directly, which is a better test than anything synthetic here anyway. Structural (`npm run test:screen-players-online`, 11 tests, rewritten — the old suite asserted `/v1/players/profiles` must *not* be used, which was P11.11's deliberate scope limit and is now obsolete) and `svelte-check`/`prettier --check` both pass on every touched file with zero new errors.
+**Status:** DONE. Rebuilt against the now-real P12.2b–j backend: `OnlineNowCard` (Online Now / Seen This Session), `BedrockAllowlistCard` (Bedrock-only), `SessionLogCard` (filter/day-grouping/show-more/clear), `PlayerDataCard` (search/sort/hidden-toggle grid) → `PlayerDetailSheet` (identity, skin lookup override, stats, inventory via a new `InventoryGrid`, and the 4 approved mutations — migrate-offline, migrate-custom, duplicate, delete — plus hide/unhide). New `crates`-adjacent client files only; no backend touched. Regenerated `src/lib/api/generated.ts` from the current contract (P12.2g's routes weren't in it yet). Real gap found and handled the same way as this file's other honest gaps rather than built around quietly: `GET /v1/session-log` is *also* frozen-but-unimplemented (zero handler anywhere in `crates/`) — Session Log is derived client-side from `/v1/console/tail` by reusing `chatFeed.ts`'s existing join/leave parsing (already built for Overview's Chat card) rather than adding a second backend detour; "Clear Log" is client-local per host+server (localStorage cutoff timestamp), same "no server field yet" treatment `notes.ts` already established, since the console tail is a bounded recent buffer with nothing durable on the agent to send a clear mutation to. **Follow-up planned, not just noted:** P12.3a–c (below) give this a real backend — MSC 1's own `SessionLogManager.swift`/`session_log.json` ported directly, plus wiring the Java join/leave events `lifecycle.rs` already detects and currently discards. A later client step (not yet written) swaps this section over to it. `copyPlayerData` stays deferred per this file's 2026-08-25 note — only 4 of 5 mutation actions are wired, matching P12.2g–j. Two design decisions confirmed with Cameron mid-build rather than improvised per his own added S0-extension note: kept 2 new `Icon.svelte` glyphs (`clock`, `id-card`, same 24x24/stroke-1.8 language as the existing set); kept an inline expand-in-place delete confirmation (no modal) over migrating the still-Phase-11-styled `ConfirmDialog.svelte`. Anti-slop self-review caught and removed two accent colors I'd introduced outside the locked status ramp (a gold Operator badge, a blue enchanted-item glow) — fixed to neutral before commit. **Not verified: live browser check against real agent data.** Got the dev server running and the shell rendering (past the first-launch splash) via Playwright, but reaching Players requires a paired agent + registered server, and touching Cameron's real local agent/server registration to manufacture that felt like the wrong call to make unprompted — leaving that verification to Cameron, who already has real servers (`test`, `modded-sample`, `test_2`) to check it against directly, which is a better test than anything synthetic here anyway. Structural (`npm run test:screen-players-online`, 11 tests, rewritten — the old suite asserted `/v1/players/profiles` must *not* be used, which was P11.11's deliberate scope limit and is now obsolete) and `svelte-check`/`prettier --check` both pass on every touched file with zero new errors.
 **Files:** `src/lib/sections/players-online/`, `src/lib/components/base/Icon.svelte`, `src/lib/api/generated.ts`
 **What:** Rebuild Players — Online Now / Seen This Session, Session Log (filter + clear), Player Data (profiles, sort, stats + inventory detail sheet, hidden toggle, skin/avatar, delete). Reference MSC 1 `DetailsPlayersTabView` + `PlayerProfilesCard`/`PlayerProfileDetailSheet`/`PlayerInventoryView` and the Players screenshot.
 **Verify:** `npm run dev`, open Players against a real connected agent; compare to MSC 1 + checklist. Structural: `npm run test:screen-players-online`.
@@ -8363,7 +8365,7 @@ Tests for these two routes belong inline (`#[cfg(test)] mod tests`) in the new `
 **Batch:** solo
 
 ### P12.3d — Add and wire POST /v1/players/identify, fix Bedrock skin resolution, split Head/Body preview
-**Status:** DONE. Cameron shared real MSC 1 screenshots (Bedrock player "camkage" on `campak`) mid-review of P12.3, surfacing two more real gaps beyond session log, same shape as before: (1) MSC 1's "Identify Player"/"Change Gamertag" action (`identifyBedrockPlayer` → `BedrockNameCache.record`) had no route at all — but the application-layer function already existed (`bedrock_players::record_name`, presumably from earlier Bedrock work), just never wired to HTTP; (2) the Skin Override section shows Head *and* Body thumbnails, not the single portrait P12.3 shipped with — and while investigating, found the client's own `avatarUrl` unnecessarily hard-excluded Bedrock entirely, when `bedrock_profile_to_dto` (P12.2e) already computes a working dotted-gamertag `imageIdentifier` for Bedrock, matching MSC 1's own `PlayerProfile.imageIdentifier` scheme exactly (confirmed working in Cameron's screenshot). Both approved by Cameron before building, per the same design-decision-check discipline as everything else in this phase.
+**Status:** DONE. Cameron shared real MSC 1 screenshots (Bedrock player "ExamplePlayer" on `modded-sample`) mid-review of P12.3, surfacing two more real gaps beyond session log, same shape as before: (1) MSC 1's "Identify Player"/"Change Gamertag" action (`identifyBedrockPlayer` → `BedrockNameCache.record`) had no route at all — but the application-layer function already existed (`bedrock_players::record_name`, presumably from earlier Bedrock work), just never wired to HTTP; (2) the Skin Override section shows Head *and* Body thumbnails, not the single portrait P12.3 shipped with — and while investigating, found the client's own `avatarUrl` unnecessarily hard-excluded Bedrock entirely, when `bedrock_profile_to_dto` (P12.2e) already computes a working dotted-gamertag `imageIdentifier` for Bedrock, matching MSC 1's own `PlayerProfile.imageIdentifier` scheme exactly (confirmed working in Cameron's screenshot). Both approved by Cameron before building, per the same design-decision-check discipline as everything else in this phase.
 
 Contract: `POST /v1/players/identify` (`x-permission-category: "players"`) — `PlayerIdentifyRequestDTO { profileId, gamertag }` → `PlayerIdentifyResultDTO { success, message, profileId?, username? }`. `409 not_bedrock` if `profileId` isn't a Bedrock id (`xuid_` prefix) — this route only makes sense for Bedrock, since Java usernames already resolve from `usercache.json`. `EXPECTED_TOTAL` 125→126. Inserted as a surgical text edit next to `/v1/players/hidden`/`PlayerMigrateRequestDTO` rather than a full JSON parse-and-rewrite — the latter was tried first and produced a 20,000-line diff by silently reformatting unrelated pre-existing compact JSON blocks elsewhere in the file; reverted.
 
@@ -8506,7 +8508,7 @@ Fixed in the shared component, not locally in `WorldSlotCard.svelte`, since ever
 ### P12.4j — P12.4i's fix wasn't enough; remove the nested-flex tooltip wrapper causing it
 **Status:** DONE. P12.4i's `min-width: 0`/`appearance: none` fix did not resolve it — Cameron rebuilt and the four action buttons were still visibly uneven and not lined up into a 2×2 grid. The actual structural problem sat one layer up: `WorldSlotCard.svelte` wrapped Activate/Convert/Delete in a `<span class="hint" title="...">` purely to carry a tooltip, and that span was *both* a flex item of `.actions-row` (needing `flex: 1` from its parent) *and* its own flex container sizing its child button via `width: 100%` — a percentage width resolving against a size (the span's own flex-basis-derived width) that isn't necessarily settled yet. That two-hop indirection, not the button's own min-width floor, is what P12.4i's fix couldn't reach.
 
-Removed the indirection instead of patching it again: `Button.svelte` gained a real `title` prop, set directly on the `<button>` element, so a tooltip no longer needs a wrapping element at all. `WorldSlotCard.svelte`'s four action buttons now pass `title` straight to `Button` and sit as plain, direct children of `.actions-row` — `flex: 1; min-width: 0` on `.actions-row > .btn` now has nothing between it and the actual button box. The `.hint`/`.hint :global(.btn)` rules and every `<span class="hint">` wrapper are gone from this file entirely, not just this one instance patched. Confirmed in Chromium the four buttons now measure equal (109–111px each, sub-2px apart — ordinary flex-basis rounding, not a real gap) with the exact real `campak` data shape; the real proof is still Cameron's own Tauri rebuild, same as P12.4h/i.
+Removed the indirection instead of patching it again: `Button.svelte` gained a real `title` prop, set directly on the `<button>` element, so a tooltip no longer needs a wrapping element at all. `WorldSlotCard.svelte`'s four action buttons now pass `title` straight to `Button` and sit as plain, direct children of `.actions-row` — `flex: 1; min-width: 0` on `.actions-row > .btn` now has nothing between it and the actual button box. The `.hint`/`.hint :global(.btn)` rules and every `<span class="hint">` wrapper are gone from this file entirely, not just this one instance patched. Confirmed in Chromium the four buttons now measure equal (109–111px each, sub-2px apart — ordinary flex-basis rounding, not a real gap) with the exact real `modded-sample` data shape; the real proof is still Cameron's own Tauri rebuild, same as P12.4h/i.
 **Files:** `clients/desktop-web/src/lib/components/base/Button.svelte`, `clients/desktop-web/src/lib/sections/worlds/WorldSlotCard.svelte`
 **What:** Give `Button` a real `title` prop and remove `WorldSlotCard.svelte`'s tooltip-only wrapper spans, eliminating the nested-flex structure P12.4i's fix couldn't reach.
 **Verify:** `npx svelte-check --tsconfig ./tsconfig.json` (only the 7 pre-existing unrelated errors), `npx prettier --check src/lib/components/base/Button.svelte src/lib/sections/worlds/WorldSlotCard.svelte`, `npm run build`, `npm run test:screen-worlds-backups`. Real verification is Cameron's own: reload the Tauri app and look at the Worlds tab.
@@ -8784,7 +8786,7 @@ Session Log itself did need real wiring, done inline (Cameron approved skipping 
 **Batch:** solo
 
 ### P12.3g — Live polish from Cameron's first real-server review: uniform action buttons, hidden sheet scrollbar, flippable health cards
-**Status:** DONE. Cameron's first real look at the Players tab against real `campak` data (P12.3a-f all confirmed working end to end — real profile, real 4-event session log) surfaced three small live-UI notes, fixed inline as found rather than planned first, matching the P12.3f precedent for contained client-only work:
+**Status:** DONE. Cameron's first real look at the Players tab against real `modded-sample` data (P12.3a-f all confirmed working end to end — real profile, real 4-event session log) surfaced three small live-UI notes, fixed inline as found rather than planned first, matching the P12.3f precedent for contained client-only work:
 
 1. **Data Management action buttons were different widths** (`PlayerDetailSheet.svelte`'s `.actions`) — `align-items: flex-start` let each `Button` shrink to its own label's width. Changed to `align-items: stretch` so every action (Migrate to Offline UUID, Migrate to Custom UUID, Duplicate, Delete Player Data, Hide Profile, and the inline confirm/gamertag rows) fills the same full width.
 2. **Visible scrollbar track on the Player Profile sheet** — `Sheet.svelte`'s `.sheet` is the actual scrolling element for every sheet in the app, not just this one. Applied the same `scrollbar-width: none` + `.sheet::-webkit-scrollbar { display: none; }` pattern already established in `FirstLaunchGate.svelte` for the onboarding gate — content still scrolls, the track just doesn't render. Fixes this for every sheet, not only Players.
@@ -9154,7 +9156,7 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 **Status:** DONE
 **Files:** `sidecar/bedrock/BedrockSidecar.xcodeproj/project.pbxproj`, `docs/msc2/rolling-plan.md`
 **What:** Restore the Intel kernel checksum build setting in the Release sidecar configuration. P12.45 updated the initramfs checksum but accidentally dropped this companion setting, causing `npm run prepare:agent` to fail under `set -u` before the newly fixed sidecar could be staged.
-**Verify:** `xcodebuild build -project sidecar/bedrock/BedrockSidecar.xcodeproj -scheme BedrockSidecar -configuration Release -derivedDataPath /tmp/msc2-bedrock-sidecar-release ARCHS=x86_64 ONLY_ACTIVE_ARCH=NO MSC2_BEDROCK_APPLIANCE_DIR=/Users/camerontemple/msc2/sidecar/bedrock/Resources CODE_SIGNING_ALLOWED=NO`
+**Verify:** `xcodebuild build -project sidecar/bedrock/BedrockSidecar.xcodeproj -scheme BedrockSidecar -configuration Release -derivedDataPath /tmp/msc2-bedrock-sidecar-release ARCHS=x86_64 ONLY_ACTIVE_ARCH=NO MSC2_BEDROCK_APPLIANCE_DIR=/Users/example/msc2/sidecar/bedrock/Resources CODE_SIGNING_ALLOWED=NO`
 **Commit:** `P12.46: restore release appliance validation inputs`
 **Batch:** solo
 
@@ -10478,7 +10480,7 @@ I measured the open MSC window:
 
 **1240 × 760 pixels**
 
-The configured default is currently **1100 × 760** in [`tauri.conf.json`](/Users/camerontemple/msc2/clients/desktop-web/src-tauri/tauri.conf.json:17).
+The configured default is currently **1100 × 760** in [`tauri.conf.json`](../../clients/desktop-web/src-tauri/tauri.conf.json:17).
 
 So the likely change is:
 
@@ -10522,7 +10524,7 @@ It should:
 
 ### 6. Sheets should not close when clicking outside
 
-I found the shared cause: [`Sheet.svelte`](/Users/camerontemple/msc2/clients/desktop-web/src/lib/components/base/Sheet.svelte:19) currently closes whenever the click lands on the backdrop.
+I found the shared cause: [`Sheet.svelte`](../../clients/desktop-web/src/lib/components/base/Sheet.svelte:19) currently closes whenever the click lands on the backdrop.
 
 The better global behavior is:
 
@@ -11291,7 +11293,7 @@ This gives Java and Bedrock parallel concepts without pretending their underlyin
 - **Status:** DONE
 - **Files:** `sidecar/bedrock/BedrockSidecarCore.swift`, `crates/msc-infrastructure/src/port_diagnostics.rs`, `crates/msc-infrastructure/src/bedrock_sidecar.rs`, `crates/msc-application/src/bedrock_settings.rs`, `crates/msc-agent/src/routes/bedrock_runtime.rs`, `crates/msc-agent/src/routes/lifecycle.rs`, `crates/msc-agent/src/routes/network_diagnostics.rs`, `docs/msc2/rolling-plan.md`
 - **What:** Correct the live Intel-macOS failure in which BDS answered at the VM address but the host listener accepted and stranded every player datagram. Restore MSC 1's explicit reusable `0.0.0.0` UDP bind, forward and report client/guest connection failures, expire idle flow pairs, and require a real RakNet ping through the host listener before the sidecar emits ready. Keep only this single-port VM path on `transport=raknet`; native Linux and Windows retain `transport=nethernet`. The P15.64 NetherNet conclusion was drawn while the relay itself was broken and could not distinguish a transport failure from a forwarding failure. Replace the Bedrock TCP connectivity check with a protocol-valid RakNet ping, and force-terminate a supervised sidecar when its Rust owner is dropped so stopped/replaced agents do not accumulate orphan helpers. Live acceptance must prove loopback, LAN, hotspot/public forwarding, Xbox Broadcast transfer, bounded relay sockets after repeated probes, and sidecar cleanup after an agent restart.
-- **Implementation note (2026-09-22):** The live diagnosis proved `192.168.64.64:19000` returned a Bedrock 1.26.51/protocol-2193 RakNet pong while both `127.0.0.1:19000` and `10.0.0.142:19000` timed out through the old relay. Xbox Broadcast build 155 was current, the public IP matched its target, and the macOS application firewall was disabled. Twelve detached, listener-free sidecars from earlier agent runs were terminated without touching the current agent, VM, server, or Broadcast helper.
+- **Implementation note (2026-09-22):** The live diagnosis proved `192.168.64.2:19000` returned a Bedrock 1.26.51/protocol-2193 RakNet pong while both `127.0.0.1:19000` and `192.168.1.10:19000` timed out through the old relay. Xbox Broadcast build 155 was current, the public IP matched its target, and the macOS application firewall was disabled. Twelve detached, listener-free sidecars from earlier agent runs were terminated without touching the current agent, VM, server, or Broadcast helper.
 - **Verify:** `cargo fmt --all -- --check && cargo clippy -p msc-infrastructure -p msc-application -p msc-agent --lib --bins --no-deps -- -D warnings && xcodebuild -quiet -project sidecar/bedrock/BedrockSidecar.xcodeproj -scheme BedrockSidecar -configuration Debug -derivedDataPath /tmp/msc2-p15-65-build build CODE_SIGNING_ALLOWED=NO`
 - **Batch:** N — Bedrock transport and relay repair
 - **Commit:** `P15.65: repair macOS Bedrock player connectivity`
@@ -11301,7 +11303,7 @@ This gives Java and Bedrock parallel concepts without pretending their underlyin
 - **Status:** DONE
 - **Files:** `sidecar/bedrock/BedrockSidecarCore.swift`, `crates/msc-infrastructure/src/port_diagnostics.rs`, `crates/msc-application/src/bedrock_settings.rs`, `crates/msc-agent/src/routes/lifecycle.rs`, `crates/msc-agent/src/routes/network_diagnostics.rs`, `docs/msc2/rolling-plan.md`
 - **What:** Correct P15.65 against the Bedrock 1.26.51 runtime evidence and its bundled transport documentation. Current BDS requires NetherNet: TCP on the configured server port carries its HTTP signaling handshake, while a separately advertised UDP range carries WebRTC gameplay. Replace the obsolete single-port RakNet assumption with a host-to-guest TCP relay on the configured port and 32 bounded UDP relays on adjacent ports. Write the matching `server-udp-ports` mapping with the detected public IP (or LAN fallback), validate readiness by receiving BDS's HTTP response through the host TCP relay, and make Bedrock connectivity diagnostics test the TCP signaling socket. The public router contract is now TCP `server-port` plus UDP `server-port+1` through `server-port+32`; the old UDP-only rule cannot carry NetherNet.
-- **Implementation note (2026-09-22):** A controlled live boot reproduced BDS 1.26.51's explicit error that NetherNet is the only supported transport and players cannot connect with RakNet. The replacement relay then completed a clean NetherNet boot, returned HTTP 404 from BDS through both `127.0.0.1:19000` and `10.0.0.142:19000`, and exposed the bounded host UDP range `19001-19032`. BDS rejects multiple IP prefixes in one `server-udp-ports` value, so MSC advertises the public address for forwarded and NAT-hairpin clients, falling back to the LAN address when public discovery is unavailable.
+- **Implementation note (2026-09-22):** A controlled live boot reproduced BDS 1.26.51's explicit error that NetherNet is the only supported transport and players cannot connect with RakNet. The replacement relay then completed a clean NetherNet boot, returned HTTP 404 from BDS through both `127.0.0.1:19000` and `192.168.1.10:19000`, and exposed the bounded host UDP range `19001-19032`. BDS rejects multiple IP prefixes in one `server-udp-ports` value, so MSC advertises the public address for forwarded and NAT-hairpin clients, falling back to the LAN address when public discovery is unavailable.
 - **Verify:** `cargo fmt --all -- --check && cargo clippy -p msc-infrastructure -p msc-application -p msc-agent --lib --bins --no-deps -- -D warnings && xcodebuild -quiet -project sidecar/bedrock/BedrockSidecar.xcodeproj -scheme BedrockSidecar -configuration Debug -derivedDataPath /tmp/msc2-p15-66-build build CODE_SIGNING_ALLOWED=NO`
 - **Batch:** N — NetherNet sidecar transport correction
 - **Commit:** `P15.66: support NetherNet through the macOS sidecar`
@@ -11311,7 +11313,7 @@ This gives Java and Bedrock parallel concepts without pretending their underlyin
 - **Status:** DONE
 - **Files:** `crates/msc-infrastructure/src/xbox_broadcast.rs`, `crates/msc-agent/src/routes/networking.rs`, `docs/msc2/rolling-plan.md`
 - **What:** Configure MCXboxBroadcast build 155 for the current NetherNet transport. Its server status query still sends a legacy RakNet ping, so make the configured server name, public address, and signaling port authoritative instead of allowing that expected query failure to suppress the Xbox session. Give Broadcast a stable 16-port UDP ICE range immediately after BDS's 32-port gameplay range so the router contract remains one contiguous UDP range. For server port `19001`, TCP `19001` carries BDS signaling, UDP `19002-19033` carries BDS gameplay, and UDP `19034-19049` carries the temporary Xbox friend-session join before transfer.
-- **Implementation note (2026-09-22):** Live build-155 output showed `Failed to ping server`, followed by successful Microsoft authentication and `NetherNet Broadcaster started`. Its generated config still had `query-server: true`, `config-fallback: false`, and an unrestricted `ice-port-range` of `0-0`. The configured destination itself was correct at `73.135.129.135:19001`; this step removes the incompatible ping as a visibility dependency and bounds the helper's ports.
+- **Implementation note (2026-09-22):** Live build-155 output showed `Failed to ping server`, followed by successful Microsoft authentication and `NetherNet Broadcaster started`. Its generated config still had `query-server: true`, `config-fallback: false`, and an unrestricted `ice-port-range` of `0-0`. The configured destination itself was correct at `203.0.113.10:19001`; this step removes the incompatible ping as a visibility dependency and bounds the helper's ports.
 - **Verify:** `cargo fmt --all -- --check && cargo clippy -p msc-infrastructure -p msc-agent --lib --bins --no-deps -- -D warnings`
 - **Batch:** N — Xbox Broadcast NetherNet correction
 - **Commit:** `P15.67: keep Xbox Broadcast visible with NetherNet`
@@ -11329,7 +11331,7 @@ This gives Java and Bedrock parallel concepts without pretending their underlyin
 
 - **Status:** DONE (verification failed; accepted as the recorded result) — the signed sidecar still receives `EHOSTUNREACH` from the user-owned LaunchDaemon context; the approved service boundary remains unchanged
 - **Files:** `sidecar/bedrock/BedrockSidecarCore.swift`, `docs/msc2/rolling-plan.md`
-- **What:** Separate the BDS, VM, relay, and macOS service-context failure modes with live checks. The guest reaches `Server started`, direct host-to-guest TCP returns BDS's HTTP 404, and the identical signed sidecar passes its relay proof when launched in the foreground. From MSC's user-owned system LaunchDaemon, however, both Network.framework and connected POSIX sockets (including explicit `IP_BOUND_IF` selection and explicit client/server entitlements) fail to reach the VZ NAT guest; the latter reports `EHOSTUNREACH`. Retain the 30-second readiness deadline and surface TCP relay failures in the Bedrock console so the real socket error is visible instead of only the generic startup modal. The failed live verification proves the remaining issue is the macOS process/service boundary, not BDS, the VM, NetherNet configuration, Xfinity forwarding, or relay readiness timing.
+- **What:** Separate the BDS, VM, relay, and macOS service-context failure modes with live checks. The guest reaches `Server started`, direct host-to-guest TCP returns BDS's HTTP 404, and the identical signed sidecar passes its relay proof when launched in the foreground. From MSC's user-owned system LaunchDaemon, however, both Network.framework and connected POSIX sockets (including explicit `IP_BOUND_IF` selection and explicit client/server entitlements) fail to reach the VZ NAT guest; the latter reports `EHOSTUNREACH`. Retain the 30-second readiness deadline and surface TCP relay failures in the Bedrock console so the real socket error is visible instead of only the generic startup modal. The failed live verification proves the remaining issue is the macOS process/service boundary, not BDS, the VM, NetherNet configuration, router forwarding, or relay readiness timing.
 - **Verify:** `cargo fmt --all -- --check && cargo clippy -p msc-infrastructure -p msc-application -p msc-agent --lib --bins --no-deps -- -D warnings && xcodebuild -quiet -project sidecar/bedrock/BedrockSidecar.xcodeproj -scheme BedrockSidecar -configuration Debug -derivedDataPath /tmp/msc2-p15-69-build build CODE_SIGNING_ALLOWED=NO` — then rebuild/restart the installed agent, start Bedrock, and confirm the start operation succeeds and remains running; `curl -i --max-time 3 http://127.0.0.1:19001/` must return BDS's HTTP response through the daemon-owned relay.
 - **Batch:** N — Bedrock transport and relay repair
 - **Commit:** `P15.69: diagnose macOS daemon relay routing`
@@ -11431,7 +11433,7 @@ context. Direct child-process launch remains only an explicit development path.
 
 - **Status:** DONE
 - **Files:** `tools/phase15/inspect_macos_bedrock_helper.py`, `docs/msc2/bedrock/macos-privileged-helper-acceptance.md`, `docs/msc2/rolling-plan.md`
-- **What:** Run the final connection chain only after the installed helper and explicit mappings hold. Record separate results for iPad direct LAN connection to `10.0.0.142:19001`, iPad direct remote connection to the public address over cellular or a true off-LAN network, Xbox Broadcast discovery and transfer on the home LAN, reconnects without restarting BDS, and two simultaneous clients when available. Correlate each attempt with the BDS, helper, relay, and Broadcast logs so an intermittent NetherNet establishment failure is distinguished from discovery, forwarding, or server death. Any remaining failure must name the first boundary that lacks traffic instead of returning the old generic startup diagnosis.
+- **What:** Run the final connection chain only after the installed helper and explicit mappings hold. Record separate results for iPad direct LAN connection to `192.168.1.10:19001`, iPad direct remote connection to the public address over cellular or a true off-LAN network, Xbox Broadcast discovery and transfer on the home LAN, reconnects without restarting BDS, and two simultaneous clients when available. Correlate each attempt with the BDS, helper, relay, and Broadcast logs so an intermittent NetherNet establishment failure is distinguished from discovery, forwarding, or server death. Any remaining failure must name the first boundary that lacks traffic instead of returning the old generic startup diagnosis.
 - **Verify:** `python3 tools/phase15/inspect_macos_bedrock_helper.py --live --server-port 19001 --connection-report`
 - **Batch:** N7 — Bedrock product acceptance
 - **Commit:** `P15.77: complete bedrock connection acceptance`
@@ -12303,7 +12305,7 @@ Status: awaiting verification
 Files: crates/msc-domain/src/bedrock.rs, crates/msc-agent/src/routes/lifecycle.rs, crates/msc-agent/src/routes/players.rs, docs/msc2/rolling-plan.md
 What: Fix the online roster displaying Unknown Player after a named Bedrock join. GET /v1/players incorrectly enumerated saved world LevelDB records, including unnamed server UUID records and disconnected players. Track actual connected players in lifecycle state from the existing Bedrock connection/disconnection parser; use that roster for the online endpoint, remove players on disconnect, and clear it for successful starts and termination. Persist console-provided name/XUID pairs through the existing name cache. Trim the XUID at its comma delimiter so modern disconnect messages' pfid field cannot become part of the account ID. Keep world player-data discovery separate.
 Evidence: Inspected the screenshot's named connection and disconnect messages and traced the online endpoint to saved world records. Cargo check, domain clippy, agent clippy (allowing the existing unused-mut warning), formatting, git diff checks, and prepare:agent debug build passed. The updated agent is staged for the next dev run; the running Minecraft server was not stopped or replaced. MSC 1 oracle checkout is unavailable at its documented path on this host. No tests created or run.
-Verify: Stop the Bedrock server, restart `npx tauri dev`, Repair Service to load the latest debug agent, reconnect, and start the server. Join: Players must show camkage; leave: it must disappear from Online Now. Player Data remains a separate saved-world view.
+Verify: Stop the Bedrock server, restart `npx tauri dev`, Repair Service to load the latest debug agent, reconnect, and start the server. Join: Players must show ExamplePlayer; leave: it must disappear from Online Now. Player Data remains a separate saved-world view.
 Commit: P14.71: track bedrock online names from runtime events
 Batch: solo
 
@@ -12459,7 +12461,7 @@ Batch: solo
 Status: awaiting verification
 Files: clients/desktop-web/src/lib/sections/players-online/model.ts, clients/desktop-web/src/lib/sections/players-online/PlayerDetailSheet.svelte, docs/msc2/rolling-plan.md
 What: Use a saved skin lookup override for the profile portrait, skin preview, and player-data card. For Bedrock, use the gamertag with mc-heads.net's isometric head endpoint, since its frontal avatar endpoint falls back to Steve for the same gamertag. Without an override, use the Bedrock profile's gamertag instead of its dotted Floodgate-style identifier.
-Verify: Run `npx tauri dev` from `clients/desktop-web`. Save `camkage` as a Bedrock skin lookup and confirm the profile portrait, head preview, and Player Data card show the custom skin after saving and after closing/reopening the sheet. Confirm Java player images still use the frontal avatar.
+Verify: Run `npx tauri dev` from `clients/desktop-web`. Save `ExamplePlayer` as a Bedrock skin lookup and confirm the profile portrait, head preview, and Player Data card show the custom skin after saving and after closing/reopening the sheet. Confirm Java player images still use the frontal avatar.
 Commit: P14.86: apply bedrock skin lookup to player images
 Batch: solo
 
@@ -13365,7 +13367,7 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 - **Historical disposition:** Done — Cameron verified, 2026-09-29
 - **Files:** `docs/msc2/rolling-plan.md`
 - **What:** Create branch `feature/world-map-3d` and linked worktree
-  `/Users/camerontemple/msc2-world-map` from `main` at
+  `/Users/example/msc2-world-map` from `main` at
   `1a82357e300e3a8f70d3fae5cf19219d45c536c9`. Keep the experiment's planning
   changes and later implementation commits on this branch.
 - **Verify:** `git worktree list --porcelain`
@@ -13414,7 +13416,7 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
   Bedrock resource pack, encode one 4×4-chunk Vantage tile, and open it in the
   Vantage Three.js engine with camera controls. Keep the original save and all
   generated world and texture data outside Git.
-- **Result:** The selected complete area near spawn begins at chunk `(-3, 2)`.
+- **Result:** The selected complete area near spawn begins at chunk `(private chunk origin omitted)`.
   The exporter generated 27,146 solid faces, 529 water faces, 15 image layers,
   zero texture fallback faces and zero missing-shape blocks from actual BDS
   block states. The tool and local viewer are in
@@ -13455,7 +13457,7 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
   Repeated reads of the same offline copy varied by three buried grass-block
   counts while exported face counts stayed stable; investigate before claiming
   reliable running-world scans.
-- **Verify:** `cd /Users/camerontemple/msc2-world-map/tools/world-map-proof/viewer && MSC_WORLD_MAP_PROOF_OUTPUT=/private/tmp/msc-world-map-output npm run dev` — reload the viewer and compare with Cameron's P18.2 screenshot: grass/foliage should no longer be grey, buried-face spikes should be reduced, and shore water should be more continuous. Orbit and zoom to find remaining holes. This advances the visible Bedrock exploration promise; the next candidate is actual biome tint and full surface fidelity with a representative stairs/glass area before live-world reads.
+- **Verify:** `cd /Users/example/msc2-world-map/tools/world-map-proof/viewer && MSC_WORLD_MAP_PROOF_OUTPUT=/private/tmp/msc-world-map-output npm run dev` — reload the viewer and compare with Cameron's P18.2 screenshot: grass/foliage should no longer be grey, buried-face spikes should be reduced, and shore water should be more continuous. Orbit and zoom to find remaining holes. This advances the visible Bedrock exploration promise; the next candidate is actual biome tint and full surface fidelity with a representative stairs/glass area before live-world reads.
 - **Batch:** solo — correct the failed visual proof
 - **Commit:** P18.2a: correct the visible bds terrain proof
 
@@ -13478,7 +13480,7 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
   reach the tile; Cameron's visual check is still needed to confirm appearance.
   Exact biome tint, complex block behavior, safe running-world snapshots,
   in-window controls and live player movement remain open.
-- **Verify:** `cd /Users/camerontemple/msc2-world-map/tools/world-map-proof/viewer && MSC_WORLD_MAP_PROOF_OUTPUT=/private/tmp/msc-world-map-output npm run dev` — reload the viewer and orbit above and below the same terrain. Confirm the grass-side green fringe sits at the *top* of dirt sides, plants stand upright, logs are visible beneath leaves, and the large sky holes from P18.2a are filled by actual lower blocks. This advances the visible Bedrock exploration promise. If it passes, the next candidate proof is a representative area containing stairs and glass plus actual biome tint; if it fails, correct the observed geometry or texture defect first.
+- **Verify:** `cd /Users/example/msc2-world-map/tools/world-map-proof/viewer && MSC_WORLD_MAP_PROOF_OUTPUT=/private/tmp/msc-world-map-output npm run dev` — reload the viewer and orbit above and below the same terrain. Confirm the grass-side green fringe sits at the *top* of dirt sides, plants stand upright, logs are visible beneath leaves, and the large sky holes from P18.2a are filled by actual lower blocks. This advances the visible Bedrock exploration promise. If it passes, the next candidate proof is a representative area containing stairs and glass plus actual biome tint; if it fails, correct the observed geometry or texture defect first.
 - **Batch:** solo — correct the failed visual proof
 - **Commit:** P18.2b: restore bds block depth and texture orientation
 
@@ -13492,12 +13494,12 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
   `tools/world-map-proof/src/render.rs`, `tools/world-map-proof/README.md`,
   `docs/msc2/rolling-plan.md`
 - **What:** Use a private offline copy of Cameron's mature MSC1 BDS world,
-  centered near base coordinates `(-50, 87, 65)`. Allow a selected 4×4 chunk
+  centered near base coordinates `(private coordinates omitted)`. Allow a selected 4×4 chunk
   origin, convert resolver face UVs to the tile's corner and V orientation, render actual stairs
   and glass panes, and read surface biome IDs to select grass/foliage colormap
   tint using the supplied Bedrock climate definitions. Count shapes, fallbacks
   and biome IDs; keep source and output outside Git.
-- **Result:** The chosen area begins at chunk `(-6, 2)` and contains 786
+- **Result:** The chosen area begins at chunk `(private chunk origin omitted)` and contains 786
   placed stairs (including 413 oak and 354 stone) and 124 glass panes. The
   export has 119,399 solid faces, 2,039 water faces, 149 texture layers,
   zero texture fallbacks and zero missing-shape blocks. Surface biome IDs are
@@ -13514,7 +13516,7 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
   UV corner order and V origin and awaits reinspection. Export took 4.4
   seconds and 88 MB peak RSS. Running-world reads,
   in-window controls and live players remain open.
-- **Verify:** `cd /Users/camerontemple/msc2-world-map/tools/world-map-proof/viewer && MSC_WORLD_MAP_PROOF_OUTPUT=/private/tmp/msc-bds-base-proof/output npm run dev` — reload the standalone viewer, move near the base at `(-50, 87, 65)`, and check that grass-side fringe is horizontal at the top of dirt and wood grain is upright. Inspect oak/stone stair direction and corners, glass-pane connections and see-through cutouts, and grass/foliage color. Inspect `/private/tmp/msc-bds-base-proof/output/summary.txt` for biome IDs and fallback counts. This advances the agreed Bedrock 3D exploration promise. The next proof should address any visible shape defects; if sound, select an area with clearly different climate values and full glass blocks before claiming broad biome/glass fidelity, then move to safe running-world refresh.
+- **Verify:** `cd /Users/example/msc2-world-map/tools/world-map-proof/viewer && MSC_WORLD_MAP_PROOF_OUTPUT=/private/tmp/msc-bds-base-proof/output npm run dev` — reload the standalone viewer, move near the base at `(private coordinates omitted)`, and check that grass-side fringe is horizontal at the top of dirt and wood grain is upright. Inspect oak/stone stair direction and corners, glass-pane connections and see-through cutouts, and grass/foliage color. Inspect `/private/tmp/msc-bds-base-proof/output/summary.txt` for biome IDs and fallback counts. This advances the agreed Bedrock 3D exploration promise. The next proof should address any visible shape defects; if sound, select an area with clearly different climate values and full glass blocks before claiming broad biome/glass fidelity, then move to safe running-world refresh.
 - **Batch:** solo — mature offline BDS geometry proof
 - **Commit:** P18.2c: prove mature bds shapes and surface biome tint
 
@@ -13539,7 +13541,7 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
   center post; a perfectly flat sheet is not claimed. Lantern UV regions are
   a bounded approximation of the supplied 16×16 first animation frame, not
   full animated Bedrock model fidelity.
-- **Verify:** `cd /Users/camerontemple/msc2-world-map/tools/world-map-proof/viewer && MSC_WORLD_MAP_PROOF_OUTPUT=/private/tmp/msc-bds-base-proof/output npm run dev` — reload the viewer and compare the same base stairs, fence line, lanterns and windows against Cameron's P18.2c screenshots and his in-game knowledge. Stairs should face the intended side, fences should join, lantern bodies should show one coherent light/metal texture, and panes should connect across the opening without the old crossed shape. This advances Bedrock 3D exploration; if a shape still differs, correct that exact state/model path before running-world refresh.
+- **Verify:** `cd /Users/example/msc2-world-map/tools/world-map-proof/viewer && MSC_WORLD_MAP_PROOF_OUTPUT=/private/tmp/msc-bds-base-proof/output npm run dev` — reload the viewer and compare the same base stairs, fence line, lanterns and windows against Cameron's P18.2c screenshots and his in-game knowledge. Stairs should face the intended side, fences should join, lantern bodies should show one coherent light/metal texture, and panes should connect across the opening without the old crossed shape. This advances Bedrock 3D exploration; if a shape still differs, correct that exact state/model path before running-world refresh.
 - **Batch:** solo — correct failed shape verification
 - **Commit:** P18.2d: correct mature bds state-dependent shapes
 
@@ -13560,7 +13562,7 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
   The correction changes pane geometry only; the in-view transparency and
   connections await Cameron's comparison screenshots. It is a visual proof of
   vanilla glass panes, not all stained/tinted glass or full glass blocks.
-- **Verify:** `cd /Users/camerontemple/msc2-world-map/tools/world-map-proof/viewer && MSC_WORLD_MAP_PROOF_OUTPUT=/private/tmp/msc-bds-base-proof/output npm run dev` — reload the viewer and view the same house windows from outside and inside. The panes should form a flat sheet along each window, connect across adjacent blocks, and show the house behind the clear center with narrow visible edges. Compare with Cameron's before/after screenshots. This advances the Bedrock 3D exploration promise; if it passes, the next proof can use the gold farm's 211 full glass blocks and the complete ice-mountain 4×4 area at chunk `(-35,-17)` to assess full glass and distinct climates.
+- **Verify:** `cd /Users/example/msc2-world-map/tools/world-map-proof/viewer && MSC_WORLD_MAP_PROOF_OUTPUT=/private/tmp/msc-bds-base-proof/output npm run dev` — reload the viewer and view the same house windows from outside and inside. The panes should form a flat sheet along each window, connect across adjacent blocks, and show the house behind the clear center with narrow visible edges. Compare with Cameron's before/after screenshots. This advances the Bedrock 3D exploration promise; if it passes, the next proof can use the gold farm's 211 full glass blocks and the complete ice-mountain 4×4 area at chunk `(private chunk origin omitted)` to assess full glass and distinct climates.
 - **Batch:** solo — repair visual regression before new area proof
 - **Commit:** P18.2e: restore see-through bds glass panes
 
@@ -13597,10 +13599,10 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 - **Files:** `tools/world-map-proof/src/render.rs`,
   `tools/world-map-proof/README.md`, `docs/msc2/rolling-plan.md`
 - **What:** Export a separate complete 4×4 tile around Cameron's gold farm
-  at `(-11, 113, -53)` from the same private offline copy. Add fallback block
+  at `(private coordinates omitted)` from the same private offline copy. Add fallback block
   names to the summary so texture misses can be distinguished from glass
   defects. Keep the output outside Git.
-- **Result:** The tile starting at chunk `(-3, -5)` has all 16 chunks and 208
+- **Result:** The tile starting at chunk `(private chunk origin omitted)` has all 16 chunks and 208
   full glass blocks. It has 103,160 solid faces, 382 water faces, 159 texture
   layers and no missing shapes. Its 42 fallback faces all belong to
   `minecraft:sticky_piston_arm_collision`; they do not indicate missing glass
@@ -13608,7 +13610,7 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
   columns is unresolved and should not be treated as a mapped climate.
 - **Verify:** From `tools/world-map-proof/viewer`, run
   `MSC_WORLD_MAP_PROOF_OUTPUT=/private/tmp/msc-bds-gold-proof/output npm run dev`.
-  Navigate to the gold farm near `(-11, 113, -53)` and inspect full glass
+  Navigate to the gold farm near `(private coordinates omitted)` and inspect full glass
   blocks from outside and through multiple adjoining blocks. Their interior
   must stay clear and their borders should connect without opaque faces.
   Check `/private/tmp/msc-bds-gold-proof/output/summary.txt` for counts and
@@ -13624,13 +13626,13 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 - **Files:** `tools/world-map-proof/src/render.rs`,
   `tools/world-map-proof/README.md`, `docs/msc2/rolling-plan.md`
 - **What:** Export a complete 4×4 tile around Cameron's ice mountain at
-  `(-516, 188, -225)` using the same offline BDS copy. For this bounded proof,
+  `(private coordinates omitted)` using the same offline BDS copy. For this bounded proof,
   map surface biome IDs `183`, `185`, and `189` to frozen peaks, grove, and
   stony peaks using the saved world's Bedrock biome definitions for climate
   values. Clamp freezing temperatures before sampling the supplied grass and
   foliage colormaps. Keep unmapped IDs on the existing representative tint
   and identify them in the summary.
-- **Result:** Tile origin `(-35, -17)` contains all 16 chunks, 182,193 solid
+- **Result:** Tile origin `(private chunk origin omitted)` contains all 16 chunks, 182,193 solid
   faces, 2,576 water faces, 79 texture layers, and no texture or shape
   fallbacks. It contains 493 surface columns with ID `183`, 109 with `185`,
   and 1,751 with `189`; the mapped grass colors are `[128, 180, 150]` for
@@ -13640,7 +13642,7 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
   registry handling is proven. Cameron confirmed the visible mountain result.
 - **Verify:** From `tools/world-map-proof/viewer`, run
   `MSC_WORLD_MAP_PROOF_OUTPUT=/private/tmp/msc-bds-ice-proof/output npm run dev`.
-  Look around `(-516, 188, -225)` for actual ice/snow geometry and compare
+  Look around `(private coordinates omitted)` for actual ice/snow geometry and compare
   grass/foliage near the frozen and stony areas; the latter should have a
   distinct warmer tint. Inspect `summary.txt` for source biome counts and
   mapped colors. This advances the Bedrock 3D world's biome-color promise.
@@ -13730,7 +13732,7 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
   `[1,26,30,31,0]` against `[1,26,31,1,0]` as intended.
 - **Verify:** Run the exporter with
   `/private/tmp/msc-biome-registry-1.26.30.json` as the fifth argument after
-  `-35,-17`; it should stop with a `biome registry version ... does not match
+  `$CHUNK_X,$CHUNK_Z`; it should stop with a `biome registry version ... does not match
   save version ...` error and write no new tile. Run without that argument and
   confirm `summary.txt` still says `provisional`. This protects the Bedrock
   Worlds-tab biome legend from silent nearby-version assumptions. The exact
@@ -13765,7 +13767,7 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
   in debug builds and otherwise blocks the new CLI proof command.
 - **Verify:** Start a disposable Bedrock world through MSC and make a visible
   block change. After loading the new development agent, run
-  `cd /Users/camerontemple/msc2-world-map && target/debug/msc --json world map-snapshot`.
+  `cd /Users/example/msc2-world-map && target/debug/msc --json world map-snapshot`.
   The completed operation must report `worldPath`, `bytesCopied`, and
   `holdMillis`; BDS stays running and writable. Run
   `tools/world-map-proof/target/release/msc-world-map-proof <worldPath>
@@ -13791,7 +13793,7 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
   until Cameron confirms the agent and BDS both survive a new capture.
 - **Verify:** After loading the repaired development agent with an MSC-managed
   BDS server running, run
-  `cd /Users/camerontemple/msc2-world-map && MSC2_DATA_DIR="$HOME/Library/Application Support/MSC 2" target/debug/msc --json world map-snapshot`.
+  `cd /Users/example/msc2-world-map && MSC2_DATA_DIR="$HOME/Library/Application Support/MSC 2" target/debug/msc --json world map-snapshot`.
   Confirm the operation reports a `worldPath`, the agent and BDS stay running,
   and a new block can still be placed. Then export the snapshot near the
   diamond pillar and confirm that its shape appears in the 3D proof viewer.
@@ -13859,9 +13861,9 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
   and minimum, median, and maximum rather than treating one quick capture as
   a safe automatic interval. Cameron is importing the mature Bedrock world;
   this tool does not change server selection or automate the captures.
-- **Verify:** With the mature `theboyslatest` world imported and running through
+- **Verify:** With the mature `bedrock-sample` world imported and running through
   MSC, use the three-sample command in `tools/world-map-proof/README.md` for
-  the base at 4×4 origin `(-6, 2)`. Press Enter separately for each capture,
+  the base at 4×4 origin `(private chunk origin omitted)`. Press Enter separately for each capture,
   confirm BDS remains running and writable after each, and record the printed
   timing range. This measures variation for one developed Bedrock tile toward
   the Worlds-tab 3D map. It does not yet measure whole-world streaming or
@@ -13909,7 +13911,7 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
   recording each result's `worldPath`. First make no terrain edit, then run the
   command in `tools/world-map-proof/README.md` with a fresh output directory;
   it should export no tiles. Capture a third snapshot after changing one block
-  within the base tile beginning at `(-6, 2)`, and run the same command using
+  within the base tile beginning at `(private chunk origin omitted)`, and run the same command using
   the second and third paths and a new output directory. It should export
   `tile_-6_2` and skip its unchanged neighboring tiles. Confirm BDS remains
   writable and the block appears when that tile is viewed. This makes saved
@@ -13960,7 +13962,7 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
   a polling watcher over the already authenticated console-tail route so the
   current installed agent can expose the pack samples without a service reload.
 - **Verify:** Start the BDS server with the P18.3a pack and run
-  `cd /Users/camerontemple/msc2-world-map && python3 tools/world-map-proof/watch_bedrock_player_feed.py --poll --server theboyslatest`.
+  `cd /Users/example/msc2-world-map && python3 tools/world-map-proof/watch_bedrock_player_feed.py --poll --server bedrock-sample`.
   Join from a console client; current XYZ and yaw should change as the player
   moves and turns, and the next roster should be empty after disconnect.
   Once the corrected agent is loaded, `msc console follow` should also connect
@@ -15023,7 +15025,7 @@ Cameron directed the implemented steps awaiting verification to be marked Done a
 
 **Commit:** `P16.48: implement windows package repair and safe removal`.
 **Implementation:** Expose Windows maintenance; add an MSC repair/removal chooser and explicit retained-data/failure copy. Same-product repair restores all package bytes and can match a legacy copied agent to compiled hashes despite missing installed payload files. Owned removal snapshots/stops safely, disables boot during file removal and detaches only at checked commit; rollback before detachment retains stored Windows credentials and restores metadata, ownership and boot/running state. Major-upgrade removal skips service cleanup. Ordinary removal retains server/data/credentials and copied recovery builds; separately confirmed full removal validates/deletes only the protected fixed cache before MSI runs with no service. Later commit failure after detachment cannot recreate an unreadable Windows password; recovery is stated explicitly.
-**Checks:** Native payload/helper rebuild and MSI bundle passed; Rust formatting, platform/helper Clippy, PowerShell parsing/embedded C# compilation and exact database/stream/hash inspection passed. Existing warnings only. Review copy `C:\Users\Cameron\Downloads\msc2-p16.48-windows-x86_64.msi`; exact hashes and owner walkthrough in `release/windows-msi-review.md`. No tests, live install/removal/service mutation, release workflows, tags or publication. Physical acceptance remains Cameron's.
+**Checks:** Native payload/helper rebuild and MSI bundle passed; Rust formatting, platform/helper Clippy, PowerShell parsing/embedded C# compilation and exact database/stream/hash inspection passed. Existing warnings only. Review copy `C:\Users\example\Downloads\msc2-p16.48-windows-x86_64.msi`; exact hashes and owner walkthrough in `release/windows-msi-review.md`. No tests, live install/removal/service mutation, release workflows, tags or publication. Physical acceptance remains Cameron's.
 
 ### P16.49 — Complete coordinated Windows update and recovery
 
@@ -15036,7 +15038,7 @@ Cameron directed the implemented steps awaiting verification to be marked Done a
 
 **Commit:** `P16.49: coordinate windows update and recovery`
 **Implementation:** Retain and reverify signed prior/target protocol-capable MSIs; coordinate protected local service snapshots, one desktop relaunch, authenticated agent and initialized-shell health, previous-package restoration and honest cancellation/failure/reboot outcomes. Add restart continuation and deliberate downgrade recovery. Preserve credentials during health trials, correct Windows automatic-start restoration, and recognize accepted recovery/partial staging during separately confirmed full cleanup. Legacy packages require manual migration to a signed protocol-capable release.
-**Checks:** Desktop/infrastructure/helper Clippy, Rust formatting, Svelte check/frontend build, native release staging/build, validated MSI packaging, PowerShell parsing/embedded C# compilation and read-only exact MSI/property/stream/digest inspection passed with existing warnings. No tests or live installation/service/release operations ran. Review copy `C:\Users\Cameron\Downloads\msc2-p16.49-windows-x86_64.msi`; artifact hashes, limitations and disposable-environment walkthrough are in `release/windows-msi-review.md`. Signed update/recovery acceptance remains pending with Cameron.
+**Checks:** Desktop/infrastructure/helper Clippy, Rust formatting, Svelte check/frontend build, native release staging/build, validated MSI packaging, PowerShell parsing/embedded C# compilation and read-only exact MSI/property/stream/digest inspection passed with existing warnings. No tests or live installation/service/release operations ran. Review copy `C:\Users\example\Downloads\msc2-p16.49-windows-x86_64.msi`; artifact hashes, limitations and disposable-environment walkthrough are in `release/windows-msi-review.md`. Signed update/recovery acceptance remains pending with Cameron.
 
 ### P16.50 — Record complete Windows MSI acceptance and review handoff
 
@@ -15060,7 +15062,7 @@ Cameron directed the implemented steps awaiting verification to be marked Done a
 **Verify:** From `clients/desktop-web`, run `npx tauri bundle --bundles msi --no-sign` after the helper is staged with the corrected command.
 **Batch:** P16.51 only.
 **Commit:** `P16.51: include runtime in windows installer helper`
-**Checks:** Helper release build and Clippy/formatting, Node syntax/staging-script formatting, bundle-only MSI packaging and read-only helper import/payload-hash/MSI Binary comparison passed. No tests, installation/service mutation or publication. Retry candidate `C:\Users\Cameron\Downloads\msc2-p16.51-windows-x86_64.msi`; exact hash and owner failure recorded in the review packet.
+**Checks:** Helper release build and Clippy/formatting, Node syntax/staging-script formatting, bundle-only MSI packaging and read-only helper import/payload-hash/MSI Binary comparison passed. No tests, installation/service mutation or publication. Retry candidate `C:\Users\example\Downloads\msc2-p16.51-windows-x86_64.msi`; exact hash and owner failure recorded in the review packet.
 **Manual acceptance:** Cameron retries fresh Sandbox install/desktop launch with logging. Physical acceptance and independent review remain open; the earlier preparation delay is not claimed resolved.
 
 ### P16.52 - Include the runtime across the Windows Rust payload
@@ -15073,7 +15075,7 @@ Cameron directed the implemented steps awaiting verification to be marked Done a
 **Manual acceptance:** Cameron repeats fresh Sandbox install and desktop launch, then checks packaged CLI/helper launch. Runtime import inspection is not successful app/service acceptance. Preparation delay, signed updates and independent review remain open.
 
 **Commit:** `P16.52: include runtime across windows native payload`
-**Checks:** Normal agent/exporter/helper release staging and desktop release build, validated MSI packaging, normal/delay import inspection, cabinet/payload and embedded-helper/hash comparison, configuration/Node syntax, desktop release Clippy and diff checks passed with existing warnings. No external VC++ runtime imports remain in MSC native binaries; pinned Vantage uses OS UCRT. Desktop formatting check identifies a pre-existing P16.49 protocol-check formatting issue; no Rust source was changed. No tests, live installation/service actions or release publication. Candidate `C:\Users\Cameron\Downloads\msc2-p16.52-windows-x86_64.msi`; exact hash in review packet.
+**Checks:** Normal agent/exporter/helper release staging and desktop release build, validated MSI packaging, normal/delay import inspection, cabinet/payload and embedded-helper/hash comparison, configuration/Node syntax, desktop release Clippy and diff checks passed with existing warnings. No external VC++ runtime imports remain in MSC native binaries; pinned Vantage uses OS UCRT. Desktop formatting check identifies a pre-existing P16.49 protocol-check formatting issue; no Rust source was changed. No tests, live installation/service actions or release publication. Candidate `C:\Users\example\Downloads\msc2-p16.52-windows-x86_64.msi`; exact hash in review packet.
 
 ### P16.53 - Resolve local service account identities during maintenance
 
@@ -15085,7 +15087,7 @@ Cameron directed the implemented steps awaiting verification to be marked Done a
 **Manual acceptance:** Cameron retries repair in the same disposable Sandbox state, confirms no account-translation exception and the agent stays stopped, then checks package removal/reinstall separately. Successful service logon still needs a normal disposable Windows account/password; this step never changes credentials or makes Sandbox use the host account.
 
 **Commit:** `P16.53: resolve local service account aliases for maintenance`
-**Checks:** Read-only real-account lookup reproduced dot-prefix failure and resolved the equivalent qualified name. PowerShell parsing/C# compilation, helper/desktop release builds and Clippy, validated MSI bundle, runtime import inspection and embedded code/DLL/desktop/payload-hash comparisons passed with existing warnings. No tests, live installation/service operations or publication. Retry `C:\Users\Cameron\Downloads\msc2-p16.53-windows-x86_64.msi` in the same disposable stopped-service state; exact digest in review packet. Original guest SCM name remains uninspected; identity failures still refuse maintenance.
+**Checks:** Read-only real-account lookup reproduced dot-prefix failure and resolved the equivalent qualified name. PowerShell parsing/C# compilation, helper/desktop release builds and Clippy, validated MSI bundle, runtime import inspection and embedded code/DLL/desktop/payload-hash comparisons passed with existing warnings. No tests, live installation/service operations or publication. Retry `C:\Users\example\Downloads\msc2-p16.53-windows-x86_64.msi` in the same disposable stopped-service state; exact digest in review packet. Original guest SCM name remains uninspected; identity failures still refuse maintenance.
 
 ### P16.55 - Suppress the release desktop console on Windows
 
@@ -15104,7 +15106,7 @@ Cameron directed the implemented steps awaiting verification to be marked Done a
 **Verify:** From `clients/desktop-web`, run `npx tauri build --bundles msi --no-sign`; update the installed app and reopen Settings uninstall preview, confirming its registered MSI and Windows data directories no longer show these two blockers.
 **Batch:** P16.56 only.
 **Commit:** `P16.56: correct windows uninstall discovery`
-**Checks:** Changed-file Rust formatting, desktop and agent Clippy, full release MSI build and embedded cabinet file comparisons passed with existing warnings. Read-only native uninstall preview against the actual installed package/service reports zero blocked targets, including when launched from the repository. The packaged desktop uses Windows GUI subsystem 2 (P16.55). Downloads candidate: `C:\Users\Cameron\Downloads\msc2-0.1.23-windows-x86_64-local.msi`; SHA256 `03e86bd05529c0a06d676c3c35984950c783ffa37c2695e1ecc59c618b7a9a41`. No live uninstall, service mutation, tests or release publication. Actual Settings preview/removal and Linux physical acceptance remain Cameron's verification.
+**Checks:** Changed-file Rust formatting, desktop and agent Clippy, full release MSI build and embedded cabinet file comparisons passed with existing warnings. Read-only native uninstall preview against the actual installed package/service reports zero blocked targets, including when launched from the repository. The packaged desktop uses Windows GUI subsystem 2 (P16.55). Downloads candidate: `C:\Users\example\Downloads\msc2-0.1.23-windows-x86_64-local.msi`; SHA256 `03e86bd05529c0a06d676c3c35984950c783ffa37c2695e1ecc59c618b7a9a41`. No live uninstall, service mutation, tests or release publication. Actual Settings preview/removal and Linux physical acceptance remain Cameron's verification.
 
 ### P16.57 - Correct Windows uninstall continuation paths
 
@@ -15121,7 +15123,7 @@ Cameron directed the implemented steps awaiting verification to be marked Done a
 **Status:** Done at Cameron's direction (2026-10-08). Previous status: Implemented; awaiting Cameron's verification.
 **Files:** `packaging/windows/desktop-installer-ui.wxs`, `desktop-installer-en-us.wxl`, `docs/msc2/release/windows-msi-review.md`, this plan.
 **What:** Replace the stock blank UserExit screen with an MSC cancellation dialog using the existing installer layout. Explain that the requested operation did not complete and data is retained; provide one Finish action. Route both ordinary and administrative cancellation to the custom dialog and suppress the stock cancellation sequence. No Linux/macOS packaging changes or tests added/run.
-**Verify:** Open `C:\Users\Cameron\Downloads\msc2-0.1.23-windows-x86_64-local.msi`, cancel before installation, and confirm the titled cancellation explanation appears and Finish closes it. Then install and manually verify P16.57 full removal with a retained report.
+**Verify:** Open `C:\Users\example\Downloads\msc2-0.1.23-windows-x86_64-local.msi`, cancel before installation, and confirm the titled cancellation explanation appears and Finish closes it. Then install and manually verify P16.57 full removal with a retained report.
 **Batch:** P16.58 only.
 **Commit:** `P16.58: show windows installer cancellation result`
 **Checks:** Installer XML parsing, full release MSI build and read-only MSI table/cabinet inspection passed. InstallUISequence/AdminUISequence both use the custom cancellation dialog at -2; stock UserExit is disabled; title/body/data copy are resolved and visible in Control rows. Packaged executable/resource bytes match staging, accounting for Tauri's bundle marker. SHA256 `36b18c2c46f322aca89cf0f0caae206d57a2ec774fc273ea9c51c13271a094e7`. Build includes P16.57 worker correction. No live installer, cleanup, tests or release publication; owner visual/full-removal verification remains open.
@@ -15135,7 +15137,7 @@ Cameron directed the implemented steps awaiting verification to be marked Done a
 **Batch:** P16.59 only.
 **Commit:** `P16.59: detach windows uninstall worker from scheduler pipes`
 **Essential regression:** One Windows helper-process scenario uses named events to hold a fixture worker alive while requiring its scheduler output to finish. It calls the production launch function but never calls an MSC uninstall command or accesses MSC data. A negative control reproduces the previous null-stream spawn and confirms its inherited-pipe wait. Synchronization is explicit; time bounds only prevent hangs. Normal runtime is below one second after compilation; the optional negative control waits five seconds before release. Fixture processes are released/waited and their temporary directory removed.
-**Checks:** Authorized regression and negative control passed. Changed-file formatting, agent/platform/desktop Clippy, PowerShell parsing, full MSI build and read-only cabinet/UI-sequence inspection passed with existing warnings. Embedded files match staging and the packaged GUI subsystem and cancellation routes remain correct. Candidate `C:\Users\Cameron\Downloads\msc2-0.1.23-windows-x86_64-local.msi`; SHA256 `517d868341057542f275756cdc2db4951959fac3cc54d88d6386bd2c42783f13`. No real installation/removal, service mutation or publication by the agent. Physical full-uninstall acceptance remains open; the previous P16.58 owner attempt timed out and retained everything.
+**Checks:** Authorized regression and negative control passed. Changed-file formatting, agent/platform/desktop Clippy, PowerShell parsing, full MSI build and read-only cabinet/UI-sequence inspection passed with existing warnings. Embedded files match staging and the packaged GUI subsystem and cancellation routes remain correct. Candidate `C:\Users\example\Downloads\msc2-0.1.23-windows-x86_64-local.msi`; SHA256 `517d868341057542f275756cdc2db4951959fac3cc54d88d6386bd2c42783f13`. No real installation/removal, service mutation or publication by the agent. Physical full-uninstall acceptance remains open; the previous P16.58 owner attempt timed out and retained everything.
 
 ### P16.54 - Normalize executable paths in service ownership checks
 
@@ -15147,7 +15149,7 @@ Cameron directed the implemented steps awaiting verification to be marked Done a
 **Manual acceptance:** Cameron updates the existing Sandbox installation, checks ownership preparation succeeds and the service remains stopped, then reopens the installed MSI for actual Repair. Record any further errors honestly. No credential change or original window-size fix is implied.
 
 **Commit:** `P16.54: normalize service executable ownership comparisons`
-**Checks:** PowerShell parsing/C# compilation, both embedding release builds and Clippy, validated MSI packaging, runtime imports and embedded code/DLL/cabinet-desktop/payload-hash inspection passed with existing warnings. No tests, live installer/service actions or release publication. Review copy `C:\Users\Cameron\Downloads\msc2-p16.54-windows-x86_64.msi`; exact digest in review packet. The exact guest command remains uninspected; next owner retry must distinguish update from Repair.
+**Checks:** PowerShell parsing/C# compilation, both embedding release builds and Clippy, validated MSI packaging, runtime imports and embedded code/DLL/cabinet-desktop/payload-hash inspection passed with existing warnings. No tests, live installer/service actions or release publication. Review copy `C:\Users\example\Downloads\msc2-p16.54-windows-x86_64.msi`; exact digest in review packet. The exact guest command remains uninspected; next owner retry must distinguish update from Repair.
 
 ### P18.48 — Quiet cleanup preview typography
 
@@ -15256,7 +15258,7 @@ Add MSC Settings → Disk space on the selected host → Check reclaimable space
 
 **Status:** Done at Cameron's direction (2026-10-08). Previous status: Implemented; owner cleanup review pending.
 **Files:** Historical world-map proof README; this plan; local generated artifacts moved outside the repository.
-**What:** Archive the nine explicitly identified retired helper-build/binary/inspection paths outside the repo at `/home/camerontemple/.local/state/msc2/retired-map-repair/cleanup-20261006-224556` with a manifest. Remove both untracked retired helper directories from the working tree without destroying their recovery copies. Keep the original source recovery archive, Git history, baseline terrain/player-feed proof sources and current map-staging/map-progress/desktop builds. Label old proof instructions historical under D-042. No worlds, original client instances, credentials, remote staging or shared build/dependency caches touched.
+**What:** Archive the nine explicitly identified retired helper-build/binary/inspection paths outside the repo at `/home/example/.local/state/msc2/retired-map-repair/cleanup-20261006-224556` with a manifest. Remove both untracked retired helper directories from the working tree without destroying their recovery copies. Keep the original source recovery archive, Git history, baseline terrain/player-feed proof sources and current map-staging/map-progress/desktop builds. Label old proof instructions historical under D-042. No worlds, original client instances, credentials, remote staging or shared build/dependency caches touched.
 **Verify:** `git status --short`; inspect the external archive's manifest and confirm current map/desktop artifacts remain. No tests or release actions needed for generated-file moves and documentation.
 **Batch:** P18.33 only, owner-authorized repository cleanup.
 **Commit:** `P18.33: archive retired map repair leftovers`
@@ -15325,7 +15327,7 @@ Add MSC Settings → Disk space on the selected host → Check reclaimable space
 
 **Observed failure:** On cambookpro13, the restored agent logged `Java terrain compatibility preparation failed: Disk quota exceeded (os error 122)` at 18:43:35 on 2026-10-06. The agent currently creates `msc-map-renderer-*` beneath `std::env::temp_dir()`. Host /tmp is a 3.9 GiB tmpfs, showing 2.9 GiB available after failure; the main filesystem has 14 GiB available. Inspection inside the service's mount namespace shows tmpfs with `usrquota` and PrivateTmp. The error and mount configuration are consistent with a per-user tmpfs quota; the exact quota and peak staging usage have not been measured. Main-disk free space does not rule out quota exhaustion.
 
-**Temporary workaround applied by Cameron:** Created `/home/camerontemple/.local/share/msc2/tmp` with mode 0700 and `/etc/systemd/system/com.ctemple.msc2.agent.service.d/map-temp.conf` setting `TMPDIR` to that directory. Reloaded systemd and restarted the agent; owner reported `active`. This persistent host-local override affects all agent temporary files, not just map staging. Cameron subsequently reported “java world loaded”; this records the workaround observation without claiming the application fix has been verified. Once the application fix is installed, guide removal of only this override and verify the default staging path; retain existing temporary data until its ownership and live use are known. Original worlds and client instances were not changed by the workaround.
+**Temporary workaround applied by Cameron:** Created `/home/example/.local/share/msc2/tmp` with mode 0700 and `/etc/systemd/system/com.ctemple.msc2.agent.service.d/map-temp.conf` setting `TMPDIR` to that directory. Reloaded systemd and restarted the agent; owner reported `active`. This persistent host-local override affects all agent temporary files, not just map staging. Cameron subsequently reported “java world loaded”; this records the workaround observation without claiming the application fix has been verified. Once the application fix is installed, guide removal of only this override and verify the default staging path; retain existing temporary data until its ownership and live use are known. Original worlds and client instances were not changed by the workaround.
 
 **Related owner verification:** After installing the exact-size download correction, Cameron reported the standard Java map “looks good now.” This records the rendering observation without closing the broader map acceptance gate. Bedrock and the large Tectonic map remain pending.
 
@@ -15346,7 +15348,7 @@ Add MSC Settings → Disk space on the selected host → Check reclaimable space
 
 **Status:** Done at Cameron's direction (2026-10-08). Previous status: Implemented; awaiting Cameron's verification.
 **Files:** Revert P18.13–P18.25 and the uncommitted repair follow-ups to application baseline `f6a1f794`; decision register and vision notes; this plan.
-**What:** Cameron rejected the private Prism sign-in/capture design on 2026-10-06 and explicitly requested returning to before any repair work. Restore the standard Java and Bedrock saved-terrain viewer, agent, API, CLI and build-only release packaging from the v0.1.23 preparation commit. Remove modded-resource repair/import/capture UI, exporter helpers and acceptance promises. Keep Git history and a private recovery snapshot of uncommitted source at `/home/camerontemple/.local/state/msc2/retired-map-repair/20261006-165119`. Do not delete server worlds, original client instances, credentials or existing private captures. This supersedes the earlier objective to finish and release the repair feature; it is a retirement, not successful rendering acceptance.
+**What:** Cameron rejected the private Prism sign-in/capture design on 2026-10-06 and explicitly requested returning to before any repair work. Restore the standard Java and Bedrock saved-terrain viewer, agent, API, CLI and build-only release packaging from the v0.1.23 preparation commit. Remove modded-resource repair/import/capture UI, exporter helpers and acceptance promises. Keep Git history and a private recovery snapshot of uncommitted source at `/home/example/.local/state/msc2/retired-map-repair/20261006-165119`. Do not delete server worlds, original client instances, credentials or existing private captures. This supersedes the earlier objective to finish and release the repair feature; it is a retirement, not successful rendering acceptance.
 **Verify:** Reopen the rebuilt desktop with a v0.1.23 agent; view one known standard Java world and one known Bedrock world, confirm saved terrain loads, 2D/3D navigation works, and the repair/private-client controls are absent.
 **Batch:** P18.26 only.
 **Commit:** `P18.26: retire map repair and restore released terrain maps`
@@ -15399,7 +15401,7 @@ Add MSC Settings → Disk space on the selected host → Check reclaimable space
 
 **Checks:** Desktop Rust formatting and ordinary Clippy passed. Clippy retains the three existing Windows/infrastructure warnings (unused Bedrock socket-mode constant, unused desktop update helper, needless Windows return). No tests, release runs or server configuration changes.
 
-**Manual acceptance:** Restart the Windows desktop development session and connect to `10.0.0.156:22`. Confirm the unsupported-KEX error is gone, review the displayed fingerprint against the server's actual host key, and complete pairing/connection. Reconnect and confirm the remembered identity is reused. An existing mismatched fingerprint must still require approval. Confirm macOS/Linux remote connections remain functional during their next physical check; their scanner and authentication paths were not changed.
+**Manual acceptance:** Restart the Windows desktop development session and connect to `192.168.1.20:22`. Confirm the unsupported-KEX error is gone, review the displayed fingerprint against the server's actual host key, and complete pairing/connection. Reconnect and confirm the remembered identity is reused. An existing mismatched fingerprint must still require approval. Confirm macOS/Linux remote connections remain functional during their next physical check; their scanner and authentication paths were not changed.
 
 **Evidence:** [Windows OpenSSH scanner defect](https://github.com/PowerShell/Win32-OpenSSH/issues/2140) documents the unsupported algorithm advertisement and explains why `ssh.exe` is unaffected. [OpenSSH client options](https://man.openbsd.org/ssh_config) document isolated known-host files, disabled prompting and authentication selection. The temporary `accept-new` key file collects an untrusted candidate only; it does not grant MSC trust or modify the user's known-hosts file.
 
@@ -15643,7 +15645,7 @@ Add MSC Settings → Disk space on the selected host → Check reclaimable space
 **Batch:** P12.235 only.
 **Commit:** `P12.235: locate windows java from the service user home`
 
-**Evidence:** Java 25.0.4.1 executed successfully again from Cameron's Local runtime folder. The repaired service binary and rebuilt `target/debug/msc.exe` have matching SHA-256 hashes, but the live Java list still returns only Java 21. Service metadata from the preceding diagnosis records `HOME=C:/Users/Cameron`. P12.234 added the environment-dependent Local root but did not cover missing/different service LOCALAPPDATA. This correction derives the known installed root directly from HOME; the service process's live environment has not been inspected, so that cause remains an inference until owner acceptance.
+**Evidence:** Java 25.0.4.1 executed successfully again from Cameron's Local runtime folder. The repaired service binary and rebuilt `target/debug/msc.exe` have matching SHA-256 hashes, but the live Java list still returns only Java 21. Service metadata from the preceding diagnosis records `HOME=C:/Users/example`. P12.234 added the environment-dependent Local root but did not cover missing/different service LOCALAPPDATA. This correction derives the known installed root directly from HOME; the service process's live environment has not been inspected, so that cause remains an inference until owner acceptance.
 **Checks:** Rust formatting and shipping-agent Clippy passed with existing unrelated Windows warnings. `npm --prefix clients/desktop-web run prepare:agent` rebuilt and staged the debug/package agent successfully. No tests, service restarts, or Java downloads run.
 **Manual acceptance:** Repair using the freshly staged agent, reopen the Java picker, and confirm the already installed Local Java 25 appears. No Java reinstall is needed. Live acceptance remains pending until the service runs this revision.
 
@@ -15656,7 +15658,7 @@ Add MSC Settings → Disk space on the selected host → Check reclaimable space
 **Batch:** P12.234 only.
 **Commit:** `P12.234: discover windows java across agent data folders`
 
-**Diagnosis:** The running service binary matched the rebuilt packaged agent by SHA-256. Its live `msc --json java list` returned only configured Java 21. Service metadata sets `MSC2_DATA_DIR` to `C:/Users/Cameron/AppData/Roaming/MSC2`, but the verified Temurin 25 executable resides under `C:/Users/Cameron/AppData/Local/MSC2/runtimes`. P12.233 fixed executable recognition but missed this separate root mismatch.
+**Diagnosis:** The running service binary matched the rebuilt packaged agent by SHA-256. Its live `msc --json java list` returned only configured Java 21. Service metadata sets `MSC2_DATA_DIR` to `C:/Users/example/AppData/Roaming/MSC2`, but the verified Temurin 25 executable resides under `C:/Users/example/AppData/Local/MSC2/runtimes`. P12.233 fixed executable recognition but missed this separate root mismatch.
 **Checks:** Rust formatting and `cargo clippy -p msc-agent --bin msc` passed with existing Windows warnings outside the change. Inspection confirms the additional root is guarded by `HostOs::Windows`; macOS/Linux discovery behavior is unchanged. No tests run.
 **Manual acceptance:** Rebuild the packaged agent and Repair the Windows service, reopen the runtime picker, and confirm the existing Java 25 appears without another install. The CLI `msc --json java list` should include its Local `bin/java.exe` path. No service restart, credential changes, Java download, or tests performed by the agent in this step.
 
@@ -15858,7 +15860,7 @@ Add MSC Settings → Disk space on the selected host → Check reclaimable space
 
 **Agent checks:** Rust formatting and Clippy for the affected libraries and archive test target; Svelte static check (zero errors, ten existing warnings). No test commands run.
 
-**Manual acceptance:** Rebuild/restart the local app and agent, then import `/Users/camerontemple/msc2-servers/XqKXS4++O7k=.zip` unchanged through the Bedrock Worlds tab. With the server stopped, activate the imported slot and confirm the existing terrain loads. Also import a `.mcworld` file without renaming it. External bundles containing several worlds require individual imports; a selection screen remains a separate UI/API change.
+**Manual acceptance:** Rebuild/restart the local app and agent, then import `/Users/example/msc2-servers/XqKXS4++O7k=.zip` unchanged through the Bedrock Worlds tab. With the server stopped, activate the imported slot and confirm the existing terrain loads. Also import a `.mcworld` file without renaming it. External bundles containing several worlds require individual imports; a selection screen remains a separate UI/API change.
 
 ### P6.53 — Let API imports reach external archive normalization
 
@@ -16247,3 +16249,3391 @@ Add MSC Settings → Disk space on the selected host → Check reclaimable space
 **Checks:** Svelte check passed with zero errors and eleven existing warnings outside the map component. No Rust files changed, so Rust formatting/Clippy are not relevant to this step. No test suites or release workflows run.
 
 **Manual acceptance:** Reopen the map, select 2D in the Overworld and lower Depth Y below the surface, including negative Y. Confirm saved caves appear, panning/zooming retain the selected focus height, and 3D/Fly restore full terrain. Repeat in the End and a saved custom dimension; confirm each range follows its terrain manifest. Check Nether 2D still opens at Y83 from above the roof and stops at Y126. Follow a player, then change depth and confirm Follow stops. Home should restore the unsliced spawn view. Cave visibility depends on the saved geometry present in the map; this frontend change does not generate missing chunks.
+
+## Implemented steps archived at Cameron's direction (2026-10-13)
+
+The following 27 step records were marked Done and moved from the active plan at Cameron's explicit request. Their previous statuses, verification commands, evidence, limitations and physical acceptance procedures are preserved. This administrative completion does not establish successful test execution, publication, physical verification or phase-gate acceptance. Existing historical records that reused a step number for a different title remain intact.
+
+### P16.83 — Archive implemented rolling-plan steps
+
+**Status:** Done at Cameron's direction (2026-10-13).
+**Files:** `docs/msc2/rolling-plan.md`, `docs/msc2/rolling-plan-archive.md`.
+**What:** Mark 27 implemented or completed-record steps Done and move their complete records to this dated archive section. Keep planned work, publication records without confirmed completion, and independent acceptance requirements in the active plan. Preserve prior statuses and all verification evidence and caveats, including the P16.80 procedure requiring removal of shell workarounds before fresh automatic pairing.
+**Verify:** `git show --stat --oneline HEAD -- docs/msc2/rolling-plan.md docs/msc2/rolling-plan-archive.md`
+**Batch:** P16.83 only; documentation only.
+**Commit:** `P16.83: archive implemented rolling plan steps`
+
+**Checks:** Inspected every step status; confirmed every selected full-heading record moved exactly once, with only its Status line changed and its previous status retained. Confirmed all unselected step records and non-step sections are preserved. Whitespace check passed. No tests run.
+
+### P16.82 — Stop hidden health polling from stalling large modpack management
+
+**Status:** Done at Cameron's direction (2026-10-13). Previous status: Implemented; awaiting owner verification.
+**Files:** `clients/desktop-web/src/App.svelte`, Overview/Performance/Components sections and Components model, `crates/msc-agent/src/routes/health.rs`, `crates/msc-agent/src/routes/lifecycle.rs`, `crates/msc-application/src/add_on_inventory.rs`, this plan.
+**What:** Remove full `/v1/health` requests from routine Overview, Performance and Components loading/polling. These views need running state rather than full diagnostics; use `/v1/status` while preserving chat status, uptime tracking, component running-state decisions and immediate Overview status refresh after lifecycle actions. Keep the owner's hidden health-card markup without fetching its data; introduce no once-per-start replacement. Prevent overlapping Overview and Performance polling cycles. Retain startup-failure diagnosis, `/v1/health/problems`, repairs and their persisted results. For retained API/CLI callers, health counts regular `.jar` and `.jar.disabled` files using the existing inventory filename rules, without opening or parsing JAR contents. Run the full diagnostic build on a blocking worker rather than API executor threads. An agent-state-owned semaphore allows only one full health check at a time; overlapping requests receive `503 health_check_busy` instead of queuing duplicate work. Hold its permit inside the blocking job even if the caller disconnects. Java-version and platform RAM subprocess probes use the process supervisor with a 10-second per-command deadline, a 64 KiB captured-output limit and termination on timeout/error/overflow. No broad health cache or stale cross-server results introduced. No release publication.
+**Verify:** `curl --max-time 5 -i http://127.0.0.1:48001/v1/healthz`
+**Batch:** P16.82 only.
+**Commit:** `P16.82: stop hidden health polling from stalling the agent`
+
+**Evidence:** On the Intel host, local `/v1/healthz` timed out with zero bytes while launchd still reported PID 61329, runs 2 and prior exit code 0. The owner-provided sample at October 13 23:18:29 shows ten Tokio worker threads in `health_response_for -> scan_mods -> mod_jar_metadata -> ZIP parsing`. Overview requested health every eight seconds and Performance every five seconds; interval callbacks could overlap slow requests. Components also fetched full health solely for running state. This fixes the observed unnecessary work and API-thread blockage; it does not claim every disconnect or silent reconnect failure has been explained.
+
+**Essential test:** Added `overlapping_health_checks_do_not_queue_or_block_liveness` to the existing health-route unit tests. It protects against duplicate diagnostic admission, confirms cheap liveness remains available while the diagnostic slot is held, and confirms full health recovers after release. It uses independent fake route state and explicit permit ownership, without global state, network, Java, sleeps or timing assertions; expected runtime under one second. Existing coverage did not exercise this overload boundary. No tests executed.
+
+**Checks:** Rust formatting, whitespace and targeted agent Clippy compilation passed (`-D warnings -A dead_code`, preserving the existing unrelated `auth.rs::forbidden` warning exclusion). Svelte type checking passed with zero errors and 11 existing warnings. Compilation-only `cargo check -p msc-agent --bin msc --tests` compiled the binary unit-test target, but the overall command failed on existing integration-test errors: `cli_pairing`/`desktop_auth` include `auth.rs` without its `crate::routes` dependency, and `cli_service` initializes retired `CommonArgs` fields. Those files were not changed. Frontend production build passed; it reported the existing Svelte warnings, mixed static/dynamic Tauri import warning and large-chunk advisory.
+
+**Owner verification:** Install the corrected desktop and agent builds. Run All the Mods 10 through startup and normal play, switch among Overview, Performance and Components, refresh the desktop and reconnect. Run the Verify command locally on the Intel Mac while reproducing the former failure; require timely `204 No Content`, a responsive desktop, continued console/metric updates, correct Online/Offline and uptime behavior, and no repeated full mod scans from these tabs. Check Start/Stop updates and an actual startup failure still showing its saved diagnosis. Retained full health calls should keep the same count/card meaning; concurrent full checks may honestly report busy while status/liveness remains available. This acceptance remains Cameron's; no live workload was started or interrupted by implementation.
+
+### P16.81 — Record successful automatic SSH pairing with temporary environment workarounds
+
+**Status:** Done at Cameron's direction (2026-10-13). Previous status: Recorded; owner confirmed the connection worked. P16.80 remains planned.
+**Files:** This plan.
+**What:** Record Cameron's successful automatic Connect after adding the following lines to the Intel Mac's `~/.zshenv`. The PATH export clears command discovery; the storage exports align the SSH command with the desktop-installed service. These are temporary workarounds, not the permanent application fix. Amend P16.80's diagnosis and require removing all three added lines before verifying a fresh automatic pairing without saved credentials.
+
+```sh
+export PATH="/usr/local/bin:$PATH"
+export MSC2_DATA_DIR="$HOME/Library/Application Support/MSC 2"
+export MSC2_MACOS_SECRET_STORE_DIR="$MSC2_DATA_DIR/secrets"
+```
+
+**Verify:** `git show --format= -- docs/msc2/rolling-plan.md`
+**Batch:** P16.81 only; documentation only.
+**Commit:** `P16.81: record successful ssh pairing workaround`
+
+### P16.80 — Restore automatic SSH pairing on macOS without shell workarounds
+
+**Status:** Done at Cameron's direction (2026-10-13). Previous status: Implemented; awaiting owner verification. Owner confirmed automatic Connect with the temporary workarounds; acceptance without them remains open.
+**Files:** `clients/desktop-web/src-tauri/src/ssh.rs`, pairing/authentication and macOS installation code as diagnosis requires, this plan.
+**What:** Make normal remote Connect work without manually creating a pairing code or editing shell startup files. On Cameron's Intel Mac, repairing the agent left SSH unable to resolve bare `msc`, although `/usr/local/bin/msc` was a symlink into the desktop-managed agent build. Adding `/usr/local/bin` to PATH through `~/.zshenv` got past that failure, but automatic Connect then reported “This desktop pairing code was already used.” Locate the installed command reliably within the fixed-purpose SSH bootstrap, preserving supported platforms and the existing security boundary. Correct the command/service storage mismatch: the macOS command defaults to `~/Library/Application Support/MSC2/secrets`, while the desktop-installed service explicitly uses `~/Library/Application Support/MSC 2/secrets`. Cameron confirmed automatic Connect succeeded after aligning the SSH environment with the service. A missing pairing record is currently reported as consumed; the observed error did not establish actual code reuse. Resolve the installed service configuration reliably rather than requiring shell exports or blindly changing storage for other installations. Keep pairing automatic and secrets native; having the Intel Mac's local desktop open must remain supported. Do not weaken one-use authorization or introduce remote service control.
+**Verify:** `ssh camerontemple@10.0.0.42 'command -v msc; ls -l /usr/local/bin/msc'`
+**Batch:** P16.80 only; implementation and owner verification, no release publication.
+**Commit:** `P16.80: fix automatic ssh pairing on macos`
+
+**Implementation:** The connecting desktop first tries the existing fixed `msc pairing create --client-kind desktop --json` command. If SSH returns command-not-found status 127 classified as an MSC command failure, it tries the same fixed arguments with `/usr/local/bin/msc`. Other failures are not retried through this fallback; existing Windows/Linux command lookup is preserved. On macOS, absent explicit nonempty storage environment overrides, the host CLI reads the installed LaunchDaemon definition through the existing read-only service manager and opens its configured secret directory (`MSC2_MACOS_SECRET_STORE_DIR`, falling back to `MSC2_DATA_DIR/secrets`). If no service storage settings exist, it retains the production default. It does not move secrets, rewrite shell files, or change service state. Pairing creates its challenge through the shared secret store without loading or migrating the bearer credential registry; this also avoids migration text/token output contaminating the bootstrap JSON. One-use exchange and native credential storage remain unchanged.
+
+**Checks:** Formatting and whitespace checks pass. Targeted agent and desktop Clippy compilation passed with existing unrelated warnings explicitly excluded: agent `-A dead_code` for `auth.rs::forbidden`; desktop `-A clippy::needless_borrow -A clippy::needless_borrows_for_generic_args -A clippy::needless_return` for existing `update.rs` and `lib.rs` warnings. Strict `-D warnings` attempts exposed those baseline warnings; unrelated code was left untouched. No tests run or added. Live verification below is required and has not been performed by the agent.
+
+**Owner verification procedure:** If the suggested `export PATH="/usr/local/bin:$PATH"` workaround was added to the Intel Mac's `~/.zshenv`, remove that added line and the two added storage exports (`MSC2_DATA_DIR` and `MSC2_MACOS_SECRET_STORE_DIR`) before acceptance, preserving unrelated shell configuration. In a fresh SSH session, the command above must reproduce the original condition: bare `msc` is unresolved while the installed link exists. Install the corrected build on both Macs and repair the Intel Mac’s local agent to register its updated `msc` binary. Then use the corrected connecting desktop with the manual pairing field empty and no previously saved credential for this host; click Connect once. Require a successful connection to the Intel Mac's agent with its local MSC window still open, without either error or a manually supplied code. Verify reconnection through the saved host. Do not count success with any of these environment workarounds or an existing credential as proof of initial automatic pairing. Cameron performs verification; no tests are authorized by this entry.
+
+### P16.79 — Keep only current release notes at the README opening
+
+**Status:** Done at Cameron's direction (2026-10-13). Previous status: Implemented; awaiting owner verification.
+**Files:** `README.md`, this plan.
+**What:** At Cameron's request, remove the older 0.1.22–0.1.27 release summaries and historical 0.1.16–0.1.18 publication narrative from the opening release/support section. Keep the 0.1.28 feature summary, current download links, platform support and applicable upgrade instructions.
+**Verify:** `git show --format= -- README.md`
+**Batch:** P16.79 only; documentation only.
+**Commit:** `P16.79: keep only v0.1.28 notes at readme opening`
+
+**Checks:** Inspected the opening section and passed whitespace verification. No tests run.
+
+### P16.78 — Correct the README release number to v0.1.28
+
+**Status:** Done at Cameron's direction (2026-10-13). Previous status: Implemented; awaiting owner verification. Cameron corrected his preceding README request from 0.1.29 to 0.1.28.
+**Files:** `README.md`, this plan.
+**What:** Present v0.1.28 as released throughout current-release text, download links, package examples and the update command. Retain the feature summary from P16.77. Documentation only; no tag, manifest or workflow changes and no publication claim beyond the owner's requested wording.
+**Verify:** `git show --format= -- README.md`
+**Batch:** P16.78 only.
+**Commit:** `P16.78: correct readme release number to v0.1.28`
+
+**Checks:** Inspected README release references and passed whitespace verification. No tests run.
+
+### P16.77 — Present v0.1.29 as released in the README
+
+**Status:** Done at Cameron's direction (2026-10-13). Previous status: Implemented; awaiting owner verification. Owner explicitly requested README wording as if v0.1.29 were released.
+**Files:** `README.md`, this plan.
+**What:** Present 0.1.29 as the current published prerelease in README release/download links, package examples and update command. Describe Bedrock ownership, large map snapshots and the appliance packaging correction as release features; remove candidate/hold/failed-publication narrative from the README. Preserve historical 0.1.27 features and open physical acceptance. This documentation request does not create a 0.1.29 tag or establish actual publication; the previously triggered workflow is for the owner-directed revised 0.1.28.
+**Verify:** `git show --format= -- README.md`
+**Batch:** P16.77 only; documentation, no version-manifest or release-workflow changes.
+**Commit:** `P16.77: present v0.1.29 as released in readme`
+
+**Checks:** Inspected current-release, installer, package and CLI examples; whitespace check passes. No tests run for this documentation-only change.
+
+### P16.74 — Correct the Intel macOS appliance staging checksum
+
+**Status:** Done at Cameron's direction (2026-10-13). Previous status: Implemented; awaiting owner verification. Full local payload staging passed. Owner authorized investigation and correction of the failed v0.1.28 workflow; release start is explicitly held for another owner edit/question.
+**Files:** `clients/desktop-web/tools/prepare-agent-dev.mjs`, this plan.
+**What:** Correct the missed desktop-stager checksum for P16.71's rebuilt appliance. Reuse the exact production validation function through an explicit `--validate-appliance` preparation option so resource identity can be checked without rebuilding all platforms. Preserve mandatory checksums, Xcode entitlement checks and the complete payload. No workflow jobs/gates changed, no rerun, no moved tag.
+**Verify:** `node clients/desktop-web/tools/prepare-agent-dev.mjs --validate-appliance`
+**Batch:** P16.74 only; publication is separate and remains held.
+**Commit:** `P16.74: align desktop staging with the rebuilt bedrock appliance`
+
+**Failure evidence:** Run 38347411778 completed with only `Build macos-x86_64` failing at “Stage the matching Tauri agent payload.” The agent itself compiled successfully; Linux, Windows and Apple Silicon packaging succeeded. Publication was skipped because the complete artifact set was unavailable. The actual error was the desktop staging script expecting the old initramfs SHA-256 `d8e0ce4b9a2b9f752e2a482cf52feebaccaac4d892c619f41fa4011d68ac1291`, while the rebuilt guest source produced `fbbaaefd80aa47e18343367ac171babb3cdcecf7da58acc14ac94db4f77bcce6`. Xcode, the resource README and the package-layout checker were updated in P16.71; this fourth declaration was missed. All available failed logs were inspected before preparing a replacement release.
+
+**Checks:** The new preparation option executes the same checksum function as `stageMacosSidecar` and passes against the actual tracked kernel/initramfs. Node syntax validation passes. Direct inspection verifies all four checksum declarations match the actual compressed appliance. Full local debug desktop payload staging passed, including the optimized Bedrock map exporter, Release Swift sidecar build, entitlement verification and appliance copying. It did not register or restart any installed service. v0.1.28 remains immutable and unpublished.
+
+### P16.73 — Support large Bedrock saved-terrain map snapshots
+
+**Status:** Done at Cameron's direction (2026-10-13). Previous status: Implemented; awaiting owner physical verification. Owner authorized implementation and the focused regression command on October 13. Publication is explicitly held before workflow start for an additional owner edit/question.
+**Files:** `crates/msc-agent/src/backup_operations.rs`, `crates/msc-agent/src/map_staging.rs`, `crates/msc-agent/src/routes/worlds/map_terrain/bedrock.rs`, essential snapshot coverage and map documentation as needed; this plan.
+**What:** Replace the inherited proof-sized snapshot ceiling with disk-budgeted streaming suitable for large Bedrock worlds. Keep cancellation, safe paths, bounded memory and a bounded live save-hold; do not merely remove all limits or hold a running server's saves indefinitely. Distinguish the stopped-world copy budget from the live hold budget and give an actionable failure when a consistent live copy cannot finish safely. Retain save-resume on every live exit and release temporary snapshots. Check downstream exporter assumptions before claiming support for the real world.
+**Verify:** `cargo test -p msc-agent --bin msc backup_operations::tests::map_snapshot` (specifically authorized and passed). Physical acceptance: open the converted Tectonic Bedrock map stopped and running, verify terrain/refresh and disk cleanup, and confirm the running server resumes saving on success, cancellation and failure. The physical world has not been rendered by the implementing agent.
+**Batch:** P16.73 only; no release/tag changes or modification of the existing ownership release.
+**Commit:** `P16.73: budget large bedrock map snapshots without prolonged save holds`
+
+**Investigation:** `MAP_SNAPSHOT_MAX_BYTES` in `backup_operations.rs` is fixed at 2 GiB; live and stopped Bedrock snapshot paths both reject the estimated entire world before invoking the exporter. The recursive copy also enforces the same byte ceiling, and both paths currently use a 30-second copy limit. `BedrockMapRuntime::read` always obtains one of these snapshots before `catalog` export. Java's terrain runtime can use its source world directly when no explicit saved snapshot is selected, through its separate compatibility/staging path. This is an MSC pre-render snapshot limit, not evidence that Vantage or the GPU cannot render the world, and is separate from root-owned Bedrock files. No implementation or tests performed for this step.
+
+**Result:** Replaced the 2 GiB proof ceiling with a 1 TiB safety backstop and working-disk admission including a 2 GiB reserve. Streaming uses a 1 MiB buffer with disk rechecks every 64 MiB. macOS attempts independent APFS copy-on-write file clones without copying source ownership; unsupported/cross-volume clones fall back to streaming. Existing symlink/special-file/depth protections remain. Live readiness and copy now share one 30-second save-hold deadline; the same-run resume guard still runs on every exit. Failure explains stopping the server and refreshing terrain rather than extending live save holds. Stopped copies have a separate 30-minute deadline and abort on shutdown, a starting/running/stopping Bedrock runtime, changed run generation or changed active server. Snapshot ownership/cleanup remains tied to the renderer cache. The shared Java snapshot copy uses the larger backstop and same total live deadline as well; its normal map path is unchanged.
+
+**Essential verification:** Two focused cases pass in under 0.01 seconds after compilation. A tiny fixture starts its cumulative byte count at the old 2 GiB threshold, verifies additional data copies and source modifications do not alter the snapshot. Controlled cancellation, an already-expired deadline and injected disk shortage stop output without sleeps, huge files, network or actual free-space assumptions. Fixtures have UUID paths and automatic cleanup. Budget checks are injected into the copy helper for the tests; production uses real disk space. Existing conversion resource-budget coverage protects reserve arithmetic. Clippy and formatting pass with the existing unused-function warning. An unnecessarily broad test-target compilation attempt exposed unrelated stale integration targets (`cli_pairing`/`desktop_auth` referencing unavailable `routes`, and `cli_service` constructing removed `CommonArgs` fields); the specifically authorized binary tests compile and pass. Those unrelated tests were not edited or executed.
+
+**Exporter inspection:** The shipped Bedrock exporter opens the database read-only with a 64 MiB database cache. It enumerates chunk positions and bounds overview output to 128 coarse tiles rather than loading a whole world archive into RAM. Catalog metadata still scales with saved chunk count, and the existing ten-minute exporter timeout remains; this work does not claim the actual 7.2 GB Tectonic catalog has completed within it. Owner physical acceptance remains required.
+
+### P16.71 — Prevent root-owned Bedrock data on Intel macOS
+
+**Status:** Done at Cameron's direction (2026-10-13). Previous status: Implemented; awaiting owner verification. Owner authorized implementation and the next release, and explicitly approved the VM-worker privilege split on October 13. No live ownership repair performed by the agent.
+**Files:** `sidecar/bedrock/BedrockSidecarCore.swift`, `sidecar/bedrock/BedrockSidecarMain.swift`, guest `Resources/init` and packaged appliance/checksums as needed; relevant macOS helper service/diagnostic code and documentation; this plan.
+**What:** Correct the host-side shared-directory ownership boundary while preserving the approved privileged networking helper and installing-user agent. Establish a supported way for filesystem writes to use the installing account on the Mac; passing that account's numeric IDs to the guest alone is insufficient. Remove the guest's root-launch fallback and report invalid identity as a startup failure. Diagnose ownership failures with the affected path. Provide a concrete administrator-authorized repair for existing affected server data, without silently changing ownership recursively or discarding transaction records. Keep this one implementation step; publication requires a separate owner request.
+**Verify:** `python3 tools/phase16/check-bedrock-world-ownership.py --source-server "$HOME/Library/Application Support/MSC 2/servers/bedrock/bedrock_server_2"` on the Intel Mac with the corrected helper installed and Bedrock servers stopped. This boots a disposable sibling world twice through the actual installed helper, verifies RakNet relay readiness and clean stop, checks every generated file/directory's host UID/GID, and deletes the disposable server. Also manually verify activation/recovery and NetherNet connectivity; the focused check does not claim those paths are covered.
+**Batch:** P16.71 only; do not restart, cancel or modify the owner's currently running conversion. Owner acceptance and any publication remain separate.
+**Commit:** `P16.71: keep bedrock vm filesystem writes under the installing user`
+
+**Confirmed evidence:** The original destination `tectonic_-_bedrock` retained `.activation/swap.json` with phase `committing`, old/new roots both `worlds`, and slot `6D0E8FE5-EA7B-4367-9A70-4B414DB49742`. Agent restart logged interrupted activation recovery failing with `Permission denied (os error 13)`. Its prior world's `db` directory and database files were root-owned, while the installed `worlds/Bedrock level/db` belonged to `camerontemple:staff`. Server deletion also failed. A newly created destination, `bedrock_server_2`, completed First Start and likewise had `root:staff` ownership on `worlds/Bedrock Server 2/db`. The owner ran no ownership-repair commands. The second server accepted conversion because it had no pending activation transaction; that was not evidence of correct ownership.
+
+**Code finding:** The privileged service constructs the VM and writable `VZSingleDirectoryShare` in its root process. The guest receives `msc_uid`/`msc_gid` and invokes BusyBox `chpst`, but the startup comment assumes guest numeric ownership controls host writes. Apple's `VZVirtioFileSystemDevice` documentation says shared-directory reads/writes use the host effective user and guest UID/GID-change requests are ignored: <https://developer.apple.com/documentation/virtualization/vzvirtiofilesystemdevice>. The embedded initramfs script matches the checked-in source; the same guest fallback also exists in v0.1.25. The release runtime uses the installed helper for both initial and subsequent starts; no distinct user-process first-start path was found. This violates the existing file-ownership invariant in `bedrock/macos-privileged-helper.md` section 7.
+
+**Separate conversion observation:** Chunker stayed at 94.42% while its `leveldb-db-0` thread compressed blocks during database compaction; a worker waited in `BedrockLevelWriter.flushLevel`, and other task workers waited for work. Process inspection showed roughly 1.6 GiB resident memory, 100% CPU and 831 GiB available disk. The owner subsequently observed “Validating converted world,” confirming that the apparent stall progressed. This does not establish conversion completion, successful destination activation, or resolution of the ownership defect. No tests run for this investigation.
+
+**Owner follow-up and result:** After roughly five hours, conversion reported a generic activation failure. Code inspection proved the converted slot archive is saved before activation, and the owner subsequently confirmed it was activated without repeating conversion. That recovery is not ownership acceptance. The correction keeps root network relays but launches the fixed, installed Swift VM worker through `posix_spawn` with `RESETIDS`: supervisor real IDs are the installing account, effective root is retained, supplementary groups are the installing account's groups, and the worker requires matching non-root real/effective IDs. Its environment and inherited descriptors are restricted. Provision paths remain authenticated/canonicalized by the supervisor. EOF stops the VM and the supervisor reaps the worker before reporting termination; generation checks protect later sessions. Guest startup now refuses invalid/root identity, and the rebuilt appliance/checksums match its source. Existing misowned data is preserved and requires explicit administrator repair.
+
+Conversion and active-world pack installation now reject existing misowned macOS Bedrock world data before expensive snapshot/conversion work, identifying the affected path. Activation failures retain their cause and saved ZIP location and explain that conversion should not be repeated. Extended the existing conversion regression to require the underlying failure, saved path and surviving ZIP, and the existing sidecar protocol check to cover decoding worker responses. The opt-in physical check is essential because inspecting guest IDs missed the actual host-ownership defect; it uses a disposable small world, no downloads or source-world copy, no arbitrary sleeps, and retains evidence on failure. Expected runtime 1–3 minutes on a working Intel installation. It verifies actual VM writes and user deletion, not just argument construction. No tests executed: the owner authorized developing a test but did not request its specific command under repository policy. Physical ownership and networking acceptance remain open.
+
+**Additional observation, not claimed fixed:** Prizma Visuals install showed “Installing” while the agent remained responsive. Inspection found active-world pack installation snapshots the live world, rewrites its full ZIP and reactivates synchronously. On the 7.2 GB converted world this can be lengthy without stage feedback; the specific live install's eventual outcome is unknown. The ownership preflight protects known permission failures, but this release does not claim pack-install progress/performance changes or a separate Prizma compatibility fix.
+
+**Checks:** Infrastructure/application and agent Clippy pass with the existing unused `forbidden` warning. The focused Rust conversion test target compiles. Xcode Release build and Debug build-for-testing succeed; the latter compiles the XCTest target without executing tests. Existing TCP relay Sendable and build-script/AppIntents warnings remain. Python acceptance-script compilation, guest shell syntax, Rust formatting and whitespace checks pass. Direct inspection confirms the compressed appliance contains the exact checked-in guest script and all pinned checksums match. No installed agent/server was restarted and no live data was changed. A request to run the specific Rust regression is pending; compilation and release publication do not establish physical acceptance.
+
+### P16.70 — Correct macOS update recovery and cancellable host resets
+
+**Status:** Done at Cameron's direction (2026-10-13). Previous status: Implemented; awaiting owner verification. Owner authorized both corrections on October 12; publication was separately reauthorized under P16.69 after implementation.
+**Files:** Desktop updater/native startup; signed release staging; application host-reset and operation cancellation; filesystem adapter; agent startup/auth/reset routes and CLI; Reset screen/onboarding recovery; API contract/generated types; this plan.
+**What:** Fix the reproduced desktop rollback, mismatched agent trust and blocked update retry together with the pending-reset startup failure. Keep crash recovery, explicit cancellation and permission failure as distinct outcomes. Do not alter the stopped live installation or publish a release.
+**Verify:** `cargo clippy -p msc-infrastructure -p msc-application -p msc-agent --lib --bins && cargo clippy --manifest-path clients/desktop-web/src-tauri/Cargo.toml --lib && npm --prefix clients/desktop-web run check && npm --prefix clients/desktop-web run api:check && cargo fmt --all -- --check && git diff --check`
+**Batch:** P16.70 only; both explicitly requested fixes form one implementation step. No publication or live-service restart.
+**Commit:** `P16.70: fix macos update recovery and cancellable host resets`
+
+**Problems and investigation:**
+
+- The macOS updater requires HTTP 200 from `/v1/healthz`, whose actual contract returns HTTP 204. A healthy replacement therefore fails the 90-second trial and rolls back. The locally reproduced app was 0.1.25 while its registered, running 0.1.26 agent trusted the replacement app's different signing identity. That explains the version reversal, repair prompt and disconnected management while Minecraft continues running. Repeated start lines and signal 9 in the other Mac's log alone do not prove a spontaneous crash. Missing TPS during startup was observed, but a separate telemetry defect is not established by that evidence.
+- Existing staging was unconditionally rejected as “already staged.” A rollback therefore made an intact downloaded release impossible to retry through Settings.
+- An Everything reset left a durable marker after deletion failed on root-owned Bedrock files. Startup used `expect` on recovery and exited on permission denial. The worker also immediately retried failed deletion, and the desktop swallowed operation failure/disconnection and treated a four-second polling timeout as completion. Cancellation had no durable reset-file boundary.
+
+**Result:** The updater accepts the real 204 response, registers the replacement bundle's packaged agent and signing identity before launch, and restores both on rollback. Repair runs from the installed bundle's executable so the old helper cannot accidentally register its own old package. A failed desktop trial is stopped before restoration; temporary trial authentication failures do not erase saved credentials. Updates require a stopped Minecraft server before restarting the agent. Already staged assets are reused only after signature, compatibility and byte/hash verification; changed staging remains untouched and is rejected.
+
+An interrupted reset with no recorded cancellation/failure resumes from its original paths. Explicit cancellation is written atomically before another individual file deletion; both Reset's Cancel button and authorized operation cancellation use that boundary. Files already removed cannot be restored. Directory removal cannot recursively bypass the boundary. Configuration and in-memory cleanup happen after server-file deletion; cancellation preserves credentials and the remaining configuration. Permission failure retains its marker, records the affected path/error, releases the worker reservation and keeps the agent accessible. Ordinary management mutations stay blocked until retry/cancellation. Once file deletion has completed, identity cleanup finishes rather than accepting a misleading late cancellation. Recovery opens Reset directly instead of becoming trapped behind first-time setup or automatic server selection. Headless users have `msc host reset status` and `msc host reset cancel`.
+
+A random, reset-specific completion token permits reading only that reset's durable outcome after old credentials are revoked. The desktop waits for a confirmed success before forgetting credentials or uninstalling its local service; failure, cancellation, timeout and disconnection are no longer treated as success. The normal successful reset still revokes credentials, rotates identity and supports the existing local fresh-install cleanup.
+
+**Essential regressions:** Six new controlled cases cover the real 204 health response, verified staged-release retry/tamper rejection, cancellation between files surviving restart, permission failure waiting for explicit retry/cancel, recovery after file deletion without deleting the tree again, and authorized cancellation surviving a crash before the worker sees its flag. Existing coverage did not exercise these failures. Inputs are injected/in-memory except the tiny signed staging fixture in a uniquely created, automatically cleaned temporary directory. No live server, network, real permission bits, global environment mutation or timing assertions; expected runtime below one second per case after compilation. Test targets compile; tests have not been executed because the owner has not authorized these specific commands under the repository policy.
+
+**Owner-only regression command:** `cargo test -p msc-infrastructure --lib release_update::tests && cargo test -p msc-application --lib host_reset::tests && cargo test --manifest-path clients/desktop-web/src-tauri/Cargo.toml --lib health_response_tests`
+
+**Checks and acceptance:** Agent/infrastructure/application Clippy, native desktop Clippy, focused test-target compilation, frontend type check/build, generated API consistency, Rust formatting and whitespace checks pass. Existing unused-function, native needless-borrow/return, frontend CSS/accessibility warnings and bundle-size notices remain. These checks do not establish packaged macOS update/rollback or physical reset acceptance. On the corrected package, verify closing/reopening preserves the version and agent connection, healthy updates do not roll back, cancellation does not resume after restart, and a denied deletion keeps recovery available. Use disposable reset data. The running Minecraft server was stopped cleanly and the agent stopped on the owner's instruction; both stay stopped.
+
+**Upgrade limit:** 0.1.25/0.1.26 launch their already installed, defective update helper. The first corrected macOS release must therefore be installed manually and its matching agent repaired once; subsequent Settings updates can use the corrected helper. No attempt is made to change existing signed artifacts or move a release tag. The root-owned Bedrock leftovers themselves are preserved; this correction makes their permission failure recoverable rather than silently escalating deletion.
+
+### P16.68 — Support large world conversions with resource budgets
+
+**Status:** Done at Cameron's direction (2026-10-13). Previous status: Implemented; awaiting owner verification. Owner authorized implementation, focused testing and the next publication on October 12.
+**Files:** Infrastructure archive/filesystem/Chunker/resource budgets; application conversion and slot-size metadata; agent conversion adapter; focused conversion tests; lockfiles; this plan.
+**What:** The owner's 12.8 GB Tectonic conversion hits MSC's fixed 8 GiB extraction ceiling before Chunker. The same ceiling would reject later activation. Whole-ZIP reads also allocate source/output archives in RAM. Replace those production copies with filesystem streaming, stat archives for size, retain the 200,000-entry safety ceiling and all path/type/CRC checks, and raise the absolute size backstop to 1 TiB with free-space enforcement on extraction. Budget conversion scratch/destination space conservatively from declared input and existing live-world sizes, allowing larger output; preserve a 2 GiB reserve and recheck between stages, during archive writes and while Chunker runs. Release scratch data between stages. Bound Java heap to half currently available memory, capped at 4 GiB, refusing below 1 GiB available; bound/drain both output pipes and retain failure diagnostics. Preserve source and finish replacement ZIP before promotion. No global Java or live-server settings changed. The MSC 1 oracle directory specified in AGENTS.md is absent on this machine; no parity claim rests on reading it.
+**Verify:** `cargo test -p msc-infrastructure --lib conversion_resources::tests && cargo test -p msc-infrastructure --test world_archive && cargo test -p msc-application --test world_conversion && cargo test -p msc-application --lib resource_regressions && cargo clippy -p msc-infrastructure -p msc-application -p msc-agent --lib --bins && cargo fmt --all -- --check && git diff --check`
+**Batch:** P16.68–P16.69, explicitly authorized by owner's implement/test/publish request. Focused tests authorized for this task; no release test gates.
+**Commit:** `P16.68: support large world conversion with resource budgets`
+
+**Essential tests:** Deterministic disk-reserve/overflow and memory-budget boundary cases catch unsafe resource decisions in milliseconds without probing host state. Existing archive and conversion tests protect traversal/corruption rejection, failure preservation, packaging and activation. An explicitly ignored, owner-selected real-world acceptance test runs the production Chunker runner and complete conversion pipeline into disposable directories, checks a source larger than 8 GiB, validates Bedrock activation and confirms original archive length/mtime unchanged. It requires local Java/JAR/world inputs, may take minutes, and is never included in ordinary tests or publication. No synthetic multi-GB fixture is committed. A second deterministic test injects final rename failure and proves the original archive remains intact and temporary output is removed; expected runtime under one second.
+
+**Evidence:** 31 focused tests pass (resource budget 1, archive safety 15, conversion 14, replacement promotion 1). A broader activation check passed 12 cases and failed the fresh-world packs/seed case; an isolated worktree at published v0.1.26 reproduces exactly the same failure (`level-seed=998877` missing), establishing it predates this correction. Do not call the entire activation suite green or silently expand this fix to fresh-world seed behavior. The real Tectonic archive is 9.2 GiB compressed, 13,702,937,286 bytes unpacked, 4,938 entries. Both opt-in real conversion attempts were stopped before completion at the owner's request. Disposable scratch directories were removed; no successful full-world conversion is claimed. Its outstanding outcome belongs in P16.69's evidence. Sampled agent-side test RSS during archive validation is approximately 9 MiB, not a measured lifetime peak. Formatting, Clippy and whitespace checks pass with the existing unused `auth::forbidden` warning. Existing dependency versions are retained; only resource-probe dependencies were added in both lockfiles. No live server, source world or release workflow modified.
+
+### P16.67 — Use managed Java and the existing data folder for Chunker
+
+**Status:** Done at Cameron's direction (2026-10-13). Previous status: Implemented; awaiting owner verification. Owner directly requested both corrections before publication of P16.66.
+**Files:** `crates/msc-infrastructure/src/chunker.rs`; agent world-conversion/Java-runtime routes; `WorldConversionWizard.svelte`; this plan.
+**What:** Correct Chunker preflight reporting zero formats when macOS's `/usr/bin/java` launcher exists but cannot find Java, despite an MSC-managed runtime being installed. Reuse the Java-settings search roots, including the configured agent data folder's `runtimes`, platform system roots and Windows legacy runtime roots. Try configured/discovered runtimes and fall back after real format-query failures, rather than treating launcher existence as Java availability. Run discovery outside the async request executor with bounded time/output; preserve actual launch diagnostics when no runtime works. Pass the selected runtime into conversion. Chunker requires Java 17 or newer per its official CLI documentation; update prerequisite text. Store Chunker and metadata under `default_app_data_dir()` (honoring `MSC2_DATA_DIR`, XDG and Windows defaults), instead of its separately hardcoded macOS `MSC2` / Linux `.msc2` folder. Retain `MSC2_CHUNKER_JAR_PATH` override. On conversion preflight or conversion, migrate a legacy JAR and optional metadata when the destination is absent; validate the JAR and verify copied bytes before removing originals. Remove the legacy directory only if empty; preserve unrelated contents and existing destination installations. Do not modify live installations during implementation. Include this correction in the already planned P16.66 release; no additional publication step.
+**Verify:** `cargo fmt --all -- --check && cargo clippy -p msc-infrastructure -p msc-agent --lib --bins && npm --prefix clients/desktop-web run check && npm --prefix clients/desktop-web run build && git diff --check`
+**Batch:** P16.67 only; no publication, tests or live conversion.
+**Commit:** `P16.67: use managed java and shared chunker storage`
+
+**Evidence:** Owner's affected Mac reports “Unable to locate a Java Runtime” for both `/usr/bin/java -version` and the Chunker format query. Owner reports Java was installed through MSC and shows both `MSC 2` and `MSC2` Application Support directories. Code confirms the previous existence-only Java lookup and separate hardcoded Chunker directory. The exact managed runtime version on that Mac remains owner verification; no claim that it was Java 21 is established by the supplied output. Official requirement: [Chunker CLI documentation](https://github.com/HiveGamesOSS/Chunker#cli-usage), checked October 12, 2026: Java 17 or newer.
+
+**Essential regressions:** Two controlled tests in `chunker.rs` protect the observed failure and cache preservation. One verifies fallback past empty/broken runtime results and useful error reporting when all fail. One verifies JAR/metadata preservation on simulated destination-promotion failure, successful migration, and retention of unrelated files. Existing tests did not cover these Chunker paths. Both use injected query results/in-memory files and a synthetic JAR, with no real Java process, network, global environment mutation or timing assumptions; expected execution under one second each after compilation. Test targets compile; no tests run.
+
+**Checks:** Rust formatting, infrastructure/agent Clippy, infrastructure test-target compilation, frontend type check/build, generated API consistency and diff whitespace checks pass. Existing unused `auth::forbidden`, frontend warnings and bundle-size notices remain. No API schema change, release workflow change, service operation or physical acceptance.
+
+**Owner verification after P16.66:** On the affected Mac, open Convert World with the already installed managed Java and legacy Chunker cache. Confirm supported formats appear and conversion succeeds. Confirm the cache is now in the agent's existing `MSC 2` data folder and the old `MSC2` folder is absent if it held only Chunker files. Keep the ATM10 acceptance exercise under P16.65 as well; report results to close these implemented steps without another execute command.
+
+### P16.65 — Fix saved modded-world starts and reconcile import outcomes
+
+**Status:** Done at Cameron's direction (2026-10-13). Previous status: Implemented; awaiting owner verification.
+**Files:** `crates/msc-application/src/java_world_settings.rs`; `crates/msc-application/src/modpacks.rs`; relevant existing domain/agent DTO, lifecycle/components routes and startup diagnostics; generated API types when needed; desktop wizard model/summary and startup failure presentation; focused existing regression files as necessary; this plan.
+**What:** Deliver both corrections together. Treat loader-owned identifiers read from saved world metadata as opaque pack identities rather than resource-location syntax, preserving enabled built-in packs and disabled metadata appropriately. Keep strict path containment and filename validation for MSC-managed `file/` packs and user-supplied input; do not broadly relax world-type/resource-ID validation, remove mods/packs, recreate worlds, or rewrite installation paths. Make actual pack-validation errors identify the pack and actionable cause, and carry the world-settings context to the startup sheet instead of irrelevant generic advice. Trace every initially flagged CurseForge file to an explicit outcome (recovered, excluded with a concrete reason, directly installed, unresolved, or otherwise actually handled), preserving file identity through classification. Present enough names/reasons in the existing summary to reconcile the initial warning; do not invent the historical two files' identities or double-count downloads. Update generated contracts and retained CLI consumers if DTOs change. Read `antiAIslop.md` before frontend work; reuse the existing sheet layout. Inspect existing coverage and extend only essential controlled regressions: loader IDs containing spaces/uppercase survive saved-world application while file paths remain contained, and blocked-file classification produces a reconciled summary. Record runtime expectations and why existing coverage missed these failures. Do not run tests without a specific owner command. Run relevant non-test format, Clippy, API-generation/type and frontend production-build checks; commit all implementation and plan evidence once, leaving status awaiting owner verification.
+**Verify:** `cargo fmt --all -- --check && cargo clippy -p msc-application -p msc-agent --lib --bins && npm --prefix clients/desktop-web run check && npm --prefix clients/desktop-web run build && git diff --check`
+**Batch:** P16.65 only; includes both bugs and their diagnostics, no publication.
+**Commit:** `P16.65: fix modded world restart and reconcile pack imports`
+
+**Owner verification:** No automated test command is required by this plan. Physical acceptance is one short exercise on the corrected app, after P16.66: start/stop/start the existing affected world without recreating it; import ATM10 8.2 and confirm all initially flagged files have named outcomes; complete First Start, then start/stop/start its world. Confirm no “Invalid data pack ID” and no unexplained six-versus-four discrepancy. Report the result so Cameron can close the steps; source/build checks alone do not establish this result.
+
+**Implementation:** Validate requested packs before merging saved loader-owned identifiers, so OpenLoader paths remain unchanged and are never filesystem targets. Retain file-pack checks, including the MSC generation pack, and disabled metadata. Pack errors now name the offending ID; Java-start failures carry world-settings context and the desktop avoids unrelated startup-log findings/advice for this pre-launch failure. CurseForge import records filename, file ID and reason at every exclusion path, including post-install cleanup. Creation retains the original inspection warning filenames; the completion summary gives each one a named outcome without adding recovered files to the direct-download count. If provider metadata cannot be reconciled, say so explicitly instead of inventing a successful outcome. This does not identify the historical two files retroactively. The summary is additive data inside the existing operation-result string; API regeneration produces no contract diff and retained CLI consumers require no change. No live world or installation was modified.
+
+**Essential regressions:** `saved_java_world_settings.rs` exercises two saved-world applications with an OpenLoader identifier containing uppercase/spaces, retained disabled metadata and rejection of an explicitly requested traversal filename before any write. `curseforge_pack_import.rs` adds a blocked client-only JAR/non-JAR exclusion case that retains both file identities and reasons without reporting missing server mods. Existing coverage did not exercise the saved loader path or exclusion accounting. Inputs are synthetic; the world check uses an in-memory filesystem and the import check uses fake provider responses and a local temporary directory, with no network, process launch, sleeps or timing expectations. Expected execution: under one second each after compilation. Both targets compile; neither test was run.
+
+**Checks:** Rust formatting, application/agent Clippy, selected regression-target compilation, frontend type check/production build, generated API checks and whitespace checks passed. Clippy retains the existing unused `auth::forbidden` warning; frontend retains 11 existing warnings and its existing bundle-size notice. No tests executed, no release workflow changed or run, and no physical/visual acceptance claimed. Publication remains P16.66; owner acceptance remains the exercise above.
+
+### P16.63 — Present v0.1.25 as current in the README
+
+**Status:** Done at Cameron's direction (2026-10-13). Previous status: Implemented; awaiting owner verification.
+**Files:** `README.md`; this plan.
+**What:** At the owner's explicit request, present v0.1.25 as released: update the current release link, platform download links, Linux installer filenames and headless update example; describe the privacy cleanup in present tense. Preserve previous-version change descriptions and physical acceptance caveats. This documentation edit does not establish workflow completion; release monitoring remains stopped at the owner's request and the release tag is unchanged.
+**Verify:** `git show --check --stat --oneline HEAD`
+**Batch:** P16.63 only.
+**Commit:** `P16.63: update readme for v0.1.25 publication`
+
+**Checks:** Inspected release wording, download links and command examples; diff whitespace check passed. No tests, builds, release runs or monitoring.
+
+### P16.61 — Anonymize personal examples and machine observations
+
+**Status:** Done at Cameron's direction (2026-10-13). Previous status: Implemented; awaiting owner verification.
+**Files:** Desktop examples/comments and matching tests; Rust comments/service-account fixtures; world/player fixtures and corpus metadata; documentation; map-proof helper; this plan.
+**What:** Use generic SSH/access/player examples and service accounts. Remove personal attribution from implementation comments while keeping the reasons and decision references. Replace personal gamertags and test XUIDs with synthetic examples, updating paired expectations. Use anonymous world/server aliases consistently, rename their tracked evidence labels, and update the sanitized backup sidecar digest. Omit private world locations, hardware model/year and client OS patch details; describe the diagnosed router without naming the owner's ISP. Preserve copyright/author attribution, GitHub release and publisher identity, installed service identifiers and the uninstall publisher compatibility check. Keep router-brand support and platform-relevant Intel/macOS/iPad facts. Raw private captures and Git history remain unchanged; private corpus checks require local copies at the documented alias paths. No tests added or run, no service migration, publication or live installation.
+**Verify:** `git show --check --stat --oneline HEAD`
+**Batch:** P16.61 only; owner-authorized follow-up privacy cleanup.
+**Commit:** `P16.61: anonymize personal examples and machine observations`
+
+**Checks:** Frontend type check passes with 11 existing warnings. Application Clippy passes with the existing unused `auth::forbidden` warning; all affected Rust test targets compile/lint with warnings denied without executing tests. Rust formatting, changed JSON parsing, helper Python syntax, committed backup sidecar digests, synthetic XUID arithmetic and diff whitespace checks pass. Regenerated API types include the anonymized contract comment and matching source digest. Targeted personal example labels are absent from source/tests/fixtures/corpus/map tools. No tests run.
+
+### P16.60 — Remove personal paths and captured network addresses
+
+**Status:** Done at Cameron's direction (2026-10-13). Previous status: Implemented; awaiting owner verification.
+**Files:** Documentation and rendering examples; desktop gallery/browser harness; existing Rust and JSON path fixtures; this plan.
+**What:** Replace personal macOS/Linux/Windows account paths with the example account. Replace captured public/cellular addresses with reserved documentation addresses, and host/guest LAN addresses with consistent private-network examples. Label sanitized historical records so example values cannot be mistaken for original observations; make archived source links relative. Keep path-safety fixture relationships and platform path syntax intact. Preserve owner/copyright attribution, GitHub and installed app/service identity, and Git history. No tests added or run; no publication.
+**Verify:** `git show --check --stat --oneline HEAD`
+**Batch:** P16.60 only; owner-authorized privacy cleanup.
+**Commit:** `P16.60: remove personal paths and captured network addresses`
+
+**Checks:** Targeted scan of tracked text found no remaining personal account paths or captured addresses selected for this cleanup. Changed JSON parses; browser harness syntax, Rust formatting and diff whitespace checks pass. Affected service-model/systemd fixtures pass Clippy with warnings denied. Application libraries/binaries pass normal Clippy with one existing warning because warnings-denied compilation encounters the unchanged unused `auth::forbidden` function. The broad all-targets check is also blocked by unchanged provisioning dead code and outdated CLI test fields; no unrelated fixes or test execution.
+
+### P18.46 — Add biome colors and legend to the world viewer
+
+**Status:** Done at Cameron's direction (2026-10-13). Previous status: Implemented; awaiting Cameron verification.
+**Files:** `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`, this plan.
+**What:** Add a collapsed Biomes panel beneath Players with Vantage's existing biome colors and click-to-highlight legend. Update shares as tiles stream; preserve the color toggle across refresh/dimension changes and clear highlighting. Shares describe loaded terrain. Missing biome data is explicit. Generic modded shapes remain unchanged; D-042 stays in force. No tests added or run.
+**Verify:** `cd clients/desktop-web && npm run check && npm run build`
+**Batch:** P18.46 only.
+**Commit:** `P18.46: add world map biome colors and legend`
+
+**Owner visual verification:** Open the modded Java map, expand Biomes beneath Players, enable colors, select/deselect a biome, stream terrain, refresh and switch dimensions. Confirm the toggle persists, highlighting clears on reload, and both panels collapse independently.
+
+**Implementation checks:** Frontend type/Svelte check passed with zero errors and existing unrelated warnings; production build and whitespace check passed. No Rust changes or tests. Runtime visual acceptance remains pending.
+
+### P18.47 — Move the biome panel to the top left
+
+**Status:** Done at Cameron's direction (2026-10-13). Previous status: Implemented; awaiting Cameron verification.
+**Files:** `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`, this plan.
+**What:** Place the independent collapsible Biomes panel in the map's top left at Cameron's request. Players remains in the top right. Preserve biome controls and scrolling.
+**Verify:** `cd clients/desktop-web && npm run check`
+**Batch:** P18.47 only.
+**Commit:** `P18.47: move biome panel to top left`
+
+**Checks:** Svelte/frontend check passed with 0 errors and 11 existing unrelated warnings; whitespace check passed. No tests run. Owner visual verification pending.
+
+### P18.48 — Correct biome legend color values
+
+**Status:** Done at Cameron's direction (2026-10-13). Previous status: Implemented; awaiting Cameron verification.
+**Files:** `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`, this plan.
+**What:** Convert Vantage's RGB channels from 0–1 to CSS RGB's 0–255 scale. The previous direct conversion made every legend swatch nearly black. Match the renderer's categorical biome palette.
+**Verify:** `cd clients/desktop-web && npm run check`
+**Batch:** P18.48 only.
+**Commit:** `P18.48: correct biome legend color scale`
+
+**Checks:** Frontend check passed with zero errors and 11 existing unrelated warnings; whitespace check passed. No tests run. Cameron should reopen Biomes and compare the swatches with the colored terrain.
+
+### P18.49 — Toggle biome colors from the heading
+
+**Status:** Done at Cameron's direction (2026-10-13). Previous status: Implemented; awaiting Cameron verification.
+**Files:** `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`, this plan.
+**What:** Replace the separate show/hide button with an accessible On/Off button in the Biomes heading. Prevent its click from collapsing the panel. Vantage clears highlighting when colors are disabled.
+**Verify:** `cd clients/desktop-web && npm run check`
+**Batch:** P18.49 only.
+**Commit:** `P18.49: toggle biome colors from panel heading`
+
+**Checks:** Frontend check passed with zero errors and 11 existing unrelated warnings; whitespace check passed. No tests run. Owner verification: click On/Off with the panel expanded and collapsed; confirm only the colors change.
+
+### P18.50 — Add live world-map quality controls
+
+**Status:** Done at Cameron's direction (2026-10-13). Previous status: Implemented; awaiting Cameron verification.
+**Files:** `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`, this plan.
+**What:** Add a collapsed bottom-right Quality panel with Vantage 0.15.1 Low/Medium/High/Ultra presets and live view-distance, tile-budget, terrain-memory, render-scale, haze and Java map-memory sliders. Default to Medium; retain choices across refresh/dimension changes within the viewer. Presets preserve haze and identify manually modified settings as Custom. Hide ineffective map memory for Bedrock and preserve its single-request loading configuration and overview. Budgets are terrain estimates, not total-app memory limits. No tests added or run.
+**Verify:** `cd clients/desktop-web && npm run check && npm run build`
+**Batch:** P18.50 only.
+**Commit:** `P18.50: add world map quality controls`
+
+**Owner verification:** Expand Quality in Java and Bedrock maps; switch presets, adjust sliders, refresh and change dimension. Confirm settings persist within the viewer, haze is retained when choosing presets, Bedrock lacks map memory, and terrain remains navigable. Evaluate higher-budget cost on the host; runtime visual acceptance remains pending.
+
+**Checks:** Frontend/Svelte check and production build passed with existing unrelated warnings; whitespace check passed. No Rust changes or tests. Runtime acceptance remains with Cameron.
+
+### P18.51 — Lower the quality panel
+
+**Status:** Done at Cameron's direction (2026-10-13). Previous status: Implemented; awaiting Cameron verification.
+**Files:** `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`, this plan.
+**What:** Move Quality from 64px to 16px above the map bottom, matching the toolbar and terrain caption.
+**Verify:** `git diff HEAD~1 HEAD --check`
+**Batch:** P18.51 only.
+**Commit:** `P18.51: lower world map quality panel`
+
+**Checks:** Inspected the CSS position and passed whitespace verification. No tests run. Owner visual verification pending.
+
+### P18.52 — Add independent vertical depth controls
+
+**Status:** Done at Cameron's direction (2026-10-13). Previous status: Implemented; awaiting Cameron verification.
+**Files:** `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`, this plan.
+**What:** Replace the inline 2D-only depth slider with a toolbar Depth disclosure button and vertical slider beneath Biomes. Retain slicing when switching to 3D or Fly. Adjust terrain cutaway in all modes without moving the Fly camera. Mark standard Overworld sea level Y63. Drag or focus and use Up/Down with native keyboard repeat; Left/Right chooses 1/4/16 blocks per repeat and ignores held-key repeats. Briefly show the step while interacting. Hiding controls retains the cutaway; Home restores the surface. Sea marker indicates the standard reference, not custom generator water levels.
+**Verify:** `cd clients/desktop-web && npm run check && npm run build`
+**Batch:** P18.52 only.
+**Commit:** `P18.52: add independent vertical depth controls`
+
+**Owner verification:** Open Depth in 2D, 3D and Fly; drag, focus and hold Up/Down, change step with Left/Right, and confirm clamping, sea marker and transient step label. Confirm slicing survives mode changes, Fly depth edits leave the camera still, and Home restores surface terrain.
+
+**Checks:** Frontend/Svelte check and production build passed with existing unrelated warnings; whitespace check passed. No tests run. Native slider dragging, held-key behavior and Fly camera acceptance remain for Cameron.
+
+### P18.53 — Route Shift arrows to visible depth controls
+
+**Status:** Done at Cameron's direction (2026-10-13). Previous status: Implemented; awaiting Cameron verification.
+**Files:** `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`, this plan.
+**What:** Capture Shift+arrow shortcuts at the window while Depth is open, before Vantage receives them. Shift+Up/Down adjusts depth with held-key repeat; Shift+Left/Right changes 1/4/16-block steps once per press. Slider focus is no longer required. Reserve Shift while Depth is open so Fly cannot simultaneously descend; key releases still reach map controls to clear held movement. Update the slider hint.
+**Verify:** `cd clients/desktop-web && npm run check`
+**Batch:** P18.53 only.
+**Commit:** `P18.53: route shift arrows to depth controls`
+
+**Owner verification:** With Depth open and without focusing the slider, hold Shift+Up/Down in 2D, 3D and Fly. Confirm depth changes without camera movement; tap Shift+Left/Right and confirm step changes. Close Depth and confirm normal Shift/camera controls return.
+
+**Checks:** Frontend check passed with zero errors and 11 existing unrelated warnings; whitespace check passed. No tests run. Desktop keyboard verification remains pending.
+
+### P18.54 — Use Alt or Option for depth shortcuts
+
+**Status:** Done at Cameron's direction (2026-10-13). Previous status: Implemented; awaiting Cameron verification.
+**Files:** `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`, this plan.
+**What:** Change visible-depth shortcuts to Alt/Option+arrows. Restore Shift handling to Vantage so Fly descent works even with Depth open. Preserve held Up/Down repeat and single-press Left/Right step selection; update the hint. Supersedes P18.53's Shift reservation.
+**Verify:** `cd clients/desktop-web && npm run check`
+**Batch:** P18.54 only.
+**Commit:** `P18.54: use alt option for depth shortcuts`
+
+**Owner verification:** Open Depth and hold Alt/Option+Up/Down; tap Alt/Option+Left/Right to change step. In Fly, confirm Shift still descends with Depth open.
+
+**Checks:** Frontend check passed with zero errors and 11 existing unrelated warnings; whitespace check passed. No tests run. Owner keyboard verification pending.
+
+### P16.45 — Present v0.1.24 as current in the README
+
+**Status:** Done at Cameron's direction (2026-10-13). Previous status: Implemented; awaiting Cameron verification.
+**Files:** `README.md`, this plan.
+**What:** At Cameron's explicit request, write the README as though v0.1.24 is published: update the current release link and remove next-candidate wording. This documentation edit does not establish workflow completion or artifact acceptance; the immutable release tag remains unchanged.
+**Verify:** `git show --format= -- README.md`
+**Batch:** P16.45 only.
+**Commit:** `P16.45: update readme for v0.1.24 publication`
+
+**Checks:** Inspected release wording and link; whitespace check passed. No tests run.
+
+### P18.55 — Reclaim local Mac build and test-installation space
+
+**Status:** Done at Cameron's direction (2026-10-13). Previous status: Cleanup performed; awaiting Cameron verification.
+**Files:** This plan; local generated outputs and MSC 2 installation/data outside Git.
+**What:** At Cameron's request, remove generated Rust/Tauri/Node/frontend outputs from the main repo and world-map worktree, ignored local test worlds/backups/player samples, MSC 2 application data, WebKit/cache/preferences, installed agent/Bedrock helper services and root helper files, and the MSC command symlink. Preserve tracked source in both checkouts and MSC 1. No installed application was found in standard Applications folders; development app bundles were removed with build trees. Administrator cleanup was required for launch daemons and root-owned Bedrock data. Shared compiler/package/tool caches were preserved.
+**Verify:** `du -sh /Users/example/msc2 /Users/example/msc2-world-map && df -h /Users/example/msc2`
+**Batch:** P18.55 only.
+**Commit:** `P18.55: record local mac artifact cleanup`
+
+**Evidence:** Filesystem available space rose from 53,081,192 KiB to 116,644,552 KiB (about 60.6 GiB reclaimed). Main source checkout is 99 MiB and world-map source checkout 36 MiB. Both launchd services are absent; tracked source status was clean before this record. No tests run. Rebuilding requires restoring dependencies and compiling again.
+
+
+## October 16, 2026 — Reconciled implementation and publication records
+
+Cameron requested another cleanup before planning faster uploads and publishing
+the XboxBroadcast correction. The records below have left the active rolling
+plan. Original findings and verification limitations are retained; this move
+does not infer physical acceptance or close independent phase gates. Published
+release status was checked against GitHub on October 16. The connected-host
+transfer plan remains unimplemented in [deferred work](deferred-work.md).
+
+### P16.89 — Keep XboxBroadcast running through Bedrock status polling
+
+**Status:** Owner confirmed working on the affected Intel Mac with RakNet retained on October 16. Broader fault cases and exact normal-release acceptance remain unverified.
+**Files:** `crates/msc-application/src/bedrock_runtime.rs`, `xbox_broadcast.rs`; their focused integration tests; `crates/msc-agent/src/routes/lifecycle.rs`, `networking.rs`; `tools/release/prepare-macos-agent-fix.sh`; `docs/msc2/clients/broadcast-agent-fix.md`; this plan. Generated app/archive are not committed.
+**What:** Queue asynchronous Bedrock events received while waiting for command/provision/start replies, then drain them in order through the normal event reader. Preserve broadcast when a rejected event leaves the Bedrock runtime live; log the actual event error to console and agent stderr, while retaining cleanup for lost runtimes and confirmed termination. Reserve broadcast start before acquisition, return its operation immediately, download on a blocking worker outside helper-state locks, and prevent stopped/cancelled/replaced preparations from launching late. Serialize broadcast acquisition separately to protect its shared staging files. Reuse the published Intel v0.1.29 desktop/helper bundle with a newly compiled native agent for temporary local delivery; resign the replaced agent and outer app, retain the Swift helper signature/entitlement and document normal app replacement plus Repair agent. No transport change, release publication, tag, installed-service mutation or world-data changes on this machine.
+**Verify:** `cargo clippy -p msc-agent --bin msc -- -D warnings -A dead_code`
+**Batch:** P16.89 only; one corrective commit and local delivery artifacts, no release workflow or test execution.
+**Commit:** `P16.89: preserve broadcast through bedrock status polling`
+
+**Evidence:** The owner's process sample captures `spawn_playit_output_pump -> start_pending -> status_snapshot -> drain_bedrock_events -> stop_broadcast_for_server`, waiting for the broadcast lock while the start handler downloads/checksums the helper. It also captures that stop routine cancelling the operation. Bedrock remains running. The precise rejected sidecar frame is not in the sample; inspection establishes that `receive_response` previously consumed arbitrary console/metrics/readiness frames as replies and left the actual acknowledgement for `poll_event` to reject.
+
+**Essential regressions:** Two cases exercise command and startup acknowledgements interleaved with console/metrics/readiness, protecting preserved event order and successful command/start completion. Two cases exercise stop/replacement and cancellation before acquisition completion, protecting against late helper launch or an old worker failing the new operation. Existing focused cases assumed uninterrupted replies and synchronous acquisition. All use injected transports/filesystems/processes, with no VM, network, wall-clock waits or machine dependencies; expected runtime below one second for the four cases. Compiled, not executed.
+
+**Checks:** Native Intel `cargo build --locked -p msc-agent --bin msc` passed. Agent Clippy passed with only the pre-existing unused `auth::forbidden` function excluded through `-A dead_code`; focused Bedrock runtime and broadcast regression targets compiled with Clippy and warnings denied. Formatting, shell syntax and diff whitespace checks passed. An initial broad all-target check exposed unrelated existing `provisioning::purpur_transport`, `cli_pairing` route imports and `cli_service` argument errors; none were changed. No tests executed. Published Intel base DMG checksum matched; prepared app passed deep strict signature verification, retained the original Swift helper/appliance bytes and virtualization entitlement, and contains an x86_64 replacement agent. Local installed app/services were not changed. Physical acceptance remains pending.
+
+**Delivery:** Native Intel development agent and a temporary app ZIP using the checksum-verified published 0.1.29 Intel DMG. The installed local app is older, so it is not used as the delivery base. Owner must stop Minecraft, replace the desktop app, and Repair agent before acceptance. Keep the normal published installer for rollback. Version remains 0.1.29; this local correction is identified by the step commit and BUILD.txt rather than a release claim.
+
+**Owner acceptance:** Cameron reported “nice work. its working.” after installing the temporary Intel correction. This confirms the reported broadcast-start failure is resolved on that Mac; it does not establish execution of the regression suite or all cancellation scenarios.
+
+### P16.88 — Reuse release compilation and cache Rust dependencies
+
+**Status:** Implemented; awaiting owner verification in a future workflow run. Cameron explicitly requested faster release builds, particularly Intel macOS.
+**Files:** `.github/workflows/release.yml`, `clients/desktop-web/tools/prepare-agent-dev.mjs`, `tools/release/build-macos-headless.sh`, this plan.
+**What:** Keep the existing four-platform build-only release workflow. Pass its native Rust target to desktop staging so the agent uses the already-built `target/<triple>/release/msc` output and the map exporter shares its output with headless packaging. Preserve ordinary development staging without a target argument and reject duplicate or nonnative targets. Keep Cargo dependency resolution locked during staging and macOS headless builds. Add a commit-pinned Rust cache covering agent, desktop shell, map exporter and Windows lifecycle-helper dependency outputs, separated by platform and automatically keyed by toolchain/dependency configuration. Preserve all nine release artifacts, checksums, signed update metadata, sidecar appliance checks and entitlement verification. No new tests, lint gates, runner purchases, release tags or workflow triggers.
+**Verify:** `git show --stat --oneline --grep='P16.88:' HEAD`
+**Batch:** P16.88 only; update workflow and build scripts, commit and push main. Do not restart the current release or dispatch a new build.
+**Commit:** `P16.88: reuse release compilation and cache rust dependencies`
+
+**Checks:** JavaScript syntax check, macOS packaging shell syntax check, YAML parsing and whitespace inspection passed. Inspected Cargo output paths against desktop staging, headless packaging and Windows staging. No Rust source changed; no tests or full release builds run. Build-time improvement remains unmeasured. The previous successful Intel run spent approximately 16 minutes building the agent and another 13 minutes staging its payload; staging includes other work, so these figures do not establish a promised saving.
+
+**Cache operation:** GitHub tag caches are isolated from later tags. An owner-directed, build-only run on the default branch seeds reusable dependencies for subsequent release tags: `gh workflow run release.yml --ref main -f publish=false`. This command builds all four platforms and is deliberately not launched here. Later tags can restore that default-branch cache while available; dependency/toolchain changes and cache eviction can require fresh compilation. No automatic main-branch builds are added. The target-directory reuse benefits the next release even with an empty cache. Existing v0.1.29 continues using its immutable workflow definition.
+
+### P16.87 — Present v0.1.29 as released in the README
+
+**Status:** Implemented; awaiting owner verification. Owner explicitly requested README wording as if v0.1.29 were released.
+**Files:** `README.md`, this plan.
+**What:** Remove the pending-candidate notice and present v0.1.29 as the latest published prerelease throughout current-release text, download links, package examples and the update command. Replace the older opening feature summary with automatic SSH pairing, reduced diagnostic polling, continuing shutdown-status reconciliation and Intel Mac Bedrock worker exit. Include the updated-app Repair agent instruction and preserve unsigned-beta, platform support, ownership-recovery and open physical acceptance distinctions. This wording request does not establish workflow completion or change the existing release tag.
+**Verify:** `git show --format= -- README.md`
+**Batch:** P16.87 only; documentation only, no release workflow or tag changes.
+**Commit:** `P16.87: present v0.1.29 as released in readme`
+
+**Checks:** Inspected all README version references, current-release summary, download links and package/update examples; whitespace check passed. No tests run or workflow monitoring performed.
+
+### P16.86 — Publish v0.1.29 with remote pairing and shutdown corrections
+
+**Status:** Prepared; publication explicitly authorized by Cameron on October 14. Push the new tag once and report the workflow link without monitoring builders, following the owner's existing preference. Publication and artifact acceptance remain separate.
+**Files:** Agent/desktop/frontend manifests and lockfiles, source/static bundle identity, README candidate notice, `docs/msc2/release/v0.1.29.md`, this plan.
+**What:** Increment the latest confirmed published v0.1.28 to v0.1.29 and publish through the existing build-only workflow. Include P16.80 automatic SSH command discovery/shared pairing storage, P16.82 removal of hidden health polling and bounded diagnostics, P16.84 continuing shutdown-status reconciliation, and P16.85 reliable Bedrock VM-worker exit. Align the static bundle identity with the owned source versions (its previous static value was still 0.1.25). Keep README's latest-confirmed publication factual until the new run publishes, with a separate pending candidate notice. Preserve all nine desktop/headless artifacts, checksums and signed update metadata. Do not move an existing tag, add checks to the workflow, or execute tests. World-time investigation is deferred at the owner's request; case-alias world swapping is not claimed fixed.
+**Verify:** `gh release view v0.1.29 --json tagName,isPrerelease,assets,url`
+**Batch:** P16.86 only; prepare, commit, push main and a new immutable v0.1.29 tag once, report the triggered run without waiting for builders.
+**Commit:** `P16.86: prepare v0.1.29 connection and shutdown release`
+
+**Preparation evidence:** GitHub confirms v0.1.28 published successfully with all nine expected platform installers/archives, SHA256SUMS, release notes and both signed-update metadata files. Its successful workflow is run 38352114339; the older failed run remains historical and is not retried. The active workflow remains unchanged. Repository configuration includes the required signing-secret and public-key variable names; secret values were not read. Agent and desktop locked Cargo metadata resolve. Owned package versions and source/static identities agree at 0.1.29. Frontend production build and bundle-identity inspection passed with the existing warnings/advisories. The tracked appliance SHA-256 matches all four declarations. Inspection confirms Intel staging rebuilds the corrected Swift helper from source and the headless package copies that staged payload. The P16.85 Release and test-compilation builds already passed; no tests were executed for this release. Whitespace check passed.
+
+**Acceptance still open:** Fresh remote pairing without shell workarounds or saved credentials, sustained ATM10 management without the captured health-scan stall, long shutdown UI reconciliation, and fresh Bedrock initiation/shutdown with the corrected installed helper. The manual removal of the previously stuck worker established live recovery only. Release notes direct Intel Mac users to install the corrected app and repair the agent/helper; they preserve physical acceptance and known-limit distinctions. No live server or installed helper is changed by publication preparation.
+
+**Publication reconciliation (October 16):** GitHub lists v0.1.29 as published. Prior candidate/failure notes above are historical. Publication does not close physical artifact acceptance.
+
+### P16.85 — Let the macOS Bedrock VM worker exit after clean shutdown
+
+**Status:** Implemented; awaiting owner verification of the corrected installed helper. Owner explicitly authorized stopping the stuck local server; live recovery completed.
+**Files:** `sidecar/bedrock/BedrockSidecarCore.swift`, `sidecar/bedrock/Tests/BedrockSidecarTests.swift`, this plan.
+**What:** Replace `RunLoop.main.run()` in the standalone/VM-worker sidecar entry point with `CFRunLoopRun()`, matching the existing `CFRunLoopStop` invoked only after controller shutdown completes. Foundation's repeating run loop could re-enter after the stop, keeping a cleaned-up worker process alive. The root helper correctly waits for that worker's actual exit before acknowledging teardown, so the idle worker blocked Stopped status and first-start completion. Preserve the existing VM cleanup, non-root worker ownership and parent waitpid boundary; do not substitute the guest's console text for proof of host cleanup. No release publication or installed-binary replacement performed.
+**Verify:** `xcodebuild -project sidecar/bedrock/BedrockSidecar.xcodeproj -scheme BedrockSidecar -configuration Release -derivedDataPath /tmp/msc-bedrock-shutdown-build build CODE_SIGNING_ALLOWED=NO`
+**Batch:** P16.85 only; implementation and explicitly authorized local stop. No test execution or other server actions.
+**Commit:** `P16.85: let bedrock vm workers exit after shutdown`
+
+**Live evidence and recovery:** The owner confirmed this is the local Mac and authorized direct diagnostics. BDS logged `Quit correctly` and `[appliance] BDS exited — powering off`, but user-owned VM worker PID 31953 remained under root helper PID 30346. A three-second sample showed only the idle main Foundation run loop and an idle workqueue thread, with a roughly 2.4 MiB footprint, consistent with completed VM teardown and the input reader already gone. After confirming the PID, parent and owner again, sent SIGTERM only to the stuck worker at the owner's request. The root helper reaped it and remained running. `/usr/local/bin/msc status --json` subsequently reported `running:false` and `lastTeardownReason:clean`; the worker was absent. No world files or service registration were changed. The old missing-socket log messages do not explain this hang: the socket directory and socket existed during diagnosis.
+
+**Essential regression:** `testSidecarExitsAfterSupervisorClosesInput` launches the built standalone sidecar and `--vm-worker` with an input pipe, then closes the pipe and requires successful process exit. It starts no VM, Minecraft, service or network, touches no world, and terminates a stuck child on failure. This exercises the actual executable's EOF/cleanup/run-loop-exit boundary rather than comparing source text. Existing controller-level tests did not exercise process exit. Expected runtime under one second for both successful cases; a five-second condition-based wait bounds each failure without arbitrary sleeps. Compiled, not executed.
+
+**Checks:** Xcode Release build and Debug `build-for-testing` passed with signing disabled for build-only verification. The latter compiled the XCTest target without executing it. Existing TCP relay Sendable, resource-validation build-script and AppIntents metadata warnings remain. Whitespace check passed. No Rust or frontend source changed, so their checks are not relevant to this step. The live stop used the old installed helper and establishes recovery, not acceptance of the new binary.
+
+**Owner acceptance:** Rebuild/install the corrected desktop/helper payload and use Repair agent to register the new helper before the next Bedrock run. Create/initiate a Bedrock server and require BDS shutdown, worker process exit, agent Stopped status and the first-start completion page without a refresh or manual termination. Repeat an ordinary start/stop and confirm only the persistent helper service remains. Verify the root supervisor still waits for worker teardown and the worker runs under the installing account. Do not count the manual recovery above as verification of this fix.
+
+### P16.84 — Reconcile long Minecraft shutdowns without a manual refresh
+
+**Status:** Implemented; awaiting owner verification.
+**Files:** `clients/desktop-web/src/App.svelte`, `src/lib/lifecycle/serverLifecycle.ts`, `src/lib/components/ApplicationShell.svelte`, `src/lib/components/shell/ControlSidebar.svelte`, `src-tauri/src/lib.rs`, `tests/lifecycle/serverLifecycle.test.ts`, this plan.
+**What:** Fix the stale shell/Stop-button state after a shutdown exceeds the existing ten-second action wait. While a connected desktop is mounted, reconcile only lightweight `/v1/status` every two seconds, independent of the active tab. Keep a host/server-scoped pending stop until the agent reports stopped (or a different PID establishes a replacement process), displaying disabled `Stopping…` rather than enabling duplicate Start/Stop actions during that stop. The initial action wait remains bounded, but routine reconciliation continues afterward and also observes stops issued from another desktop or the console. Coalesce overlapping reads, invalidate old reads on reconnect/selection/lifecycle actions, guard application by captured client/host/server/generation, and bind action/status/operation requests to the client that received the action. Keep pending actions scoped when switching hosts. Clear the polling timer on unmount. Display status-read failures below the sidebar controls, retain the last confirmed state on failure, and retry on subsequent ticks. Native GET `/v1/status` requests have a five-second timeout so a stalled request cannot indefinitely occupy the poll slot; other request timeouts are unchanged. Restore no full health polling and do not change agent stop semantics or introduce a forced shutdown.
+**Verify:** `npm --prefix clients/desktop-web run check`
+**Batch:** P16.84 only; no publication, live server actions or test execution.
+**Commit:** `P16.84: reconcile server shutdown state without manual refresh`
+
+**Diagnosis:** The shell assigned its running state after `waitForRunningState`, which returns its last snapshot after ten seconds. It had no continuing shell status reconciliation afterward. Individual tabs' polling updated their own data rather than the shell's `status`. A large modpack still saving at that boundary therefore left the sidebar showing Stop until a manual refresh. The owner's shutdown duration has not been measured; the code gap is directly established by inspection.
+
+**Essential regressions:** Three cases extend the existing lifecycle test file: an initially timed-out shutdown later becoming stopped, coalescing concurrent reads while rejecting a previous host context's late response, and resuming status application after a failed read. These protect the reported stale state plus host isolation and recovery introduced by this monitor; earlier tests covered only the bounded initial wait. Use injected promises and a synthetic clock, without real timers/sleeps, servers, networks or environment mutation; expected runtime below one second for the focused file. Compiled through Svelte/TypeScript checking; no tests executed. Optional owner command: `npm --prefix clients/desktop-web run test:unit -- tests/lifecycle/serverLifecycle.test.ts`.
+
+**Checks:** Frontend type checking passed with zero errors and the same 11 existing warnings. Production frontend build passed with existing Svelte, mixed Tauri-import and chunk-size advisories. Desktop Rust formatting and Clippy compilation passed with the three previously recorded unrelated lint exclusions (`needless_borrow`, `needless_borrows_for_generic_args`, `needless_return`). Whitespace check passed. No tests run and no installed app/agent/server changed. Read `antiAIslop.md`; the visual change uses the existing button with a text state and a restrained status-error paragraph, without decorative effects or indicators.
+
+**Owner acceptance:** Use the corrected desktop build against All the Mods 10. Click Stop and leave a non-Overview tab open; require `Stopping…` while Minecraft saves and exits, then an automatic return to Start after the agent reports stopped, including a shutdown longer than ten seconds. Confirm a stop through the other desktop or Minecraft console updates the first desktop without refresh. Switch hosts during a pending shutdown and ensure the old host's late replies cannot populate the new view; return to confirm its current state. Confirm transient status-read failure shows a notice and recovers when reads succeed. Check an ordinary start, short shutdown, uptime and sidebar controls still work. Refreshing/reconnecting must remain compatible with P16.80/P16.82; no full `/v1/health` requests are introduced by this monitor. Live acceptance remains open.
+
+### P16.76 — Republish the failed v0.1.28 at the owner's request
+
+**Status:** Prepared; publication explicitly reauthorized October 13. Owner directed reuse of 0.1.28 rather than 0.1.29 after lifting the publication hold. Artifact and physical verification remain open.
+**Files:** Agent/desktop/frontend versions and lockfiles, bundle identity, README, revised `docs/msc2/release/v0.1.28.md`, removal of unused 0.1.29 notes, this plan.
+**What:** Restore all owned versions to 0.1.28, include P16.73's map changes and P16.74's checksum correction, and replace the failed v0.1.28 tag at the owner's explicit request. This is an owner-directed exception to the ordinary no-tag-movement rule. GitHub's release-by-tag API returned HTTP 404 and the failed workflow completed without publication. Replace only the verified old tag `517e7de636ad7998259aa01111bfa900b81845eb` using an explicit force-with-lease; preserve the failed run history. No 0.1.29 tag exists. File-structure/pack artifact cleanup remains deferred at the owner's direction. Existing build-only workflow and complete signed artifact set remain unchanged.
+**Verify:** `gh release view v0.1.28 --json tagName,isPrerelease,assets,url`
+**Batch:** P16.76 only; push the corrected tag once and report the workflow without monitoring builders, following the owner's earlier preference.
+**Commit:** `P16.76: republish corrected v0.1.28 at owner direction`
+
+**Evidence:** Both focused snapshot regressions passed under specific owner authorization. Full local desktop payload staging, including Release Swift helper and appliance checks, passed after correcting the fourth checksum declaration. Locked offline metadata and actual appliance validation pass with restored 0.1.28 versions. Rebuilding the frontend verifies the changed bundle identity. No source behavior changes follow the tested P16.73/P16.74 implementation. Physical ownership/networking and the actual large map remain unverified by the implementing agent.
+
+**Publication reconciliation (October 16):** GitHub lists v0.1.28 as published. Prior candidate/failure notes above are historical. Publication does not close physical artifact acceptance.
+
+### P16.75 — Prepare v0.1.29 and hold publication for the owner
+
+**Status:** Superseded by P16.76. Owner explicitly requested reusing the failed, unpublished v0.1.28; no v0.1.29 tag or workflow was created.
+**Files:** Agent/desktop/frontend versions and lockfiles, bundle identity, README, `docs/msc2/release/v0.1.29.md`, this plan.
+**What:** Prepare a fresh immutable v0.1.29 candidate containing P16.71's ownership correction, P16.73's large-map snapshots and P16.74's Intel packaging fix. Preserve nine packages, appliance checksums and signed update metadata. Do not move/retry v0.1.28, push a release tag or dispatch a workflow. No new release gates.
+**Verify:** `git show --stat --oneline HEAD && node clients/desktop-web/tools/prepare-agent-dev.mjs --validate-appliance`
+**Batch:** P16.75 only. Stop after local preparation and checks, before starting publication, as explicitly requested by Cameron.
+**Commit:** `P16.75: prepare large bedrock map release without starting publication`
+
+**Evidence and limits:** v0.1.28 failed only at Intel appliance staging and did not publish; the original tag remains unchanged. All four appliance declarations now match the actual archive, and the complete local debug staging path passed (including Release Swift helper, entitlement checks and optimized map exporter). The two specifically authorized map snapshot regressions passed after the controlled disk-budget checks were added. Source/lock versions and locked offline Cargo metadata agree on 0.1.29. Agent/native desktop Clippy, frontend production build, production bundle identity, Rust formatting, Node syntax, actual appliance validation and whitespace checks pass with existing unrelated warnings. README continues to link v0.1.27 as the latest published release and identifies 0.1.29 as a held candidate. Physical ownership/networking and the actual 7.2 GB Bedrock map remain owner acceptance; Prizma installation outcome and Chunker performance are not claimed fixed. No live server/agent was modified. No v0.1.29 tag was created and no workflow was started; wait for the owner's edit/question before publication.
+
+### P16.72 — Publish v0.1.28 with Bedrock ownership correction
+
+**Status:** Publication failed; superseded by the next candidate. v0.1.28 tag remains immutable. Intel macOS appliance staging failed; no GitHub release was published. See P16.74.
+**Files:** Agent/desktop/frontend versions and lockfiles, bundle identity, README, `docs/msc2/release/v0.1.28.md`, this plan.
+**What:** Release P16.71's approved root-supervisor/user-VM-worker split, early detection of existing misowned world data, and recoverable conversion activation diagnostics. Push main and a new immutable v0.1.28 tag once through the existing build-only workflow. Keep all nine packages, appliance resources, checksums and signed update metadata; add no workflow gates. Existing root-owned worlds need explicit administrator repair. The physical VM test remains owner acceptance, not an implicit publication claim.
+**Verify:** `gh release view v0.1.28 --json tagName,isPrerelease,assets,url`
+**Batch:** P16.72 only. Owner previously requested no release monitoring; report the triggered run without waiting for all builders.
+**Commit:** `P16.72: prepare bedrock ownership correction release`
+
+**Preparation:** v0.1.27 is published with all nine packages and metadata, and its release workflow succeeded. v0.1.28 was unused when checked. Locked offline Cargo metadata resolves for agent and desktop. Helper Release build and Debug test compilation, appliance/source/checksum consistency, guest shell syntax, Python acceptance-script compilation, Clippy and focused Rust test-target compilation passed during P16.71. No live installation was changed. Release notes distinguish implementation/build evidence from pending physical ownership and networking acceptance, and do not claim Prizma install or Chunker speed improvements.
+
+**Release checks:** All owned versions agree on 0.1.28; locked Cargo metadata, agent/native desktop Clippy, frontend production build and bundle-identity check pass with existing unrelated warnings. Rust formatting and whitespace checks pass. The previous three publication runs succeeded. The existing workflow is unchanged: no test/lint gates added and no release reruns or moved tags. Test execution and the real VM acceptance check remain pending; the release is a beta for owner verification.
+
+### P16.69 — Publish large-world conversion and agent recovery corrections
+
+**Status:** Prepared; publication reauthorized by the owner on October 12 for affected-Mac testing. Release v0.1.27 includes P16.68 and P16.70. Publication results are reported with the GitHub release/workflow; owner verification remains open.
+**Files:** Owned version fields/lockfiles, README, release notes, release-note selection in the existing build-only workflow and this plan.
+**What:** Inspect remote tags/main and recent build results, select the next unused patch, synchronize versions and publish via the unchanged build-only workflow using one new immutable tag. Monitor to completion; verify all nine packages, checksums and signed update metadata. Record actual local conversion evidence and its limits; do not claim the affected Mac has been verified. Use committed version-specific release notes in the existing publish step so the manual macOS upgrade requirement is included in both the release body and downloadable notes. Preserve all nine packages, checksums/signatures and the build-only jobs; no test or CI gate added. No further implementation step follows.
+**Verify:** `gh release view v0.1.27 --json tagName,isPrerelease,assets,url`
+**Batch:** P16.69 only on resumed execution; explicitly authorized publication includes already committed P16.68 and P16.70. No live conversion or service restart.
+**Commit:** `P16.69: publish conversion and agent recovery fixes`
+
+**Publication reconciliation (October 16):** GitHub lists v0.1.27 as published. Prior candidate/failure notes above are historical. Publication does not close physical artifact acceptance.
+
+### P16.64 — Record ATM10 investigation and compact correction plan
+
+**Status:** Historical planning record; P16.65 and P16.67 implementation records are already archived, and v0.1.26 was published. Owner acceptance limitations remain in those records.
+**Files:** `docs/msc2/rolling-plan.md` only.
+**What:** Record the October 12 ATM10 8.2 / MSC 2 v0.1.25 report, confirmed causes, evidence limits and two execution steps below. Cameron requested a short sequence whose last execution delivers the correction without a separate release-planning conversation.
+**Verify:** `git show --check --stat --oneline HEAD`
+**Batch:** P16.64 only (PLAN).
+**Commit:** `P16.64: plan atm10 restart and import reporting fixes`
+
+**Investigation results:**
+
+- Owner reported an Intel Mac on v0.1.25: inspection warned that six files might require manual completion; completion showed four Modrinth recoveries and 445 direct downloads; First Start succeeded; the next start failed with “Invalid data pack ID.” Creating a new world allowed one start, followed by the same restart failure. Screenshots confirm the warning, recovery summary, setup confirmation and error.
+- Confirmed restart cause: `java_world_settings.rs::apply_existing_world` preserves enabled loader-owned packs from `level.dat`, then passes them through `valid_pack_id`, which incorrectly treats non-file pack identifiers as lowercase Minecraft resource identifiers. The local saved world's enabled list contains an OpenLoader identifier shaped like `openloader//Users/example/Library/Application Support/MSC 2/servers/java/all_the_mods_10/datapacks/sawmill.zip`. Its uppercase letters and spaces fail that rule. This is a loader-generated identifier already accepted by Minecraft, not evidence of world corruption. Personal path components above are anonymized.
+- `routes/lifecycle.rs::apply_active_java_world_profile` chooses Creation without `level.dat` and Activation once it exists. Profile application happens before Java launch. The retained failed `java-start` operation records `world_settings_failed` / “Invalid data pack ID.” This explains both initialization success and new-world first-start success followed by restart failure. Relevant application source matches v0.1.25.
+- Confirmed diagnostic defect: `validate_pack_files` omits the offending identifier and reason; the startup UI presents the resulting error with general Java/server/port advice. The saved clean-start record is not evidence that the later pre-launch profile application succeeded.
+- Confirmed accounting defect: inspection's `resolve_manual_downloads` counts every CurseForge file lacking a download URL before import classification. Import subsequently skips non-JAR/client-only files and may classify a recovery match as client-only. The completion DTO/UI exposes downloads, recoveries and unresolved files without reconciling the preliminary warning. The two other flagged files were not individually identified in retained evidence; client-only/non-JAR exclusion is a likely explanation, not a proven historical disposition. Do not claim two missing server mods or a connection to the restart failure.
+- Investigation was read-only; no tests or live launches. MSC 1 was unavailable at its documented path on this laptop; no parity claim was established from its source.
+
+### P16.66 — Publish the corrections and complete the ATM10 handoff
+
+**Status:** Prepared for v0.1.26; publication authorized, owner artifact verification pending.
+**Files:** Owned version manifests/lockfiles and bundle identity; README; `docs/msc2/release/` notes for the next unused version; this plan. Existing release workflow is inspected, not expanded.
+**What:** This is the final execution step for these issues. An owner instruction “execute P16.66” authorizes preparing and publishing the corrected release: inspect current remote main/tags and available workflow failures, choose the next unused patch version, synchronize owned versions, document the ATM10 and Chunker fixes and evidence limits, and commit once. Push the authorized branch and a new immutable tag through the unchanged build-only release workflow. Preserve all nine artifacts, helper payloads, checksums and signed update metadata. Monitor that run to a definite result, inspect any failure before retrying, and do not move the tag or add release gates. Report the actual release URL/version and the single physical acceptance exercise above; no separate README, release-planning or closure execution step follows. Do not describe the bugs as physically verified or mark the steps Done before Cameron reports success. If publication fails, explicitly report the blocker rather than claim closure. Routine corrective work remains within this final step's scope, subject to the one-commit-per-step rule; an unforeseen change requiring another commit must be disclosed rather than hidden.
+**Verify:** `gh release view v0.1.26 --json tagName,isPrerelease,assets,url`
+**Batch:** P16.66 only; final publication/handoff for P16.65, no unrelated pending plans.
+**Commit:** `P16.66: publish atm10 restart and import reporting fixes`
+
+**Preparation evidence:** Inspected remote main/tags, the unchanged workflow and complete artifact assembly/signing path, the latest five successful runs and available signing configuration. v0.1.25 completed in about 32 minutes, with Intel macOS last; expect roughly 30–45 minutes subject to runner availability and packaging failures. No remote main changes require integration. v0.1.26 is the next unused patch tag and includes P16.65 and P16.67. Synchronize owned versions only; retain registry dependency entries. README/download examples and release notes are prepared in this same commit. Publish using a new immutable tag, report actual workflow/release evidence in the final handoff, and do not add a second commit merely to record a hash or run result. GitHub release notes will use `docs/msc2/release/v0.1.26.md` after the workflow publishes its generic body. Locked Cargo metadata resolves for agent and desktop; owned versions match and registry lock entries are unchanged. Rust formatting, agent Clippy, frontend production build, bundle identity and diff whitespace checks pass with existing warnings. No tests run or release gates added.
+
+**Release cost and acceptance:** Recent complete release builds took 33–47 minutes; execution must reassess the current estimate before starting. The published artifact is what Cameron verifies using P16.65's single exercise. His success report closes these issues without another execute command. This narrow closure does not close unrelated phase acceptance.
+
+**Publication reconciliation (October 16):** GitHub lists v0.1.26 as published. Prior candidate/failure notes above are historical. Publication does not close physical artifact acceptance.
+
+### P16.62 — Publish v0.1.25 with anonymized examples
+
+**Status:** Prepared; publication requested, owner artifact verification pending.
+**Files:** Agent/desktop/frontend manifests and lockfiles; bundle identity and existing assertion; README; `docs/msc2/release/v0.1.25.md`; this plan.
+**What:** Increment the latest remote tag v0.1.24 to v0.1.25 and synchronize owned versions without modifying registry dependency versions. Include P16.60–P16.61 privacy cleanup, preserving service/publisher identity and existing world map controls. Push main and the new immutable tag through the unchanged build-only release workflow. Preserve nine platform artifacts, checksums, helper bundles and signed update metadata. No tests or release gates added. Owner explicitly requested the next release/tag. The preceding v0.1.24 run was still finishing macOS builds during preparation; Linux and Windows passed and no failures were reported.
+**Verify:** `gh release view v0.1.25 --json tagName,isPrerelease,assets,url`
+**Batch:** P16.62 only.
+**Commit:** `P16.62: prepare v0.1.25 release`
+
+**Preparation:** Inspected active workflow, recent successful runs, preceding run jobs, remote tags/main and signing-secret/public-key configuration. No remote main changes to integrate. Recent complete runs took 33–47 minutes. Locked agent/desktop metadata, synchronized release identity, unchanged registry lock entries, Rust formatting, frontend production build and diff whitespace checks pass with existing frontend warnings. Privacy checks are recorded under P16.61; physical acceptance remains owner verification.
+
+**Publication reconciliation (October 16):** GitHub lists v0.1.25 as published. Prior candidate/failure notes above are historical. Publication does not close physical artifact acceptance.
+
+### P16.43 — Plan a complete Windows MSI refinement
+
+**Status:** Historical planning record. P16.44–P16.50 implementation commits exist and their records are already archived; this is not an outstanding request to plan the MSI again. Exact-artifact acceptance remains separate.
+**Files:** `docs/msc2/rolling-plan.md` only.
+**What:** Record the source/artifact findings, proposed installer experience and P16.44–P16.50. No installer implementation, installation, service control, tests, builds or release runs in this conversation.
+**Verify:** `git show --check --stat --oneline HEAD`
+**Batch:** P16.43 only (PLAN). Future execution requires an owner instruction naming its step or range.
+**Commit:** `P16.43: plan complete windows msi refinement`
+
+**Review findings and limits:**
+
+- The current `clients/desktop-web/src-tauri/tauri.conf.json` uses Tauri's stock WiX UI. The sole custom fragment, `packaging/windows/desktop-cli-path.wxs`, adds `[INSTALLDIR]agent` to machine PATH with a package-owned registry marker. There is no MSC-specific introductory copy, custom UI, or MSI service lifecycle integration.
+- Read-only Windows Installer database inspection of `C:\Users\example\Downloads\msc2-0.1.15-windows-x86_64.msi` found `PrepareDlg` at UI sequence 49, followed by searches/costing and `WelcomeDlg` at 1298. The preparation and welcome text exists in that artifact; preparation Back/Next are disabled, while Cancel is authored visible/enabled. Cameron confirmed the blank page is brief and advances. This strongly points to preparation/initial painting, but does not prove why text or Cancel initially fails to paint/respond. Do not describe it as missing strings or a permanently stuck installer. The exact owner-observed MSI version remains unconfirmed; this older downloaded artifact is a baseline, not evidence about every current release. SHA-256: `1952d89bb5538f2487e5563135619dfe063aee395edfe5effe107e4aa247ffc2`.
+- That older MSI has machine installation, generic destination/review/progress/completion and maintenance dialogs, a checked Launch MSC 2 completion option, and no custom MSC service actions. Its download-WebView2 action silently retrieves Microsoft's runtime bootstrapper. It has no Environment table, so it predates the current CLI PATH fragment. Do not mistake that older payload for current packaging.
+- Current desktop service registration stages the agent, Vantage renderer and Bedrock exporter into a checksum-named `agent/builds` directory under the desktop agent data root. On Windows that default root is the installing user's `AppData/Roaming/MSC2`. The service therefore normally runs a copied payload rather than the MSI's packaged `agent/msc.exe`. A locked MSI agent binary is not the general cause of upgrade trouble; the important gap is coordinated replacement of the actual service payload.
+- `clients/desktop-web/src-tauri/src/update.rs::install_windows_msi` invokes `msiexec /i`, treats any nonzero status as failure, and relaunches the current executable. It has no Windows-specific previous-package retention, explicit agent replacement, health handshake or post-install rollback. It also does not distinguish cancellation from MSI success requiring reboot (3010). These are source-backed gaps against D-032 and the existing Phase 16 update gate, not evidence of a particular failed update.
+- Ordinary MSI removal is distinct from the already owner-approved Phase 19 complete local uninstall. The latter previews permanent data loss, requires typed confirmation, stops/removes services, clears data/credentials and then invokes MSI package removal. Direct MSI removal currently has no equivalent MSC service coordination and must not silently become Phase 19's destructive cleanup.
+- `allowDowngrades` is unspecified, and the installed Tauri CLI schema defaults it to true. The inspected old MSI's Upgrade table also permits older packages to replace newer ones. Repair/Modify are hidden from Installed Apps in the stock template; reopening an MSI can still expose generic maintenance dialogs. Both need deliberate behavior and wording.
+- The active `.github/workflows/release.yml` stages the complete Windows payload, prepares the ICO, builds the MSI and publishes the existing artifact set/checksums/signed update metadata. Windows installers are currently unsigned. Signed update metadata does not provide an Authenticode publisher identity for Windows/UAC. Signing enrollment is a separate owner decision, not an assumed prerequisite of this refinement.
+
+**Primary-source references:** [Tauri CLI 2.11.4 MSI template](https://github.com/tauri-apps/tauri/blob/tauri-cli-v2.11.4/crates/tauri-bundler/src/bundle/windows/msi/main.wxs), [WiX preparation dialog](https://github.com/wixtoolset/wix3/blob/develop/src/ext/UIExtension/wixlib/PrepareDlg.wxs), [Tauri Windows installer/prerequisite options](https://v2.tauri.app/distribute/windows-installer/), and [Microsoft MSI result codes](https://learn.microsoft.com/en-us/windows/win32/msi/error-codes). The local CLI package reports 2.11.4; preserve the lockfile-selected version when deriving a maintained template.
+
+**Proposed experience:** Retain the native MSI installer and use a small, maintained MSC WiX template based on the locked Tauri CLI's packaging contract. Native controls, keyboard navigation, system text and readable contrast take precedence over imitating the app's dark interface. Use the existing MSC mark and restrained neutral artwork only where it helps identification; no decorative gradients, generic marketing panels or baked-in text. Read `antiAIslop.md` before UI work.
+
+| Screen | What the user sees and can do |
+|---|---|
+| Preparation | Immediately readable “Preparing MSC 2 Setup” and a short explanation of installation checks. No empty interactive-looking page. If the stock modeless preparation dialog cannot paint reliably, suppress that transient dialog rather than adding a delay or pretending Next works before checks finish. |
+| Welcome | “Welcome to MSC 2”; a short description of Minecraft server management; what this installer includes; Next and Cancel. Distinguish a new installation from replacing an existing version. |
+| Installation options | Destination folder, clear machine-wide installation scope, Start-menu entry and optional desktop shortcut. Explain that the `msc` terminal command is included and becomes available in new terminals. Local hosting is configured on first launch. |
+| Ready to install/update | Actual destination and current/target version, required Windows administrator approval, WebView2 requirement if missing, and any local-server stop requirement. Install/Update starts changes only after this review. |
+| Progress | Name the real phase: application files, required WebView2 runtime, local-agent coordination when applicable, or recovery. Use Windows Installer progress without invented percentages. Cancel where safely supported; clearly explain any brief commit/rollback interval where cancellation cannot apply immediately. |
+| Completion | Accurate installed/updated result; Launch MSC 2 option; first-launch service setup guidance for new local hosts; explicit reboot requirement or recovery report when applicable. Do not claim the agent is Running simply because the MSI succeeded. |
+| Maintenance/removal | Repair installed application files or remove this package with clear consequences. Ordinary MSI removal preserves Minecraft worlds/backups/settings and does not promise complete cleanup. Explain the separate destructive Settings/CLI uninstall flow. |
+
+**Draft Welcome copy:** “MSC 2 helps you create and manage Minecraft Java and Bedrock servers on computers you own. This installer includes the desktop app, background-agent files, and the msc terminal command. After installation, open MSC 2 to set up local hosting or connect to another computer.” Add version/scope separately, and do not imply that Bedrock is supported on every possible remote host.
+
+**Recommended boundaries for review:**
+
+- Keep initial service installation on first launch under D-011. Its UAC and Windows-account password prompts stay in the existing local setup flow; the MSI should explain them, not duplicate them or collect service passwords into MSI properties/logs. A remote-only desktop must not create a local service just by installing.
+- Keep `msc` on PATH as a supported capability under D-040. Start-menu registration is default; propose an optional desktop shortcut instead of the stock unconditional shortcut. Avoid an unnecessary feature-selection tree.
+- Propose blocking ordinary accidental downgrades, while supporting deliberate restoration of a verified prior version in the coordinated updater. Define that recovery route before changing downgrade policy; do not break rollback by simply setting a flag. This is a proposal for Cameron's review, not a new approved decision.
+- Direct MSI repair/removal/upgrade must inspect the actual local service installation and its ownership. A headless service owned by a separate installation must not be stopped, overwritten or removed. Preserve the installing account even if a different administrator approves UAC. Any unresolved ownership blocks the affected service action with an explanation.
+- Present graceful local Minecraft shutdown explicitly before a coordinated update/removal; do not force-kill servers or perform lifecycle work when merely entering Welcome. Preserve prior running/stopped state and boot configuration in recovery. Remote agents are never targets.
+- Ordinary MSI removal removes package-owned files/shortcuts/PATH and detaches only its verified owned local service, retaining managed data. Do not call `msc uninstall --danger` from MSI actions. Phase 19's separate confirmed full removal continues to work, including when the service has already been removed by its worker.
+- Use the default small online WebView2 strategy with explicit connectivity/error messaging for now. Do not silently grow every download with the offline runtime. Missing runtime and network failure require honest completion/error states, not a blank progress page or successful launch claim.
+
+**Execution order and acceptance:** P16.44 establishes the exact-package baseline before P16.45 changes UI. P16.46 resolves identity/payload/prerequisite choices. P16.47–P16.49 handle lifecycle/removal/update recovery. P16.50 consolidates owner-observed acceptance against one exact candidate. Each future step is one commit containing its plan update; it remains awaiting Cameron's verification after implementation. Build once when a fresh native binary is necessary, then use Tauri's bundle-only command for dialog/package changes. No repeated release builds, new CI/release gates or automatic test execution. An essential new regression, if needed during execution, must name its concrete missing risk, controlled inputs and expected runtime under the workflow policy.
+
+### P16.42 — Publish v0.1.23 with Java map dependency recovery
+
+**Status:** Prepared; publication and Cameron's artifact acceptance pending.
+**Files:** Agent/client/Tauri version manifests and lockfiles, source/static bundle identity and its existing assertion, README, `docs/msc2/release/v0.1.23.md`, this plan.
+**What:** Increment the latest remote/published tag v0.1.22 to v0.1.23 and synchronize owned release identities without changing registry dependency versions. Include P18.12's complete headless helper updates, missing Vantage recovery, verified version-matched Java assets and diagnostic errors. Push main and the new immutable tag through the unchanged four-platform build-only workflow, preserving nine artifacts, checksums and signed update metadata. Cameron explicitly requested implementation, commit pushes and the next release tag.
+**Verify:** `gh release view v0.1.23 --json tagName,isPrerelease,assets,url`
+**Batch:** P16.42 only.
+**Commit:** `P16.42: prepare v0.1.23 release`
+
+**Preparation:** Inspected the complete active release workflow and successful v0.1.22 publication. No release gates changed or tests run. Implementation formatting, Clippy and frontend checks recorded under P18.12; synchronized source identity and locked metadata checked before tagging. README retains the actually published v0.1.22 while introducing the new candidate. Recent successful release runs took 38–47 minutes. Ubuntu map acceptance remains Cameron's check.
+
+**Publication reconciliation (October 16):** GitHub lists v0.1.23 as published. Prior candidate/failure notes above are historical. Publication does not close physical artifact acceptance.
+
+### P16.39 — Replace the cancelled v0.1.22 candidate
+
+**Status:** Prepared; publication and Cameron's artifact acceptance pending.
+**Files:** `clients/desktop-web/src-tauri/Cargo.lock`, `docs/msc2/release/v0.1.22.md`, this plan.
+**What:** Restore serde_repr 0.1.21 with its original checksum; the P16.38 version bump accidentally changed this unrelated registry package to nonexistent 0.1.22. Include P12.249 modern datapack support and retain the headless Linux fix. Cameron explicitly requested cancellation/removal and confirmed replacement of the unpublished v0.1.22 tag. Remove cancelled run 37177543797 and its old tag, then publish the corrected source using the unchanged build-only release workflow. No published v0.1.22 release or uploaded workflow artifacts existed when inspected.
+**Verify:** `gh release view v0.1.22 --json tagName,isPrerelease,assets,url`
+**Batch:** P16.39 only.
+**Commit:** `P16.39: repair and replace v0.1.22 candidate`
+
+**Checks:** Inspected all three completed failed platform logs: identical unavailable serde_repr dependency, before packaging. Fourth build cancelled. Restored the original registry version/checksum from the prior tag. Locked desktop metadata, synchronized application versions, formatting and diff whitespace checks passed. Application Clippy and addon regression compilation recorded in P12.249. No tests run or workflow gates changed. Nine artifacts, SHA256SUMS and signed update metadata remain required. Expected build time about 40 minutes based on recent successful runs; physical acceptance remains Cameron's verification. Tag replacement is a specifically owner-authorized exception, not a routine retry.
+
+**Publication reconciliation (October 16):** GitHub lists v0.1.22 as published. Prior candidate/failure notes above are historical. Publication does not close physical artifact acceptance.
+
+### P16.38 — Publish v0.1.22 with the headless Linux status fix
+
+**Status:** Prepared; publication and Cameron's artifact acceptance pending.
+**Files:** Agent/client/Tauri version manifests and lockfiles, source/static bundle identity and its existing assertion, README, `docs/msc2/release/v0.1.22.md`, this plan.
+**What:** Increment the latest remote tag v0.1.21 to v0.1.22 and synchronize release identity. Include P12.248's headless Linux status correction. Integrate the two existing remote commits before publication and retain their changes. Push main and the new immutable tag through the existing four-platform build-only workflow, preserving nine artifacts, checksums and signed update metadata. Cameron explicitly requested the push and next tag.
+**Verify:** `gh release view v0.1.22 --json tagName,isPrerelease,assets,url`
+**Batch:** P16.38 only.
+**Commit:** `P16.38: prepare v0.1.22 release`
+
+**Preparation:** Inspected the complete release workflow and successful v0.1.21 run. No workflow changes or tests run. Fix formatting, Clippy and regression compilation passed before the version bump; release identity and locked metadata checked during preparation. Ubuntu live acceptance remains Cameron's verification.
+
+**Publication reconciliation (October 16):** GitHub lists v0.1.22 as published. Prior candidate/failure notes above are historical. Publication does not close physical artifact acceptance.
+
+### P16.37 — Publish v0.1.21 through the build-only release workflow
+
+**Status:** Prepared; publication and Cameron's artifact acceptance pending.
+**Files:** Agent/client/Tauri version manifests and lockfiles, source/static bundle identity and its existing assertion, README, `docs/msc2/release/v0.1.21.md`, this plan.
+**What:** Increment v0.1.20 to v0.1.21 and synchronize locked release identity. Publish current main through the existing four-platform build-only workflow, preserving all nine desktop/headless artifacts, checksums, and signed update metadata. Monitor completion and inspect all failures before targeted fixes or retries; keep the tag immutable. Cameron explicitly authorized publication and release-error fixes. Preserve the uncommitted agent heading edit locally.
+**Verify:** `gh release view v0.1.21 --json tagName,isPrerelease,assets,url`
+**Batch:** P16.37 only.
+**Commit:** `P16.37: prepare v0.1.21 release`
+
+**Preparation:** Inspected the complete active release workflow, previous successful release, changes since v0.1.20, and configured signing-secret/public-key names. No workflow gates or tests added; no tests run. Physical acceptance remains Cameron's responsibility.
+
+**Publication reconciliation (October 16):** GitHub lists v0.1.21 as published. Prior candidate/failure notes above are historical. Publication does not close physical artifact acceptance.
+
+### P16.36 — Publish v0.1.20 through the build-only release workflow
+
+**Status:** Prepared; publication and Cameron's artifact acceptance pending.
+**Files:** Agent/client/Tauri version manifests and lockfiles, source/static bundle identity and its existing assertion, README, `docs/msc2/release/v0.1.20.md`, this plan.
+**What:** Increment v0.1.19 to v0.1.20, synchronize locked release identity, and include the required Windows Tokio dependency correction in the Tauri lockfile. Publish current main through the existing release workflow only; preserve nine artifacts, checksums, and signed update metadata. Monitor until completion, inspect failures before any targeted retry, and keep the tag immutable. Cameron explicitly authorized publication and fixes for release failures. No CI/test workflows or test execution.
+**Verify:** `gh release view v0.1.20 --json tagName,isPrerelease,assets,url`
+**Batch:** P16.36 only.
+**Commit:** `P16.36: prepare v0.1.20 release`
+
+**Preparation:** Inspected the full release workflow and prior successful v0.1.19 run. Only release.yml is active. Signing-secret and public-key variable names are present. Locked Cargo metadata resolves for the agent and desktop manifests; version fields are synchronized. Publishing will run the existing four-platform build matrix; physical acceptance remains separate.
+
+**Publication reconciliation (October 16):** GitHub lists v0.1.20 as published. Prior candidate/failure notes above are historical. Publication does not close physical artifact acceptance.
+
+### P16.35 — Prepare and publish v0.1.19
+
+**Status:** Prepared; publication requested by Cameron, exact-artifact verification pending.
+**Files:** `Cargo.lock`, `crates/msc-agent/Cargo.toml`, client package manifests/lockfile, Tauri package manifests/lockfile/configuration, bundle identity (source and static asset) and its existing assertion, `tools/release/stage-windows-agent.ps1`, `README.md`, `docs/msc2/release/v0.1.19.md`, this plan.
+**What:** Increment the latest release tag from v0.1.18 to v0.1.19, preserving the current main-branch agent-home redesign, Cameron's subsequent adjustment and merged world-map work. Keep agent, desktop, frontend and locked package versions consistent. Include the two terrain helper executables and their existing license in Windows desktop staging, matching the other desktop/headless packaging paths. Push main and the new immutable tag once to trigger the existing build-only beta workflow, preserving all nine artifacts, checksums and signed update metadata. No workflow gates or tests added. The pre-existing Tauri Cargo.lock dependency edit remains uncommitted; stage only the release-version change from that file.
+**Verify:** `gh release view v0.1.19 --json tagName,isPrerelease,assets,url`
+**Batch:** P16.35 only.
+**Commit:** `P16.35: prepare v0.1.19 release`
+
+**Release preparation checks:** Locked Cargo metadata resolved for the agent and desktop packages; all release version fields agree at 0.1.19. Frontend production build and Windows staging PowerShell syntax inspection passed. Existing workflow signing-key variable/secret names are configured. No tests were run.
+
+**Publication reconciliation (October 16):** GitHub lists v0.1.19 as published. Prior candidate/failure notes above are historical. Publication does not close physical artifact acceptance.
+
+### P16.44 — Publish v0.1.24 with world map controls
+
+**Status:** Prepared; publication requested, owner artifact verification pending.
+**Files:** Agent/desktop/frontend manifests and lockfiles, bundle identity and existing assertion, README, `docs/msc2/release/v0.1.24.md`, this plan.
+**What:** Increment latest published v0.1.23 to v0.1.24, including biome, quality and depth controls. Push main and a new immutable tag once to trigger the existing build-only release workflow. Preserve all nine artifacts, helper bundles, checksums and signed metadata. No tests or gates added.
+**Verify:** `gh release view v0.1.24 --json tagName,isPrerelease,assets,url`
+**Batch:** P16.44 only.
+**Commit:** `P16.44: prepare v0.1.24 release`
+
+**Preparation checks:** Locked Cargo metadata resolved for agent and desktop; frontend production build and whitespace check passed with existing warnings. Headless packaging/installer inspection confirms both terrain helpers are bundled and installed. No tests run.
+
+**Publication reconciliation (October 16):** GitHub lists v0.1.24 as published. Prior candidate/failure notes above are historical. Publication does not close physical artifact acceptance.
+
+## Phase 19 — Complete local uninstall (owner-requested 2026-10-02)
+
+**Planning state:** Historical intent and confirmation contract. P19.1–P19.5 implementation commits and archived records exist; the previous statement that only P19.1 was implemented was stale. No new uninstall work or destructive action is authorized by this cleanup.
+
+**Owner-approved intent:** Add **Uninstall MSC 2…** beside Reset in app settings and a local `msc uninstall --danger` command. Permanently remove this computer's MSC 2 agent services, managed servers/worlds/backups, MSC-owned helpers and runtimes, host/client data and credentials, caches/logs, installed command, and desktop app. Never contact or uninstall a saved remote agent. Running this flow on a remote computer means running its local MSC desktop or CLI there. Preserve MSC 1, source checkouts, separately installed Java/Tailscale/Docker, unrelated files, and OS-owned package caches.
+
+**Confirmation contract:** Both interfaces must show the actual computer, server root(s), installation(s), and exact deletion list before execution. Desktop: review sheet, acknowledgement of permanent world/backup loss, exact typed `UNINSTALL MSC 2`, then a final destructive confirmation dialog. CLI: `--danger` enables the destructive flow but does not bypass review; print the same inventory and require the exact phrase interactively. `--confirm "UNINSTALL MSC 2"` is the explicit non-interactive equivalent, used only after a separate `--dry-run` inventory review; refuse redirected input without it. `--dry-run` performs no writes, elevation, service changes, or cleanup. A native command must enforce the confirmation independently of UI state. Local cleanup must still work while the selected desktop host is remote and while the local agent is missing/offline; no HTTP uninstall route.
+
+**Downloaded installers:** MSC cannot prove ownership of every renamed/moved installer or its original download location. Include verified MSC release installers in known download/update locations and let the operator explicitly select additional installers. Show every selected file before confirmation, validate its package/bundle identity or signed release checksum, and remove only those files. No filename-only recursive disk search. Never promise that an unknown original DMG has been found. A mounted disk image needs explicit unmount handling; if another application holds it open, report the remaining file instead of claiming full removal. Do not delete MSI/OS package-manager caches directly.
+
+**Completion contract:** Gracefully stop Minecraft and MSC-managed helpers before removing services/data. If shutdown or service removal fails, stop and report what remains. Remove the app through its OS installation mechanism: verified macOS bundle removal, Windows registered MSI uninstall, Linux owning package removal (or a verified standalone AppImage). Use a narrowly scoped detached continuation where the running app/command cannot remove itself. The continuation must validate its inventory again, propagate failures, and leave a readable result outside the deleted MSC trees; let the owner choose whether to retain that report. “Scheduled” is not “Uninstalled.” Reject unsupported/dev installations rather than deleting a source checkout. Clean up continuation files when finished.
+
+### P16.90 — Reconcile and clear the active rolling plan
+
+**Status:** Implemented at Cameron's cleanup request; no phase gate or unobserved acceptance marked complete.
+**Files:** `docs/msc2/rolling-plan.md`, `rolling-plan-archive.md`, `deferred-work.md`, `pending-acceptance.md`.
+**What:** Move historical implemented, published, superseded and consumed planning records out of the active queue; preserve original findings and pending verification. Record owner confirmation of P16.89 and published release evidence. Keep unimplemented P18.41–P18.45 in deferred work rather than deleting them or marking them done. Replace stale phase/uninstall summaries with links to the actual records. Reserve the rolling plan for the next selected implementation steps and concise release status.
+**Verify:** `git show --check --stat --oneline --grep='P16.90:' HEAD`
+**Batch:** P16.90 only; documentation reconciliation, no tests, code or release start.
+**Commit:** `P16.90: reconcile and clear the active rolling plan`
+
+**Checks:** Compared step subjects with git history; GitHub lists v0.1.19–v0.1.29 as published. v0.1.29 workflow 38512496877 succeeded; the prior failed v0.1.28 run remains historical. Windows MSI P16.44–P16.50 and uninstall P19.1–P19.5 implementation records already exist in the archive. No tests run.
+
+### P20.0 — Plan faster native file imports and uploads
+
+**Status:** Plan written at Cameron's October 16 request; upload implementation remains unstarted.
+**Files:** `docs/msc2/rolling-plan.md`, `uploads/native-transfer-plan.md`, `msc2-port-plan.md`, `rolling-plan-archive.md`.
+**What:** After P16.90 cleanup, define bounded native file handling, local handoff, remote streaming, incremental integrity, server-folder coverage, old-agent compatibility, truthful progress and measured acceptance as P20.1–P20.7. Keep the connected-host transfer/resume plan deferred. No upload code or test execution.
+**Verify:** `git show --check --stat --oneline --grep='P20.0:' HEAD`
+**Batch:** P20.0 only (PLAN); future execution needs an owner instruction naming a step/range.
+**Commit:** `P20.0: plan faster native file imports and uploads`
+
+### P16.91 — Publish v0.1.30 with the verified XboxBroadcast correction
+
+**Status:** Prepared; publication explicitly requested by Cameron on October 16. Push main and the new immutable tag once, report the workflow link without waiting for builders per the owner's existing preference. Publication and exact-artifact acceptance remain separate.
+**Files:** Agent/desktop/frontend manifests and lockfiles, source/static bundle identity, README candidate notice, `docs/msc2/release/v0.1.30.md`, rolling plan and this archive.
+**What:** Increment the latest published/remote v0.1.29 to v0.1.30 and include P16.89's owner-confirmed Intel broadcast correction plus P16.88 build reuse/cache changes. Synchronize owned release identities without changing registry dependency versions. Publish through the unchanged four-platform build-only workflow, preserving all nine artifacts, SHA256SUMS and signed update metadata. Keep README's confirmed download baseline factual while builders run. Upload performance remains planned only in P20.1–P20.7; deferred server transfer/acceptance records stay out of the active queue. Do not move tags, add workflow gates, run tests or dispatch a separate cache-seeding build.
+**Verify:** `gh release view v0.1.30 --json tagName,isPrerelease,assets,url`
+**Batch:** P16.91 only; authorized release preparation, commit/push and one tag trigger. No builder monitoring unless Cameron requests it.
+**Commit:** `P16.91: prepare v0.1.30 broadcast correction release`
+
+**Preparation checks:** Confirmed v0.1.29 published with all nine expected platform artifacts plus SHA256SUMS, release notes and signed update manifest/signature; workflow 38512496877 succeeded. Signing-secret/public-key names are configured; values were not read. Locked agent/desktop metadata resolves, owned identities agree at 0.1.30, and registry lock records are unchanged. Frontend production build and bundle identity inspection passed with existing warnings. Formatting, packaging script syntax, document links and diff whitespace checks passed. P16.89's native build, focused Clippy compilation and owner-reported Intel success supply the fix evidence. No tests run, workflow gates changed, release tags moved or installed services touched. Four native builders may still take tens of minutes; P16.88's cache/reuse benefit is not yet measured. Physical acceptance of the newly published artifacts remains separate.
+
+---
+
+## Phase 20 — Faster native file imports and uploads
+
+**Disposition:** P20.1–P20.10 are Done by Cameron’s October 17 instruction:
+“after that, im okay with everything else … turn things to done, and move the
+phase to the archive.” This closes the implementation queue and records owner
+acceptance; it does not assert that every listed Verify command or physical
+case was run. Independent review of the port-plan gate remains pending.
+
+**Evidence:** Local agent repair/connection worked; the optimized candidate
+reported 115.1 MB/s partway through a 9.2 GB world transfer; Cameron subsequently
+reported getting the complete server import through to final installation and
+accepted the remaining behavior after the installation-status wording correction.
+The world attempt’s earlier source-change refusal, direct local handoff versus
+HTTP selection, missing before/after/copy/memory measurements, and unavailable
+platform/fault cases remain explicit in [acceptance](uploads/acceptance.md) and
+[pending acceptance](pending-acceptance.md). No unreported result is promoted to
+Pass. P20.10 is in source; the P20.9 candidate predates that text correction.
+No release publication or new test execution is implied.
+
+### P20.1 — Freeze the transfer contract and capture the performance baseline
+
+**Status:** Done — closed by Cameron’s October 17 acceptance and archive instruction.
+**Files:** `docs/msc2/uploads/native-transfer-plan.md`; a compact owner measurement record under `docs/msc2/uploads/`; API capability/endpoint specification in `docs/msc2/api-contract/openapi.json` and the supported-client capability record if needed; this plan.
+**What:** Inventory every world/modpack/raw-server/MSC-transfer/add-on input and export path, including CLI and current source-path imports. Specify native operation ownership, stream admission, source handles, exact byte/purpose limits, cancellation/cleanup, memory/concurrency budgets and old-agent fallback before code. Give Cameron concrete before/after measurement commands for his approximately 8 GB world, a representative modpack and server folder, separating transfer from validation/extraction/provider work. Record hardware, disk placement, network and cache state; leave unavailable measurements pending rather than inventing results. Confirm current Rust/Tauri APIs from the locked dependencies. No app implementation in this step.
+**Verify:** `git show --check --stat --oneline HEAD`
+**Batch:** P20.1 only; owner review/verification before P20.2 unless separately authorized as a batch.
+**Commit:** `P20.1: define native upload contract and baseline`
+
+### P20.2 — Receive and verify streamed uploads in the agent
+
+**Status:** Done — closed by Cameron’s October 17 acceptance and archive instruction.
+**Files:** `crates/msc-agent/src/routes/components.rs`, `worlds.rs`, `worlds/import_activation.rs`, `main.rs` and staging/recovery helpers including `routes/components/native_upload.rs` and Windows private staging ACL support; `crates/msc-api/src/dto/backups.rs`; infrastructure streaming/staging support; OpenAPI/capability data; focused existing upload tests; this plan.
+**What:** Add capability-negotiated authenticated stream ingestion with bounded buffers, retained writers and incremental SHA-256. Keep global staging locks out of network/disk I/O, enforce per-purpose exact sizes and pending-file bindings, and publish only complete verified staging. Refresh activity expiry during real work; bound concurrency/disk usage and distinguish active streams from abandoned sessions on disconnect/restart. Cancel cannot redeem a partial file, overwrite an existing world or lose the source. Retain the old chunk endpoint unchanged for compatibility. Compile only essential extended regressions; no test execution by default.
+**Verify:** `cargo clippy -p msc-agent --bin msc -- -D warnings -A dead_code`
+**Batch:** P20.2 only; depends on P20.1 verification unless included in a newly authorized batch.
+**Commit:** `P20.2: receive bounded uploads with incremental integrity checks`
+
+### P20.3 — Stream selected files from the native desktop
+
+**Status:** Done — closed by Cameron’s October 17 acceptance and archive instruction.
+**Files:** Native transfer module and command registration under `clients/desktop-web/src-tauri/src/`; native auth/host transport integration; `clients/desktop-web/src/lib/auth/desktop.ts`, `platform/tauri.ts`, `platform/types.ts`, `api/client.ts`; focused transport tests; generated API types; narrow agent capability/permission integration corrections; `docs/msc2/uploads/native-transfer-plan.md`; this plan.
+**What:** Keep selected source bytes in Rust. Start a host-bound native operation using a scoped picker handle, reuse its HTTP client/connection pool, resolve credentials and service readiness once, and stream directly with backpressure and rate/byte progress events. Handle cancellation, revoked credentials, host switching, disconnect and restart without redirecting requests or exposing tokens. New agents use P20.2; older agents use native bounded chunks without JavaScript byte arrays. Reject incompatible hosts before copying. Preserve the generic request bridge for ordinary API calls; do not silently change unrelated authentication behavior.
+**Verify:** `cargo clippy --manifest-path clients/desktop-web/src-tauri/Cargo.toml --lib -- -D warnings -A clippy::needless_borrow -A clippy::needless_borrows_for_generic_args -A clippy::needless_return`
+**Batch:** P20.3 only; depends on P20.2 verification unless included in a newly authorized batch.
+**Commit:** `P20.3: stream file uploads through native desktop operations`
+
+### P20.4 — Import same-computer files without an upload round trip
+
+**Status:** Done — closed by Cameron’s October 17 acceptance and archive instruction.
+**Files:** Native transfer/local-source modules; shared Unix descriptor/identity helpers; existing installing-user socket identity helpers; agent staging/source redemption and production composition; API/capability descriptions and generated types; focused source-handoff cases; `docs/msc2/uploads/native-transfer-plan.md`; this plan.
+**What:** Recognize the authenticated local agent and hand off only the selected source through a local-user-bound capability. Copy into private staging directly, optionally using a safe filesystem clone with cross-volume copy fallback; never hard-link mutable input, move/delete the source or accept arbitrary remote-readable paths. Prevent source substitution, expired/replayed handles and host confusion. Preserve exact size/purpose/integrity and importer checks, coalescing reads where possible while reporting required validation work. Compare the direct path with the native streaming fallback; no constant-time promise for 8 GB.
+**Verify:** `cargo clippy -p msc-agent --bin msc -- -D warnings -A dead_code`
+**Batch:** P20.4 only; depends on P20.3 verification unless included in a newly authorized batch.
+**Commit:** `P20.4: stage verified local file imports directly`
+
+### P20.5 — Connect server folders and archive imports to native transfer
+
+**Status:** Done — closed by Cameron’s October 17 acceptance and archive instruction.
+**Files:** `crates/msc-agent/src/routes/servers/import.rs`; existing raw/transfer import services; native file/folder transfer module; `clients/desktop-web/src/lib/sections/fleet/TransferSheet.svelte` and import wizard adapters; CLI source import/upload plumbing; import DTO/OpenAPI types as needed; shared source-tree traversal and bounded extraction; capability matrix and native-transfer implementation record; essential regression cases; this plan.
+**What:** Support the inventoried raw server ZIP/folder and MSC-transfer flows without assuming all use staged-world uploads. Local folders use bounded direct copying after existing explicit stopped-source checks. Where supported, remote selected folders generate a validated archive into the native stream without a complete intermediate source ZIP. Retain all supported server files/settings/worlds/backups and source data; reject unsupported/symlink/path-escape entries explicitly. Keep destructive replace-all review/backups and destination registration/recovery semantics. Use native streamed downloads for affected export plumbing that currently buffers whole archives. Reuse importer services; do not implement the deferred paired-agent transfer/resume feature. CLI stays host-local under D-040.
+**Verify:** `cargo build --locked -p msc-agent --bin msc`
+**Batch:** P20.5 only; depends on P20.4 verification unless included in a newly authorized batch.
+**Commit:** `P20.5: route server file imports through native transfer`
+
+### P20.6 — Give every import flow truthful progress and cancellation
+
+**Status:** Done — closed by Cameron’s October 17 acceptance and archive instruction.
+**Files:** `clients/desktop-web/src/lib/sections/components/StagedUploadSheet.svelte`, `ModpackUploadProgress.svelte`, modpack import entry points; fleet wizard `UploadStep.svelte`, `WorldStep.svelte`, `TransferSheet.svelte`; world import/replace sheets; shared API/platform state; `App.svelte` only as needed; shared source/context/cleanup adapters and bounded host notices; the shared Sheet Escape handler; native creation-context negotiation and narrow DTO/admission updates; essential regression sources; native-transfer implementation record and capability matrix; this plan.
+**What:** Apply `antiAIslop.md` within the existing sheets. Connect all inventoried entry points to the native source operation and preserve original-host state when navigating. Show preparing, transferring/local copying, verifying, inspecting and installing/importing as separate real stages. Display byte rate/progress only with a valid denominator; 100% transferred is not import success. Cancellation must await its real cleanup outcome and expose failures. Remove buffer-size tuning from the native path; retain it only for applicable legacy fallback. Surface older-agent capability limits before work and prevent late results from changing another selected host.
+**Verify:** `npm --prefix clients/desktop-web run check`
+**Batch:** P20.6 only; depends on P20.5 verification unless included in a newly authorized batch.
+**Commit:** `P20.6: show native import progress across supported flows`
+
+### P20.7 — Prepare owner acceptance and record measured improvements
+
+**Status:** Done — closed by Cameron’s October 17 acceptance and archive instruction.
+**Files:** Phase 20 measurement/acceptance record and installation guidance under `docs/msc2/uploads/`; this plan. Generated artifacts remain uncommitted.
+**What:** Build a matching native candidate using existing packaging and give Cameron exact artifact/install instructions. Compare the same approximately 8 GB world, representative pack and server sources against P20.1, including direct-copy/network baselines and peak memory. Record local same-volume/cross-volume and available remote/platform observations, plus cancellation, truncated/corrupt input, wrong-host rejection and old-agent fallback. Keep unavailable physical results pending; name remaining bottlenecks without claiming an unmeasured factor. Hand the feature gate to the other agent after owner verification. No automatic test suite, release publication, new CI gate or repeated full release run.
+**Verify:** `cargo build --locked -p msc-agent --bin msc`
+**Batch:** P20.7 only; depends on P20.6 verification unless included in a newly authorized batch. Physical acceptance is Cameron's separate Verify move.
+**Commit:** `P20.7: document native upload performance and acceptance`
+
+### P20.8 — Remove the system alert icon from folder confirmation
+
+**Status:** Done — closed by Cameron’s October 17 acceptance and archive instruction.
+**Files:** `clients/desktop-web/src/App.svelte`; `clients/desktop-web/src-tauri/src/native_transfer.rs`; this plan.
+**What:** Owner-requested acceptance correction: replace the native folder warning alert with the existing icon-free MSC sheet for selected and dropped server folders. Keep explicit stopped-source confirmation, release the selected handle on cancellation, and recheck the original host/server before proceeding. No tests added for this reversible presentation change; no tests executed. The existing P20.7 ZIP predates this correction and must be rebuilt to display it.
+**Verify:** `npm --prefix clients/desktop-web run check`
+**Batch:** P20.8 only.
+**Commit:** `P20.8: use an icon-free server folder confirmation`
+
+### P20.9 — Admit complete server sources above the world upload ceiling
+
+**Status:** Done — closed by Cameron’s October 17 acceptance and archive instruction.
+**Files:** Native desktop source admission; agent native staging; shared source-tree TAR bound; `uploads/native-transfer-plan.md`; this plan. Generated candidate remains uncommitted.
+**What:** Owner-reported 20,066,596,805-byte complete server ZIP and large folder failed the individual-world 10 GiB ceiling. Give raw server ZIP/folder and MSC transfers a shared 1 TiB source bound matching existing archive safety, with a 2 TiB aggregate staging reservation ceiling for TAR plus extracted contents. Retain exact-byte, concurrency, disk-margin, extraction and individual-world/modpack limits. Distinguish empty, oversize and actual insufficient disk errors, including sizes. Add one essential admission regression for the reported size, disk refusal and unchanged world ceiling: injected capacity and empty staging only, no large allocation/network/sleeps, expected under one second excluding compilation. Compile regression metadata only; do not execute tests. Prepare a fresh optimized local candidate including P20.8.
+**Verify:** `cargo build --locked -p msc-agent --bin msc`
+**Batch:** P20.9 only.
+**Commit:** `P20.9: admit large server sources with disk space checks`
+
+### P20.10 — Clarify final server installation status
+
+**Status:** Done — closed by Cameron’s October 17 acceptance and archive instruction.
+**Files:** `clients/desktop-web/src/lib/sections/fleet/wizard/AddServerWizard.svelte`; `crates/msc-agent/src/routes/lifecycle.rs`; this plan.
+**What:** Replace ambiguous “Importing server” status with “Installing server in storage: extracting or copying files” in the initial wizard status and agent operation updates. Explain the real disk work after upload without inventing measured progress. No tests added or executed for a text-only correction. The P20.9 optimized ZIP predates this change.
+**Verify:** `npm --prefix clients/desktop-web run check`
+**Batch:** P20.10 only.
+**Commit:** `P20.10: clarify final server installation status`
+
+## Phase 21 — Storage inventory and management
+
+**Archive state:** Cameron accepted the implemented Storage management on
+October 17 and directed P21.1–P21.37 to be closed and archived. P21.29 failed
+owner verification and was corrected by P21.30. Step closure does not close the
+Phase 21 exit gate: representative cross-platform, remote/offline and disposable
+removal acceptance plus the other agent’s independent review remain pending in
+[Storage acceptance](storage/acceptance.md) and
+[pending acceptance](pending-acceptance.md).
+
+**Owner-agreed experience:** Settings → Storage opens an overview of saved
+computers, including This computer. Each row shows MSC usage, available disk
+space and last scan time; offline computers retain explicitly dated results.
+Selecting a computer opens its inventory, then a category/server breakdown.
+Manage rebuildable files and valuable backups/worlds/servers from here, using
+existing deletion rules and confirmations. Reviews stay within one category
+and one computer: multi-select backups or caches together, while world and
+server removal have their own reviews naming the target computer and affected
+data. No cross-host or mixed-category deletion cart.
+
+**Screen contract:** Use `antiAIslop.md` and existing Settings/navigation tokens.
+A spacious, flat list has names on the left and sizes aligned on the right,
+with one restrained proportional storage bar. Categories are Servers, Desktop
+app, Agent, Shared tools & runtimes, and Cache & temporary files. Servers are
+largest-first and expand to worlds, backups, mods/server files and logs/other
+files. Show measured total, available capacity and last scan time prominently;
+use a per-volume breakdown when roots span disks, not a misleading combined
+free-space number. Specific actions include Review backups, Clear map cache,
+Remove old downloads and Open folder when a local folder actually exists.
+Removal review shows selected items, size, dependencies/consequences and the
+computer; the result reports actual outcomes and any retained/failed items.
+
+**Accounting and protection:** Count owned files once across disjoint roots
+and categories. Explain that Desktop app includes its packaged payload while
+Agent/shared categories include separately staged installations; do not count
+the same subtree in both. Report unreadable/unreachable sources as partial or
+unknown, never zero. Separate logical file size from allocated/on-disk usage
+where supported; sparse files, hard links and shared filesystem clones require
+an explicit accounting basis. Do not promise that summed file sizes equal the
+space deletion will release. Shared Java/tools count once at host level; an
+externally installed Java/runtime is not MSC-owned. Retain credentials,
+current installations, active/rollback-required agent versions, in-use tools,
+active transfers/map snapshots, and unrecognized data. Whole-app/agent removal
+uses the separate existing complete-uninstall flow, not a cache-cleanup button.
+
+**Scan behavior:** Show cached results promptly and scan on explicit Refresh
+or a bounded stale-data policy, not on every Settings render or health poll.
+Use bounded background workers, cancellation and incremental progress without
+blocking server management. Limit concurrent host scans and do not connect to
+all saved hosts automatically just to open Settings. Bind caches/operations to
+stable host identity and volume/root identity; host switching/removal or path
+changes must not apply old results to another computer. Offline inventory is
+viewable but cannot authorize deletion. Scan known owned roots only; do not
+crawl arbitrary disks or other users' homes.
+
+**Feature gate:** The agreed overview → computer → category/server → removal
+review flow works on supported desktop platforms and paired agents. Known
+storage is explained without overlapping counts, unknown coverage is visible,
+and multi-volume capacity is honest. Headless agents report their own footprint
+without inventing a desktop installation; local desktop footprint remains
+available when its agent is offline, with appropriate partial results. Cleanup
+revalidates exact selections, permissions, ownership and live references at
+execution, cannot target another host or active data, and preserves existing
+world/server/backup confirmations. Failed or cancelled work reports partial
+outcomes truthfully. Cameron verifies representative local/remote/offline,
+large-server, active-operation and destructive cases in disposable data before
+the other agent reviews the gate. No new CI/release gate, automatic deletion,
+continuous deep scan or broad test matrix is implied.
+
+### P21.1 — Specify the Storage screens and inventory contract
+
+**Status:** Done — closed by Cameron’s October 17 acceptance and archive instruction.
+**Files:** `docs/msc2/storage/contract.md` and `docs/msc2/storage/screens.md`; `docs/msc2/msc2-port-plan.md` for the feature gate; this plan.
+**What:** Turn the owner-agreed flow above into concrete overview, host breakdown, server detail, category selection and separate cache/backup/world/server removal reviews. Apply `antiAIslop.md`; show loading, partial, offline, permission-denied, empty, changed-since-scan and cleanup-result states. Inventory actual installed bundles, staged agent builds, tools/runtimes, custom server roots, world slots, backups, logs, map output and Phase 20 staging. Specify disjoint categories, volume-aware capacity, logical versus allocated size, hard-link/clone limits, scan budgets, cache lifetime and stable host/item IDs. Reuse read-only ownership discovery from uninstall where appropriate without coupling inventory to its destructive executor. Freeze API/native responsibilities and backward compatibility. Cameron reviews the sketches/contract before UI implementation; no application code in this step.
+**Implementation:** Added the concrete screen wireframes, source-backed Phase 20 staging reconciliation, disjoint accounting/identity rules, bounded scan/cache policy and additive API/native contract. Documentation only; no application code or tests. The early sketch review was deferred; Cameron later accepted the implemented Storage UI on October 17.
+**Verify:** `git show --check --stat --oneline HEAD`
+**Batch:** P21.1 only; follows owner selection of Phase 21, after reconciling Phase 20's actual delivered contract. Later steps need separate execution authorization.
+**Commit:** `P21.1: specify storage inventory screens and accounting`
+
+### P21.2 — Measure owned storage with bounded host scans
+
+**Status:** Done — closed by Cameron’s October 17 acceptance and archive instruction.
+**Files:** `crates/msc-application/src/storage.rs`; `crates/msc-infrastructure/src/storage.rs`, `storage/native.rs`, `source_tree.rs` and `source_tree/windows.rs`; module registration; `docs/msc2/storage/contract.md`; `docs/msc2/msc2-port-plan.md`; this plan.
+**What:** Discover only verified MSC roots/installations and measure them without overlapping parent/child categories, symlink escape, arbitrary external runtime inclusion or duplicate hard-link accounting. Resolve actual agent configuration/custom server roots and separately staged/bundled assets. Attribute per-server worlds/backups/components/logs while keeping shared tools host-scoped. Return logical/allocated accounting basis, per-volume capacity, scan time/progress and partial errors; retain unknown data as visible, protected inventory. Use bounded cancellable background traversal with limited concurrency and no heavy process/network calls per file. Cache completed/partial results under host/root identity and avoid filesystem-sized memory. Extend only essential controlled-input coverage for overlapping roots, inaccessible data and link boundaries; document runtime, compile without running tests.
+**Implementation:** Added discovery from read-only uninstall ownership plus actual decoded configuration/effective server root; disjoint root/category measurement; regular-file logical/allocation totals; native volume/file identities and capacity samples; conservative partial coverage; bounded background scan admission, cancellation/progress and generation-scoped in-memory cache. Shared retained-handle enumeration preserves importer name restrictions while inventory accepts platform-valid names. All inventory remains protected; API/CLI, durable snapshots and cleanup integration belong to later steps. Four essential tiny-file regression cases protect overlap/hard-link accounting, denied/blocked roots, symlink escape and custom-root/world/backup attribution with external Java excluded; under one second each expected, controlled inputs and injected denial, no network/sleeps. Compiled regression harnesses as metadata only. Formatting and required Clippy passed; isolated shared-source Windows adapter type-check passed. No tests/live scans; Linux build and physical platform/accounting acceptance remain pending. See contract implementation notes for bounds and accounting limits.
+**Verify:** `cargo clippy -p msc-application -p msc-infrastructure --lib -- -D warnings`
+**Batch:** P21.2 only; depends on P21.1 review/verification unless a later explicit batch includes both.
+**Commit:** `P21.2: inventory owned storage with bounded scans`
+
+### P21.3 — Expose host inventory and local CLI scan operations
+
+**Status:** Done — closed by Cameron’s October 17 acceptance and archive instruction.
+**Files:** `crates/msc-agent/src/routes/storage.rs`, operation/capability wiring and DTOs under `crates/msc-api/src/dto/`; OpenAPI and generated client types; `crates/msc-agent/src/cli/mod.rs` and transport modules as needed; supported-client capability record; focused storage route tests; this plan.
+**What:** Add authenticated cached-inventory, scan/progress and cancellation operations with stable host/item IDs, explicit coverage and timestamps. Preserve existing map-preview/cleanup endpoints and permission vocabulary; full-host inventory uses an appropriate existing authorized scope, while scoped server data cannot expose unrelated paths or secrets. Reuse operation journaling/admission and implement headless reconciliation/expiry without repeated deep scans. Add host-local CLI inventory/refresh/cancel and JSON output under D-040; do not introduce direct-remote CLI credentials. Advertise capability/minimum version and make older-agent results unavailable explicitly. Separate inventory display data from execution authority; cached results never authorize deletion by themselves.
+**Implementation:** Added Admin-only cached inventory/paging, journaled explicit scans, status/cancellation through existing operations, dated bounded snapshot persistence and local CLI inventory/refresh/status/cancel. Capability protocol 1 is additive; no first shipped version is claimed before publication. Reused read-only ownership discovery, actual service paths and existing operation admission; old map cleanup stays compatible. One essential metadata-only regression protects persisted host/schema binding (no I/O/timing, expected under 1 ms); compiled without execution. Required Clippy and generated client types passed. Owner authorized P21.3–P21.8 sequential execution with physical verification deferred until the end; this does not close step statuses or the phase gate.
+**Verify:** `cargo clippy -p msc-agent --bin msc -- -D warnings -A dead_code`
+**Batch:** P21.3 only; depends on P21.2 verification unless included in a newly authorized batch.
+**Commit:** `P21.3: expose storage inventory and scan operations`
+
+### P21.4 — Combine saved-host inventories with the local desktop footprint
+
+**Status:** Done — closed by Cameron’s October 17 acceptance and archive instruction.
+**Files:** A native storage module/commands under `clients/desktop-web/src-tauri/src/`; local installation discovery; `clients/desktop-web/src/lib/platform/`, `auth/desktop.ts`, host-scoped storage state and API adapters as needed; focused host-state tests; this plan.
+**What:** Compose the saved-computer overview from cached inventories and explicitly requested remote scans, with bounded fan-out and credentials retained in Rust. Measure the installed local app and local-only client data even when the local agent is absent/offline; merge only matching local-host identities and disjoint roots. An agent may report a verified desktop installation on its host, but inaccessible or undiscoverable remote desktop files remain unknown rather than guessed or assigned the local app's size. Retain dated offline snapshots, invalidate replaced hosts/roots, and guard late responses and scan cancellation across navigation. Folder reveal works only for verified local paths; remote paths are copyable text with their host named. No remote service installation, arbitrary remote path reads or offline cleanup.
+**Implementation:** Added native local-client/package measurement independent of agent availability, bounded credential-bound saved-host caches and explicit remote scans, snapshot paging, active scan tracking and local ownership-checked folder reveal. Added physical root/volume identities, labels and link metadata so native/agent composition retains one accounting graph; uncertain cross-source overlaps/shared links are excluded from the combined total with partial coverage instead of being summed. Reused read-only package/service discovery, with independent client discovery on service-inspection failure; ownership configuration reads are now bounded. Added the host-generation bridge and two essential no-I/O regressions for late/wrong-host responses and local double counting/identity mismatch (expected under 1 ms each); compile only. Updated the existing three Clippy allowance names to their current `clippy::` spellings because unqualified spellings are deprecated; no lint scope or release gate changed. Physical Windows/Linux and owner acceptance remain pending.
+**Verify:** `cargo clippy --manifest-path clients/desktop-web/src-tauri/Cargo.toml --lib -- -D warnings -A clippy::needless_borrow -A clippy::needless_borrows_for_generic_args -A clippy::needless_return`
+**Batch:** P21.4 only; depends on P21.3 verification unless included in a newly authorized batch.
+**Commit:** `P21.4: compose host storage and local desktop inventory`
+
+### P21.5 — Add reviewed cleanup for disposable and obsolete owned files
+
+**Status:** Done — closed by Cameron’s October 17 acceptance and archive instruction.
+**Files:** `crates/msc-agent/src/routes/storage.rs`, `map_staging.rs`; storage cleanup/application adapters; Phase 20 staging/operation ownership integration; tool/agent version reference discovery; API/CLI cleanup requests; essential existing cleanup tests; this plan.
+**What:** Extend the current preview-bound map cleanup to selected same-category cache/download/obsolete-version entries. Bind an expiring preview to the authenticated host, credential, selected item identities and allowed action; recheck ownership, path identity, changed files, current/rollback versions and live leases immediately before deletion. Active uploads, conversions, maps and shared runtime dependencies remain protected. Resolve interruption/restart and cleanup cancellation at safe boundaries; return removed, retained, failed and remaining items with measured results. Treat reclaimable bytes as an estimate where filesystem sharing prevents exact attribution; refresh affected volume availability without claiming unrelated free-space changes as MSC savings. Reuse existing permission/admission/cancellation mechanisms and prevent cleanup racing with new work. CLI retains local preview and explicit selection/confirmation. Do not repurpose uninstall inventory or general path deletion as authority.
+**Verify:** `cargo clippy -p msc-agent --bin msc -- -D warnings -A dead_code`
+**Batch:** P21.5 only; depends on P21.4 verification unless included in a newly authorized batch.
+**Commit:** `P21.5: clean reviewed inactive storage safely`
+
+**Implementation:** Added exact-selection, five-minute host/credential-bound reviews for map cache, transfer-owner staging and verified obsolete desktop-staged builds. Existing upload/download ownership, admission and inspection/consumer leases remain authoritative; unknown, current and rollback builds remain protected. Build staging/repair shares cross-process exclusion with removal. Per-item results are persisted before/after removal; interruption never resumes deletion and unconfirmed outcomes stay explicit. Native/CLI adapters accept typed selections, never arbitrary paths. Corrected the inventory scan runtime route to Axum 0.7 `:id` syntax (OpenAPI retains `{id}`). Windows inventory now opens metadata handles independently from copy handles, avoiding conflicts with active file sharing. No tests or live cleanup executed. Required agent/native Clippy and isolated Windows shared-source compilation passed; physical behavior remains pending.
+
+### P21.6 — Reuse server-data deletion through storage selections
+
+**Status:** Done — closed by Cameron’s October 17 acceptance and archive instruction.
+**Files:** Storage action coordination; existing `crates/msc-agent/src/routes/backups.rs`, world and server deletion routes/services only where needed; relevant DTO/CLI adapters; desktop confirmation/action state; focused action-permission regressions; this plan.
+**What:** Map inventory selections to existing backup/world/server IDs and established deletion services, permissions, backups, stopped-state requirements and confirmations. Allow multiple selected backups within one computer/category, with previews and per-item results; keep world removal and whole-server removal in separate reviews. Show a server removal's actual contained worlds/backups and relevant consequences; block active world/server deletion unless the existing supported lifecycle/action permits it. Preview never stops a server, changes selection or deletes data; any required graceful stop is explicit. Revalidate IDs, owner host, current state and preview before every action. Cancellation stops later items but does not pretend earlier deletions were undone; partial failures remain visible. Refuse a stale host/item or changed source rather than falling back to a raw path. Do not relax deletion rules or trigger complete uninstall.
+**Verify:** `cargo clippy -p msc-agent --bin msc -- -D warnings -A dead_code`
+**Batch:** P21.6 only; depends on P21.5 verification unless included in a newly authorized batch.
+**Commit:** `P21.6: manage server data through scoped storage reviews`
+
+**Implementation:** Added host-bound backup/world/server candidates and exact reviews through existing deletion services. Backup batches recheck the last-verified-backup floor before every removal; active slots, unready reconciliation, running servers and overlapping registered roots are retained. World/server reviews each accept one item and have distinct typed confirmations. Whole-server reviews enumerate saved worlds/backups and directory consequences. Preview does not stop or select a server. Existing backup/server deletion routes now share operation admission so they cannot race a Storage cleanup. Per-item cancellation and changed-source results use P21.5 persistence. Existing permission semantics (including Admin's established category override) remain intact. One essential pure permission regression protects Worlds/Fleet distinctions, with controlled credentials, no I/O/timing and expected runtime under 1 ms; compile only. Required agent/native Clippy passed. The binary unit-test target compiled without execution; the broader check still encounters the pre-existing `cli_pairing`/`desktop_auth` route imports and `cli_service` argument mismatches. The documented MSC 1 checkout is unavailable at its stated path; parity was checked against the existing ported deletion services and their source references, not a new direct Swift audit.
+
+### P21.7 — Build the Settings Storage overview and management screens
+
+**Status:** Done — closed by Cameron’s October 17 acceptance and archive instruction.
+**Files:** `clients/desktop-web/src/lib/sections/app-settings/AppSettingsSheet.svelte`, `StorageCleanup.svelte` or its replacement Storage view; host/category/server detail and removal review components under that section; shared host/storage state and existing backup/world/server confirmation components; focused UI behavior cases; this plan.
+**What:** Implement the P21.1 reviewed screens using existing design tokens and `antiAIslop.md`: saved-computer overview, host totals/category rows, largest-first servers and their detail, specific category actions, and separate consequential removal reviews. Keep computer identity visible throughout reviews, neutral flat rows with right-aligned sizes and one restrained proportional bar. Show partial/unknown allocation, multi-volume capacity, dated offline data, scan progress/cancel/refresh and truthful cleanup results. Retain navigation state while host-bound operations run; a closed sheet or changed selected server must not redirect actions/results. Require explicit scans before stale offline items become actionable. Display current app/agent/in-use tools as protected inventory with appropriate existing management links, not deletion buttons. Keep safe map cleanup reachable during migration and provide a clear unsupported-agent state. No decorative status dots, gradients or nested cards.
+**Verify:** `npm --prefix clients/desktop-web run check`
+**Batch:** P21.7 only; depends on P21.6 and Cameron's P21.1 visual review unless included in a newly authorized batch.
+**Commit:** `P21.7: add settings storage inventory and management`
+
+**Implementation:** Settings now opens a cached-computer Storage overview, per-computer categories/volumes, largest-first servers, grouped server detail, exact selections and typed removal reviews. Refresh is explicit per computer; desktop measurement remains independent of agent availability. Host-bound pending operations survive closing the sheet, do not redirect when another computer is selected, pause status polling on disconnect and offer explicit status/cancel. Removal disables further action until refresh. Remote paths have no local reveal control; protected app/agent/tools show existing management locations. Earlier map cleanup stays available in a separately labelled disclosure. Added server IDs to candidate display metadata to scope server-detail selections. Fixed the schema generator's omitted last DTO field and kept legacy map request/result schemas distinct from reviewed cleanup. Final cleanup inspection also refuses nested mount/volume boundaries and unresolvable relative helper references; outcomes sample each affected volume separately (removed/unavailable sources retain unknown capacity). Required Svelte check passed with only ten pre-existing unused-style warnings; agent/native Clippy passed. No test suites ran. Browser skill connection returned no available browser; actual rendered screenshots and visual acceptance remain pending, not asserted from source inspection.
+
+### P21.8 — Prepare storage acceptance and record owner observations
+
+**Status:** Done — candidate preparation closed by Cameron’s October 17 archive instruction; physical acceptance remains pending.
+**Files:** Storage owner acceptance/design evidence under `docs/msc2/storage/`; supported-client documentation and CLI help guidance as needed; `StorageView.svelte` late-completion navigation guard; `components/native_upload.rs` inspection-lease retry correction and extended six-byte regression; read-only `world_store::inspect_slots`, Storage server-data adapter and controlled identity/no-write regression; this plan. Generated candidate artifacts/screenshots remain uncommitted.
+**What:** Build a matching candidate through existing packaging and give Cameron exact install/verification instructions. Record overview/detail/review visuals; complete and partial accounting with custom roots, multiple volumes, hard links/sparse/clone limits; local agent offline, remote host offline/reconnection and older-agent behavior; large-world scan responsiveness; active upload/map/runtime protection; and same-category backups versus separate world/server deletion in disposable data. Include stale-preview/path/host changes, permission denial, cancellation and partial failure/restart outcomes. Use small controlled files for essential missing regressions, extending existing cases rather than duplicating deletion tests; document concrete risk and expected runtime, compile only unless a specific test command is authorized. Keep actual observations pending until Cameron reports them, then hand the feature gate to the other agent. No publishing, full uninstall, live valued-data deletion, new CI/release gates or automatic test execution.
+**Verify:** `cargo build --locked -p msc-agent --bin msc`
+**Batch:** P21.8 only; depends on P21.7 verification unless included in a newly authorized batch. Physical acceptance remains Cameron's separate Verify move.
+**Commit:** `P21.8: document storage management acceptance`
+
+**Implementation:** Prepared the matching optimized Intel 0.1.30 local candidate and consolidated owner checklist in `storage/acceptance.md`; capability accounting and pending-gate links now describe delivered Storage behavior. Final handoff inspection corrected late UI completions clearing newer navigation, retained transfer-owner retry after an inspection lease, and separated read-only world-slot inspection from legacy metadata migration. Slot IDs must match their directories and unreadable active markers protect removal. Extended the existing six-byte transfer regression and added one two-file in-memory no-write/identity regression; controlled inputs, no timing/network, expected under one second and 1 ms respectively. Compiled without running tests; broader agent integration targets still have the documented pre-existing import/argument failures. Locked debug/optimized agent builds, final optimized native build, required Clippy/format/type checks and packaging passed. The initial pinned renderer fetch failed under sandbox DNS restrictions; permitted retry succeeded without a release workflow. Final ad-hoc bundle and extracted archive passed deep strict signature and packaged-file checksum verification. No installed app/service, valued data, release workflow or publication was changed. Browser runtime had no available browser, so rendered captures and physical/Windows/Linux observations remain explicitly Pending Cameron. No phase gate or owner status was closed.
+
+### P21.9 — Recover removal results and clarify storage units
+
+**Status:** Done — closed by Cameron’s October 17 acceptance and archive instruction.
+**Files:** `crates/msc-api/src/dto/operation.rs`, `crates/msc-agent/src/routes/storage/review.rs`, `crates/msc-agent/src/cli/mod.rs`; desktop `StorageView.svelte`, `storage-model.ts`, `tests/storage/host-state.test.ts`; `storage/acceptance.md`; this plan.
+**What:** Accept the operation journal's opaque IDs when retrieving reviewed removal results, preserving host/result binding and bounded safe references. Label Storage binary sizes as GiB and filesystem capacity as Free now. Explain reclaimable-space differences without attributing a disk-space change to deletion.
+**Implementation:** Corrected the UUID-only result validation that rejected `op-96598-2` in the API and CLI. Added two essential controlled regressions for real journal IDs with host/reference rejection and the reported disk-unit mismatch (expected under 1 ms each, no filesystem/network/timing dependencies); compiled only. Agent/API Clippy, formatting and Svelte checking passed (ten existing unused-style warnings). Binary test-target compilation succeeded, while broader integration checking encountered the previously documented route imports and CLI argument errors. No tests executed. Owner requested dev-app verification going forward instead of packaged candidate builds: run `npx tauri dev` from `clients/desktop-web`; repair the agent for backend changes, then check the original removal result and refresh inventory. The earlier P21.8 candidate does not contain this correction. No live removal was retried and the original outcome remains unverified.
+**Verify:** `npm --prefix clients/desktop-web run check`
+**Batch:** solo.
+**Commit:** `P21.9: restore storage results and clarify disk units`
+
+### P21.10 — Display decimal storage units
+
+**Status:** Done — closed by Cameron’s October 17 acceptance and archive instruction.
+**Files:** Desktop `storage-model.ts`, `StorageView.svelte`, `tests/storage/host-state.test.ts`; this plan.
+**What:** Apply Cameron's requested GB/MB display using decimal arithmetic (1 GB = 1,000,000,000 bytes), matching macOS units. Replace the binary-unit explanation. Update the existing essential unit regression with the reported disk capacity and an MB example; no new test case or runtime dependencies.
+**Verify:** `npm --prefix clients/desktop-web run check`
+**Batch:** solo.
+**Commit:** `P21.10: display storage sizes in decimal units`
+
+### P21.11 — Use macOS available capacity in Storage
+
+**Status:** Done — closed by Cameron’s October 17 acceptance and archive instruction.
+**Files:** `crates/msc-infrastructure/src/storage.rs`, `storage/capacity.rs`; agent Storage result sampling; desktop `StorageView.svelte`; `storage/acceptance.md`; this plan.
+**What:** Use Apple's available-capacity-for-important-usage API for macOS Storage display, including system-reclaimable capacity. Use the same helper for inventory and post-removal observations; retain filesystem availability on other platforms and existing conservative write/admission checks. Label the display Available. If the native query fails, report unknown through existing capacity-error handling rather than silently showing a different metric.
+**Implementation:** A read-only native query on Cameron's Mac reported 102,523,008,415 bytes available versus 50,367,156,224 bytes immediately free, matching the reported discrepancy. The shared implementation uses Core Foundation directly with checked numeric types and owned-reference cleanup; no subprocess, dependency or shell parsing. Existing identity guards surround volume observations. Agent Clippy, Rust formatting and Svelte checking passed (ten existing style warnings). No tests or packaged builds run; owner compares after agent Repair and Storage Refresh in the dev app. Independent samples can differ as disk usage changes.
+**Verify:** `cargo clippy -p msc-agent --bin msc -- -D warnings -A dead_code`
+**Batch:** solo.
+**Commit:** `P21.11: report macos available storage capacity`
+
+### P21.12 — Prefer the desktop capacity sample for verified local volumes
+
+**Status:** Done — closed by Cameron’s October 17 acceptance and archive instruction.
+**Files:** `crates/msc-infrastructure/src/storage/capacity.rs`, `clients/desktop-web/src-tauri/src/storage.rs`; `storage/acceptance.md`; this plan.
+**What:** Correct the owner-observed zero after P21.11. Reject native reclaimable-capacity zero when filesystem free space is positive. When composing a verified local host, prefer a successful desktop capacity sample for the same physical volume, retaining the agent volume ID and desktop sample timestamp. Do not apply local capacity to remote hosts or unmatched volumes.
+**Implementation:** Repeated read-only exact Core Foundation calls in the interactive context returned 101,857,899,935 bytes available and 49,702,047,744 bytes free; the background-agent screenshot instead reported zero. The exact service-session failure is not established, so no synthetic reclaimable estimate is used. Existing composition kept agent capacity even when the desktop measured the same volume successfully; corrected that preference. Extended the existing pure composition regression to cover agent zero versus valid local capacity (no new fixtures, I/O or timing, expected under 1 ms); not run. Owner verification requires restarting `npx tauri dev` to compile/stage the changed native code, then Agent Repair and Storage Refresh. Agent/native Clippy and Rust formatting passed. No packaged builds or tests run.
+**Verify:** `cargo clippy --manifest-path clients/desktop-web/src-tauri/Cargo.toml --lib -- -D warnings -A clippy::needless_borrow -A clippy::needless_borrows_for_generic_args -A clippy::needless_return`
+**Batch:** solo.
+**Commit:** `P21.12: recover local capacity from the desktop session`
+
+### P21.13 — Explain protected unregistered files without server actions
+
+**Status:** Done — closed by Cameron’s October 17 acceptance and archive instruction.
+**Files:** Desktop `StorageView.svelte`; this plan.
+**What:** Hide backup/world/server management controls on the unregistered-files group, explain why those files are protected and point to their existing location details. Describe its size as unregistered files rather than one server. Guard action entry for this group so it cannot open an empty removal review. Registered server actions retain their existing behavior and deletion rules. Svelte checking passed with ten existing style warnings; no tests or builds run. This frontend-only change reloads in the existing dev session without agent repair.
+**Verify:** `npm --prefix clients/desktop-web run check`
+**Batch:** solo.
+**Commit:** `P21.13: clarify protected unregistered server files`
+
+### P21.14 — Shorten map cleanup labels
+
+**Status:** Done — closed by Cameron’s October 17 acceptance and archive instruction.
+**Files:** Desktop `StorageView.svelte`, `StorageCleanup.svelte`; this plan.
+**What:** Remove the legacy-protocol explanatory paragraph and redundant Disk space on host heading. Shorten the disclosure to Map cleanup on the selected host, displaying Local Agent with Cameron's requested capitalization. Preserve remote host names and cleanup behavior. Svelte checking passed with ten existing style warnings; no tests or builds run.
+**Verify:** `npm --prefix clients/desktop-web run check`
+**Batch:** solo.
+**Commit:** `P21.14: simplify map cleanup wording`
+
+### P21.15 — Space the map cleanup description below its heading
+
+**Status:** Done — closed by Cameron’s October 17 acceptance and archive instruction.
+**Files:** Desktop `StorageView.svelte`; this plan.
+**What:** Add 12 px below the expanded Map cleanup disclosure heading so its description does not touch it. Closed disclosure spacing is unchanged. Inspected the scoped CSS and checked formatting; no tests or builds run. Frontend reload only; no agent repair needed.
+**Verify:** `npm --prefix clients/desktop-web run check`
+**Batch:** solo.
+**Commit:** `P21.15: space the map cleanup description`
+
+### P21.16 — Remove the detailed storage measurement footnote
+
+**Status:** Done — closed by Cameron’s October 17 acceptance and archive instruction.
+**Files:** Desktop `StorageView.svelte`; this plan.
+**What:** Remove the owner-identified paragraph about decimal units, reclaimable capacity and allocation caveats from Storage detail screens. Preserve dated capacity, partial coverage and existing coverage details. Explained that the displayed installation warning indicates unconfirmed package inspection and the socket error is an incomplete scan observation whose path is not shown. No backend behavior changes. Inspected the markup removal and checked formatting; no tests or builds run.
+**Verify:** `npm --prefix clients/desktop-web run check`
+**Batch:** solo.
+**Commit:** `P21.16: remove the detailed storage measurement footnote`
+
+### P21.17 — Space coverage detail messages
+
+**Status:** Done — closed by Cameron’s October 17 acceptance and archive instruction.
+**Files:** Desktop `StorageView.svelte`; this plan.
+**What:** Add 12 px above each expanded coverage message, separating the first from its disclosure heading and subsequent messages from one another. Development mode can explain unconfirmed installed-package inspection; the socket error's cause remains unconfirmed. Inspected the scoped CSS and checked formatting; no tests or builds run. Frontend reload only.
+**Verify:** `npm --prefix clients/desktop-web run check`
+**Batch:** solo.
+**Commit:** `P21.17: space storage coverage messages`
+
+### P21.18 — Remove the refresh reminder and tighten cleanup spacing
+
+**Status:** Done — closed by Cameron’s October 17 acceptance and archive instruction.
+**Files:** Desktop `StorageView.svelte`; this plan.
+**What:** Remove the owner-identified refresh/unknown-files reminder. Remove the extra 24 px above Map cleanup, retaining the standard section gap, divider and expanded heading spacing. Refresh requirements for removal remain enforced by existing controls. Inspected the markup/CSS and checked formatting; no tests or builds run. Frontend reload only.
+**Verify:** `npm --prefix clients/desktop-web run check`
+**Batch:** solo.
+**Commit:** `P21.18: tighten storage coverage and cleanup spacing`
+
+### P21.19 — Align coverage and map cleanup disclosures
+
+**Status:** Done — closed by Cameron’s October 17 acceptance and archive instruction.
+**Files:** Desktop `StorageView.svelte`; this plan.
+**What:** Remove Map cleanup's divider and redundant margin override so both disclosures use the same section gap and vertical padding. Preserve the added spacing inside expanded disclosures. Inspected the shared spacing rules and checked formatting; no tests or builds run. Frontend reload only.
+**Verify:** `npm --prefix clients/desktop-web run check`
+**Batch:** solo.
+**Commit:** `P21.19: align storage disclosure spacing`
+
+### P21.20 — Distinguish storage categories in the usage bar
+
+**Status:** Done — closed by Cameron’s October 17 acceptance and archive instruction.
+**Files:** Desktop `StorageView.svelte`; this plan.
+**What:** Give each of the five storage categories a restrained distinct color in the proportional usage bar and repeat those colors as small legend keys beside category names. Keep category order and measured proportions unchanged. Checked formatting; no tests or builds run. Frontend reload only.
+**Verify:** `npm --prefix clients/desktop-web run check`
+**Batch:** solo.
+**Commit:** `P21.20: color the storage category bar`
+
+### P21.21 — Keep server-list actions focused
+
+**Status:** Done — closed by Cameron’s October 17 acceptance and archive instruction.
+**Files:** Desktop `StorageView.svelte`; this plan.
+**What:** On the Servers list, retain only Remove a server. Backup and saved-world actions stay inside an individual registered server's detail screen. The protected unregistered-files row has no actions. Inspected the scoped branch and checked formatting; no tests or builds run. Frontend reload only.
+**Verify:** `npm --prefix clients/desktop-web run check`
+**Batch:** solo.
+**Commit:** `P21.21: simplify server list actions`
+
+### P21.22 — Organize server worlds and backups
+
+**Status:** Done — closed by Cameron’s October 17 acceptance and archive instruction.
+**Files:** Desktop `StorageView.svelte`; `crates/msc-application/src/storage.rs`; `crates/msc-infrastructure/src/storage.rs`; this plan.
+**What:** Combine Worlds and Backups into one server page with Active world, Saved worlds and Backups sections. Show saved-slot names and backup metadata labels instead of UUIDs and internal marker files. Put saved-world and backup review actions in their matching sections; keep server removal on the Servers list. Explain Bedrock's live `worlds/` folder and collection snapshots. Preserve existing candidate/review safety. Do not run tests or builds; use frontend type checking and Rust lint/format checks. Frontend reload only.
+**Verify:** `npm --prefix clients/desktop-web run check`
+**Batch:** solo.
+**Commit:** `P21.22: organize server worlds and backups`
+
+### P21.23 — Exclude saved-world containers from active-world rows
+
+**Status:** Done — closed by Cameron’s October 17 acceptance and archive instruction.
+**Files:** Desktop `StorageView.svelte`; this plan.
+**What:** Identify the active world by its explicit inventory label instead of treating every Worlds item without a child ID as active. Keep the `world_slots` parent bucket out of the active-world section, and show a safe fallback label for saved slots from older agents that still expose UUIDs. The parent bucket has no measurable files, so its zero-byte partial result appeared as Unknown. Checked formatting and Svelte types; no tests or builds run. Frontend reload only.
+**Verify:** `npm --prefix clients/desktop-web run check`
+**Batch:** solo.
+**Commit:** `P21.23: hide saved-world containers from active world`
+
+### P21.24 — Show the active world folder name
+
+**Status:** Done — closed by Cameron’s October 17 acceptance and archive instruction.
+**Files:** Desktop `StorageView.svelte`; `crates/msc-application/src/storage.rs`; this plan.
+**What:** Add the configured active world folder name to the storage inventory label and show it in the Active world section instead of the generic “Live world” row. For Bedrock, use the configured level name inside the `worlds/` collection; for Java, label each discovered live world folder. Keep the generic label for older agents. Checked formatting, Svelte types and Rust lint; no tests or builds run. Frontend reload and agent refresh required.
+**Verify:** `npm --prefix clients/desktop-web run check`
+**Batch:** solo.
+**Commit:** `P21.24: show active world folder name`
+
+### P21.25 — Simplify world section dividers and action label
+
+**Status:** Done — closed by Cameron’s October 17 acceptance and archive instruction.
+**Files:** Desktop `StorageView.svelte`; this plan.
+**What:** Remove the bottom border from the last row in each Worlds section so the next section's top border is the single divider. Keep borders between rows within each section. Shorten the saved-world action to “Remove World…”. Add a native hover hint to disabled review actions when a refresh is needed: “Click Refresh to select.” Checked formatting and Svelte types; no tests or builds run. Frontend reload only.
+**Verify:** `npm --prefix clients/desktop-web run check`
+**Batch:** solo.
+**Commit:** `P21.25: simplify world section dividers`
+
+### P21.26 — Space the server size label
+
+**Status:** Done — closed by Cameron’s October 17 acceptance and archive instruction.
+**Files:** Desktop `StorageView.svelte`; this plan.
+**What:** Add visible spacing between the Worlds total and its “in this server” label. Checked formatting and Svelte types; no tests or builds run. Frontend reload only.
+**Verify:** `npm --prefix clients/desktop-web run check`
+**Batch:** solo.
+**Commit:** `P21.26: space the server size label`
+
+### P21.27 — Open unregistered server folders locally
+
+**Status:** Done — closed by Cameron’s October 17 acceptance and archive instruction.
+**Files:** Desktop `StorageView.svelte`; this plan.
+**What:** On the unregistered-server detail page, list the detected server folder names and provide an Open folder action for each when viewing the local computer. Reuse the verified storage reveal operation; remote hosts get no local file-manager action. Checked formatting and Svelte types; no tests or builds run. Frontend reload only.
+**Verify:** `npm --prefix clients/desktop-web run check`
+**Batch:** solo.
+**Commit:** `P21.27: open unregistered server folders locally`
+
+### P21.28 — Split unregistered server folders from their shared parent
+
+**Status:** Done — closed by Cameron’s October 17 acceptance and archive instruction.
+**Files:** `crates/msc-application/src/storage.rs`; desktop `StorageView.svelte`; this plan.
+**What:** MSC had measured the shared `servers/` parent as one protected item, so Open folder correctly opened that parent and could not target an individual server. During storage discovery, split direct legacy server folders and child folders under the standard `java/` and `bedrock/` containers into separate protected roots, while skipping configured servers and their ancestors. Keep these folders non-removable and open them only on the local computer. Add an essential discovery regression to verify nested unregistered folders get their own measured row and do not double-count against the parent; no tests run. Run formatting, Clippy and desktop Svelte checking.
+**Verify:** `cargo clippy --locked -p msc-application --lib -- -D warnings && npm --prefix clients/desktop-web run check`
+**Batch:** solo.
+**Commit:** `P21.28: split unregistered server folders`
+
+### P21.29 — Open verified unregistered server folders
+
+**Status:** Closed — owner verification failed; corrected by P21.30.
+**Files:** Desktop Tauri `storage.rs`; this plan.
+**What:** The desktop could not open individual unregistered server folders because its native ownership inventory only identifies the shared server root. Allow the local file-manager action when the agent snapshot's exact child path is beneath a present, verified server root and the child's current filesystem identity still matches the snapshot. Keep the existing exact-root check for other inventory items. Formatting, targeted Clippy, and Svelte checks pass. Strict Clippy still reports three existing warnings in `update.rs` and `lib.rs`; no tests or app build run. Restart `npx tauri dev`, then refresh storage.
+**Verify:** `cargo clippy --locked --manifest-path clients/desktop-web/src-tauri/Cargo.toml --lib -- -D warnings -A clippy::needless_borrow -A clippy::needless_borrows_for_generic_args -A clippy::needless_return && npm --prefix clients/desktop-web run check`
+**Batch:** solo.
+**Commit:** `P21.29: open verified unregistered server folders`
+
+### P21.30 — Normalize unregistered folder paths before identity checks
+
+**Status:** Done — closed by Cameron’s October 17 acceptance and archive instruction.
+**Files:** Desktop Tauri `storage.rs`; this plan.
+**What:** The storage scanner adds a trailing separator to a root item's display path when it joins an empty relative path. The root identity is calculated from the original path without that separator, so P21.29 rejected the same unchanged directory. Normalize the displayed path into filesystem components before comparing identities and opening it. Checked formatting and targeted Clippy; no tests or app build run. Restart `npx tauri dev`, refresh storage, then use Open folder on an unregistered server.
+**Verify:** `npx tauri dev` — refresh storage and confirm each unregistered server's Open folder action opens that server's directory.
+**Batch:** solo.
+**Commit:** `P21.30: normalize unregistered folder identity paths`
+
+### P21.31 — Organize MSC Settings into tabs
+
+**Status:** Done — closed by Cameron’s October 17 acceptance and archive instruction.
+**Files:** Desktop `AppSettingsSheet.svelte`, `StorageView.svelte`; this plan.
+**What:** Group the existing settings into General (updates, preload, reset and uninstall), Services (Xbox Broadcast, CurseForge, Playit and DuckDNS), and Storage (the selected host's server folder and the computer inventory). Open Storage directly on the computers list, show the server-folder action only there, and keep storage navigation and ongoing inventory work in place when switching tabs. The Services tab names the selected host. Svelte checking passes with 10 existing CSS warnings; no tests or app build run.
+**Verify:** `npx tauri dev` — open MSC Settings, switch through all three tabs, then drill into Storage and back to Computers.
+**Batch:** solo.
+**Commit:** `P21.31: organize msc settings into tabs`
+
+### P21.32 — Clarify the Xbox Broadcast section heading
+
+**Status:** Done — closed by Cameron’s October 17 acceptance and archive instruction.
+**Files:** Desktop `AppSettingsSheet.svelte`; this plan.
+**What:** Remove the redundant host label at the top of Services and name its first section Xbox Broadcast. Remove the unused label style.
+**Verify:** `npx tauri dev` — open MSC Settings → Services and confirm Xbox Broadcast appears directly below the tabs without the “On Local agent” label.
+**Batch:** solo.
+**Commit:** `P21.32: clarify xbox broadcast heading`
+
+### P21.33 — Match Storage overview headings
+
+**Status:** Done — closed by Cameron’s October 17 acceptance and archive instruction.
+**Files:** Desktop `StorageView.svelte`; this plan.
+**What:** Remove the redundant computer-list subtitle and style its Computers heading to match the Server folder overline. Keep the larger heading and inventory details on computer drilldowns.
+**Verify:** `npx tauri dev` — open MSC Settings → Storage and confirm Server folder and Computers use the same heading size and the computer-list subtitle is absent.
+**Batch:** solo.
+**Commit:** `P21.33: align storage overview headings`
+
+### P21.34 — Simplify the last removal summary
+
+**Status:** Done — closed by Cameron’s October 17 acceptance and archive instruction.
+**Files:** Desktop `StorageView.svelte`; this plan.
+**What:** Remove the volume-capacity observations from the last-removal display while retaining the operation ID, timestamp, item outcomes and removed logical sizes.
+**Verify:** `npx tauri dev` — open MSC Settings → Storage → This computer → Servers and confirm Last removal lists the operation and removed items without the extra capacity paragraphs.
+**Batch:** solo.
+**Commit:** `P21.34: simplify last removal summary`
+
+### P21.35 — Tighten completed removal details
+
+**Status:** Done — closed by Cameron’s October 17 acceptance and archive instruction.
+**Files:** Desktop `StorageView.svelte`; this plan.
+**What:** Hide the routine “Removed logical file bytes” message on successfully removed items, while retaining error details for retained or unconfirmed items. Add space between the Last removal heading and the operation line.
+**Verify:** `npx tauri dev` — open MSC Settings → Storage → This computer → Servers and confirm the completed removal shows a spaced operation line and no routine logical-bytes message.
+**Batch:** solo.
+**Commit:** `P21.35: tighten completed removal details`
+
+### P21.36 — Name desktop app storage entries
+
+**Status:** Done — closed by Cameron’s October 17 acceptance and archive instruction.
+**Files:** Desktop `StorageView.svelte`; this plan.
+**What:** Show path-specific labels and plain-language descriptions for the macOS installed app, WebKit data, cache, app support, preferences and saved window state. Keep paths and sizes visible and leave unrecognized entries with their original inventory labels.
+**Verify:** `npx tauri dev` — open MSC Settings → Storage → This computer → Desktop app and confirm the entries have distinct names and descriptions matching their paths.
+**Batch:** solo.
+**Commit:** `P21.36: name desktop app storage entries`
+
+### P21.37 — Name agent storage entries
+
+**Status:** Done — closed by Cameron’s October 17 acceptance and archive instruction.
+**Files:** Desktop `StorageView.svelte`; this plan.
+**What:** Replace repeated Agent inventory labels with path-specific names and descriptions for the legacy support folder, Bedrock helper, current agent data, agent log and server configuration. Keep paths and sizes visible and preserve original labels for other paths.
+**Verify:** `npx tauri dev` — open MSC Settings → Storage → This computer → Agent and confirm each known entry has a distinct label and description that matches its path.
+**Batch:** solo.
+**Commit:** `P21.37: name agent storage entries`
+
+## October 19, 2026 — v0.1.31 follow-up step closure
+
+Cameron directed the implemented follow-ups below to Done and into the archive. Failed intermediate Bedrock attempts retain their supersession history. This closes implementation records, not the independent phase gates or unobserved physical checks; those remain in [pending acceptance](pending-acceptance.md).
+
+## Phase 12 — Add Server wizard follow-up
+
+### P12.190 — Keep the Add Server wizard at one size
+
+**Status:** Done — closed and archived at Cameron’s October 19 direction; physical acceptance remains separate.
+**Files:** `clients/desktop-web/src/lib/components/base/Sheet.svelte`; `clients/desktop-web/src/lib/sections/fleet/wizard/AddServerWizard.svelte`; this plan.
+**What:** Give the Add Server sheet a steady 820 × 740 px frame, capped to the viewport. Keep its progress row and navigation footer visible while each step scrolls inside the body. Hide the body scrollbar and return to the top on step changes. Leave other sheets at their existing natural heights.
+**Verify:** Run `npx tauri dev`; open Manage Servers → Add Server and move through Fresh and Import steps. The sheet should keep the Configure step’s size, longer steps should scroll without a visible scrollbar, and Back/Continue should stay visible. Check at a shorter window height that the sheet fits and its content remains reachable.
+**Batch:** P12.190 only.
+**Commit:** `P12.190: keep add server wizard at one size`
+
+## Phase 18 — Bedrock map follow-up
+
+### P18.56 — Allow large Bedrock maps to open more LevelDB tables
+
+**Status:** Done — historical attempt failed owner verification and was superseded by P18.57; archived at Cameron’s October 19 direction.
+**Files:** `tools/world-map-proof/Cargo.toml`; `tools/world-map-proof/Cargo.lock`; `tools/world-map-proof/src/main.rs`; this plan.
+**What:** The Intel Mac’s agent log shows the Bedrock map exporter failing on a converted 7.3 GB world with “Too many open files (os error 24)” while reading LevelDB tables. The reader retains open table handles during catalog generation, while launchd starts the agent with a 256-file soft limit. On macOS, raise only the short-lived exporter’s soft limit to at most 16,384, bounded by the inherited hard limit, before it opens the world. Keep a log diagnostic if the OS rejects the increase. Do not change world data or the agent service’s limits. No new test: this requires the owner’s large-world Intel acceptance and an artificial small-file-limit unit test would not exercise the real table scan.
+**Verify:** Install an Intel build containing this step, then open the converted Bedrock world’s map. Confirm the catalog loads and the agent log no longer reports “Too many open files”; if it still fails, provide the new exporter error and the service’s hard file limit.
+**Batch:** P18.56 only.
+**Commit:** `P18.56: raise bedrock map exporter file limit`
+
+### P18.57 — Match the successful large-world file limit
+
+**Status:** Done — the file limit was confirmed, but the catalog still failed; superseded by P18.58 and archived at Cameron’s October 19 direction.
+**Files:** `tools/world-map-proof/src/main.rs`; this plan.
+**What:** Cameron's 7.5 GB converted Bedrock snapshot completed the same exporter catalog command from Terminal with a 65,536-file soft limit. The installed exporter requested only 16,384 and its agent-run catalog still failed with “Too many open files.” On macOS, request up to 65,536 for the short-lived exporter, bounded by the inherited hard limit. Log the effective soft and hard limits for catalog runs so the Intel check can distinguish an insufficient limit from a launchd inheritance problem without flooding per-tile logs. No new test: the decisive case is the owner's physical scan of this large world, and a synthetic small-limit test would not exercise its LevelDB table load.
+**Verify:** Run `open "$HOME/Downloads/msc2-bedrock-map-intel-p18.57.dmg"` on the Intel Mac, install and repair the agent, then open Bedtonic's map. Confirm it loads and the agent log reports a 65,536 soft limit; if it fails, provide that limit line and the new exporter error.
+**Batch:** P18.57 only.
+**Commit:** `P18.57: raise bedrock map exporter limit to 65536`
+
+### P18.58 — Allow the large Bedrock catalog to finish
+
+**Status:** Done — historical attempt failed owner verification and was superseded by P18.59; archived at Cameron’s October 19 direction.
+**Files:** `crates/msc-agent/src/routes/worlds/map_terrain/bedrock.rs`; this plan.
+**What:** The same 7.5 GB Bedrock snapshot's direct catalog scan was still using a full CPU core after fifteen minutes and then completed. The agent stops catalog exporters after ten minutes, which fits the installed build's generic catalog failure even though the exporter logged an effective 65,536-file limit and no new LevelDB error. Allow initial and refreshed Bedrock catalogs up to sixty minutes while preserving the ten-minute limit for individual tile and comparison exports. Keep shutdown cancellation and log a distinct timeout if the longer limit is reached. No new test: a short synthetic timing case would not represent the large-world scan, and Cameron will run the physical acceptance.
+**Verify:** Run `open "$HOME/Downloads/msc2-bedrock-map-intel-p18.58.dmg"` on the Intel Mac, install and repair the agent, then open Bedtonic's map and allow the catalog to finish. Confirm the overview loads; if it still fails, provide the recent agent log and elapsed time.
+**Batch:** P18.58 only.
+**Commit:** `P18.58: allow large bedrock catalogs to finish`
+
+### P18.59 — Open nearby Bedrock terrain before whole-world indexing
+
+**Status:** Done — closed and archived at Cameron’s October 19 direction; physical acceptance remains separate.
+**Files:** `tools/world-map-proof/src/main.rs`; `tools/world-map-proof/src/render.rs`; `crates/msc-agent/src/routes/worlds/map_terrain/bedrock.rs`; `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`; this plan.
+**What:** The Intel Mac's exporter received 65,536 open files but reached the full catalog's sixty-minute deadline. For an Overworld's first map request, query only saved chunks within eight chunks of the configured spawn and write a valid nearby manifest without a whole-world overview. Return that map first, then index the complete saved snapshot in a cancellable background exporter. Hold the snapshot until it finishes, atomically replace the in-memory catalog only if that snapshot is still selected, and let an open viewer reload its full manifest while retaining its camera position. Remove the background job's arbitrary deadline; cancel it on snapshot release or replacement. Log snapshot, index, and overview durations and periodic large-scan progress. Keep Nether and End catalog behavior unchanged. No new test: a tiny fixture cannot represent this multi-gigabyte LevelDB workload, and the owner's Intel Mac is the acceptance machine.
+**Verify:** Run `open "$HOME/Downloads/msc2-bedrock-map-intel-p18.59.dmg"` on the Intel Mac, install and repair the agent, then open Bedtonic's Overworld map. Nearby terrain should load without waiting for whole-world indexing. The agent log should report `catalog-nearby indexed`, `nearby ... catalog ready`, and later full-index/overview progress; when the full catalog completes, the viewer should expand coverage without changing the selected world or camera position. If nearby loading fails, provide the new `Bedrock map:` log lines.
+**Batch:** P18.59 only.
+**Commit:** `P18.59: open nearby bedrock terrain before full catalog`
+
+### P18.60 — Reuse the Bedrock world handle across terrain tiles
+
+**Status:** Done — owner verification found no tiles; superseded by P18.61 and archived at Cameron’s October 19 direction.
+**Files:** `tools/world-map-proof/src/main.rs`; `crates/msc-agent/src/routes/worlds/map_terrain/bedrock.rs`; this plan.
+**What:** On Cameron's local copy of the 7.5 GB converted world, the nearby catalog took 50.9 seconds, of which 15.4 seconds indexed 289 nearby chunks. Each subsequent tile took about 50–66 seconds because the agent started a new exporter that reopened the large LevelDB before rendering. Add a tile helper that opens the read-only snapshot once and answers successive tile requests over pipes. Reuse it only while its snapshot and catalog remain selected; stop it on refresh, selection change, or release, and let it exit after two idle minutes. Preserve the ten-minute per-tile timeout and existing full-catalog background behavior. No new test: a small fixture cannot represent the large-world open cost; Cameron's imported copy provides the decisive physical check. Do not run a test without his specific instruction.
+**Verify:** Install `~/Desktop/msc2-bedrock-map-intel-p18.60.dmg`, repair the agent, and open the imported Bedtonic-world map. After the first tile, later nearby tiles should no longer each take about a minute. Compare the `[world-map] Bedrock ... tile ... ready after` lines in `~/Library/Application Support/MSC 2/logs/agent.log` and confirm terrain fills progressively without a tile error.
+**Batch:** P18.60 only.
+**Commit:** `P18.60: reuse bedrock world handle across map tiles`
+
+### P18.61 — Keep Bedrock tile helper replies separate from diagnostics
+
+**Status:** Done — closed and archived at Cameron’s October 19 direction; physical acceptance remains separate.
+**Files:** `tools/world-map-proof/src/render.rs`; this plan.
+**What:** The persistent tile helper finished rendering a tile but printed render diagnostics to standard output before its `ok` reply. The agent read the diagnostic as an invalid reply, discarded the rendered tile, and restarted the helper. Send render diagnostics to standard error so standard output carries only tile-session replies. No new test: the owner's imported 7.5 GB world is the decisive check, and tests are not authorized to run.
+**Verify:** Install `~/Desktop/msc2-bedrock-map-intel-p18.61.dmg`, repair the agent, then reopen the imported Bedtonic-world map. Terrain tiles should appear, and subsequent tiles should avoid reopening the world. Check `~/Library/Application Support/MSC 2/logs/agent.log` for `[world-map] Bedrock ... tile ... ready after` lines without new tile failures.
+**Batch:** P18.61 only.
+**Commit:** `P18.61: reserve bedrock tile helper stdout for replies`
+
+### P18.62 — Load saved Bedrock terrain near the camera
+
+**Status:** Done — closed and archived at Cameron’s October 19 direction; physical acceptance remains separate.
+**Files:** `tools/world-map-proof/src/main.rs`; `crates/msc-agent/src/routes/worlds/map_terrain.rs`; `crates/msc-agent/src/routes/worlds/map_terrain/bedrock.rs`; `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`; this plan.
+**What:** The first Bedrock catalog advertises only 25 spawn-area tiles while the full-world overview is still building. Let the existing read-only tile helper query saved chunks in a bounded 16 × 16-chunk region around the camera, cache inspected regions for the selected snapshot, and add only discovered tiles to the dynamic manifest. Poll the camera position while that nearby catalog is active; Vantage streams the new tiles into the open viewer. Keep the camera and flight state when the full catalog eventually replaces the nearby one. No new test: a small fixture would not represent this converted 7.5 GB world, and Cameron's imported copy is the physical acceptance case. Do not run a test without specific owner instruction.
+**Verify:** Install the local P18.62 candidate, repair the agent, open the imported Bedtonic-world map, then fly beyond the original 25 tiles to another area known to contain saved terrain. New tiles should appear around the camera without reopening the map; an unsaved area should remain empty. Check `~/Library/Application Support/MSC 2/logs/agent.log` for `discovered ... saved tiles near block` and tile-ready lines. Confirm that flight stays active if the full catalog completes.
+**Batch:** P18.62 only.
+**Commit:** `P18.62: load saved bedrock tiles near the camera`
+
+### P18.63 — Stream Bedrock surface previews before detailed tiles
+
+**Status:** Done — closed and archived at Cameron’s October 19 direction; physical acceptance remains separate.
+**Files:** `tools/world-map-proof/src/render.rs`; `tools/world-map-proof/src/main.rs`; `crates/msc-agent/src/routes/worlds/map_terrain/bedrock.rs`; `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`; this plan.
+**What:** On the converted 7.5 GB Bedrock world, a detailed tile took 8–27 seconds and the full-world overview used the same disk and CPU in the background. Query each tile's 16 chunks in one exact-key batch, cache block visibility classification, and skip fully enclosed solid blocks before modeling. Return a surface-only preview first; after preview requests settle, refine cached preview tiles nearest the camera and replace them in the viewer using tile revisions. Keep the shared texture atlas count current as materials are added. Discover saved terrain around the moving camera without an automatic full-world scan; retain rendered previews and details for the selected snapshot so revisiting them does not rerender. Let the viewer remember explored Bedrock tiles after they leave its memory budget, since the full-world overview no longer supplies that context. Log preview time and detailed read/mesh time separately. The five-second target is a physical performance goal, not a claim established by static checks. No new test: the owner’s large converted world is the acceptance case, and tests were not authorized to run.
+**Verify:** Open `~/Desktop/msc2-bedrock-map-intel-p18.63.dmg`, install the app, repair the agent, then open the imported Bedtonic-world map. Surface tiles should appear before full 3D detail and refine near the camera without resetting flight. Fly to another saved area and back; returning tiles should load from the current snapshot cache. In `~/Library/Application Support/MSC 2/logs/agent.log`, compare `surface preview` and `detail ... read ..., mesh ...` times with the former 8–27 seconds per tile. Confirm normal viewing no longer starts a full-world catalog. Report preview and detail times from the Intel Mac to assess the under-five-second goal.
+**Batch:** P18.63 only.
+**Commit:** `P18.63: stream bedrock map surface previews`
+
+### P18.64 — Send valid Bedrock tile revisions to the viewer
+
+**Status:** Done — closed and archived at Cameron’s October 19 direction; physical acceptance remains separate.
+**Files:** `crates/msc-agent/src/routes/worlds/map_terrain/bedrock.rs`; this plan.
+**What:** Vantage rejects numeric manifest tile revisions before it loads any terrain. Send nonempty string revisions for both initially listed and newly discovered tiles, changing each tile from `preview` to `detail` when its detailed mesh replaces the surface preview. The imported 7.5 GB world remains the physical acceptance case; no test was added or run without owner authorization.
+**Verify:** Install `~/Desktop/msc2-bedrock-map-intel-p18.64.dmg`, repair the agent, and reopen the imported Bedtonic-world map. The `invalid revision` error should be gone; surface previews should appear and refine into detail near the camera. Fly to another saved area and back, then compare preview and detail times in `~/Library/Application Support/MSC 2/logs/agent.log` with the earlier 8–27 seconds per tile.
+**Batch:** P18.64 only.
+**Commit:** `P18.64: send valid bedrock tile revisions`
+
+### P18.65 — Discover saved Bedrock terrain around the visible camera
+
+**Status:** Done — closed and archived at Cameron’s October 19 direction; physical acceptance remains separate.
+**Files:** `crates/msc-agent/src/routes/worlds/map_terrain/bedrock.rs`; `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`; this plan.
+**What:** The Bedrock map previously checked only the 256-block region containing the camera. A stationary camera near a boundary could see blank adjacent regions indefinitely. Inspect one unvisited region from the surrounding 3 × 3 neighborhood on each camera poll, nearest first, and poll every two seconds instead of ten. Let discovery and surface previews take precedence over detailed mesh refinement; only camera-aware polls refine details, and preview requests no longer replace the actual camera position with a tile center. Region results remain cached for the selected snapshot. This improves nearby coverage without repeating the earlier hour-long full-world catalog scan. No test was added or run without owner authorization.
+**Verify:** Install `~/Desktop/msc2-bedrock-map-intel-p18.65.dmg`, repair the agent, then reopen the imported Bedtonic-world map. Hold the camera near a previously blank region edge for at least a minute. Saved terrain across the edge should appear without moving the camera into it. Fly to another saved area and stop; nearby terrain should continue filling before its detailed meshes. The agent log should show `discovered ... in region` lines around each stationary camera position and preview timings; report any persistent blank area with the camera XYZ and recent discovery/preview log lines.
+**Batch:** P18.65 only.
+**Commit:** `P18.65: discover bedrock terrain around camera`
+
+### P18.66 — Keep Bedrock preview cliff textures at block scale
+
+**Status:** Done — closed and archived at Cameron’s October 19 direction; physical acceptance remains separate.
+**Files:** `tools/world-map-proof/src/render.rs`; this plan.
+**What:** The surface preview uses one tall quad per exposed cliff face but previously applied one block's texture coordinates to its full height. Repeat side textures once per vertical block and keep grass sides to the uppermost block, with dirt beneath in the provisional mesh. Detailed tiles still replace the preview with actual saved blocks. No test was added or run; the imported converted world is the physical acceptance case.
+**Verify:** Install the local P18.66 candidate, repair the agent, then reopen or refresh the imported Bedtonic-world map. Fly near the cliff shown in the owner's screenshot while the status still shows preview tiles. Cliff textures should have block-sized detail rather than stretched vertical bands; grass should be confined to the surface layer. Confirm detailed tiles still replace previews as they finish.
+**Batch:** P18.66 only.
+**Commit:** `P18.66: repeat bedrock preview cliff textures`
+
+### P18.67 — Keep Bedrock preview foliage to sampled leaves
+
+**Status:** Done — closed and archived at Cameron’s October 19 direction; physical acceptance remains separate.
+**Files:** `tools/world-map-proof/src/render.rs`; this plan.
+**What:** The fast preview knows only the highest leaf block in each column, so its former height-difference side faces invented leaf walls down to nearby lower terrain. Limit preview leaf geometry to that one sampled block and add its underside so a camera beneath the canopy sees it. Detailed tiles continue to supply actual trunks and full foliage. No test was added or run; the imported converted world is the physical acceptance case.
+**Verify:** Install the local P18.67 Intel candidate, repair the agent, reopen or refresh the imported Bedtonic-world map, and fly near trees while preview tiles are still loading. Tree foliage should no longer form tall square curtains reaching the ground. As detailed tiles replace the previews, their complete trunks and canopies should appear.
+**Batch:** P18.67 only.
+**Commit:** `P18.67: bound bedrock preview foliage to sampled leaves`
+
+### P18.68 — Smooth the map depth slider
+
+**Status:** Done — closed and archived at Cameron’s October 19 direction; physical acceptance remains separate.
+**Files:** `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`; this plan.
+**What:** Keep the depth slider's pointer position precise while dragging, show the nearest block Y, and settle on that whole block when released. Ease the orbit camera's focus toward the selected depth instead of jumping it on every drag event. Keep keyboard depth changes on whole-block steps and preserve the existing immediate positioning used when switching map views. No test was added or run; the imported Bedtonic-world map is the physical acceptance case.
+**Verify:** Open the imported Bedtonic-world map, choose Depth, and slowly drag the slider up and down while watching both the Y label and the cutaway. The cutaway and camera should move smoothly rather than jumping between distant heights; release should settle on the displayed whole-number Y. Check Alt/Option+Up/Down still moves by the selected whole-block step, and switching between 2D, 3D, and Fly still works.
+**Batch:** P18.68 only.
+**Commit:** `P18.68: smooth bedrock map depth control`
+
+## Phase 20 — Imported server component follow-up
+
+P20.1–P20.10 remain archived and owner-accepted. This later reported correction
+is separate from that closure; no earlier unobserved check is promoted to Pass.
+
+### P20.12 — Detect installed imported Java server JAR versions
+
+**Status:** Done — closed and archived at Cameron’s October 19 direction; physical acceptance remains separate.
+**Files:** `crates/msc-agent/src/routes/components.rs`; `crates/msc-application/src/import.rs`; `crates/msc-infrastructure/src/java_jar_metadata.rs` and module registration; candidate evidence under `uploads/`; this plan.
+**What:** Check configured JAR presence independently of version fields. Read small known JAR metadata entries offline, recovering the reported Paperclip Minecraft version from root `version.json`, plus explicit server-manifest version/build when available. Persist recovered metadata on future raw imports; existing imports detect it when Components loads without re-import or data mutation. Existing unreadable/unknown metadata shows installed/version unknown; an absent JAR stays missing even with stale config metadata. Do not invent an online update verdict, run Java or download/replace the JAR. Inspect off the async API worker. Add three essential regression cases covering the reported Paperclip layout, dependency-version confusion/oversize metadata, and real component presence versus stale version fields. Tiny memory ZIPs/isolated files, no timing/network dependencies, expected under one second each excluding compilation; compile only, do not run tests. Prepare a matching optimized Intel candidate.
+**Verify:** `cargo build --locked -p msc-agent --bin msc`
+**Batch:** P20.12 only.
+**Commit:** `P20.12: detect versions of imported server jars`
+
+## Phase 21 — Services settings follow-up
+
+### P21.39 — Decouple service account setup from the selected server
+
+**Status:** Done — closed and archived at Cameron’s October 19 direction; physical acceptance remains separate.
+**Files:** `clients/desktop-web/src/lib/sections/app-settings/AppSettingsSheet.svelte`; `clients/desktop-web/src/lib/sections/server-editor/PlayitSetupSheet.svelte`; `clients/desktop-web/src/lib/sections/server-editor/BroadcastAuthSheet.svelte`; `clients/desktop-web/src/App.svelte`; `crates/msc-api/src/dto/networking.rs`; `crates/msc-agent/src/routes/networking.rs`; this plan.
+**What:** Allow Playit setup from MSC Settings to claim or reuse the host account without creating tunnels or changing any server. Let Xbox Broadcast account sign-in use an eligible server on the host without selecting it in the app. Both Settings buttons remain available when the selected server does not use the service. Xbox Broadcast still needs an eligible server because its helper and sign-in state are server-scoped.
+**Verify:** Run `npx tauri dev`; with a server selected that uses neither service, open MSC Settings → Services and confirm both setup buttons respond. Set up Playit and confirm the selected server’s service settings remain unchanged. If another server has Xbox Broadcast enabled, use Xbox sign-in and confirm the selected server remains unchanged.
+**Batch:** P21.39 only.
+**Commit:** `P21.39: decouple service account setup from selected server`
+
+### P21.40 — Put Xbox Broadcast setup with the server
+
+**Status:** Done — closed and archived at Cameron’s October 19 direction; physical acceptance remains separate.
+**Files:** `clients/desktop-web/src/lib/sections/app-settings/AppSettingsSheet.svelte`; `clients/desktop-web/src/lib/sections/server-editor/BroadcastTab.svelte`; `clients/desktop-web/src/lib/sections/server-editor/BroadcastAuthSheet.svelte`; `crates/msc-agent/src/routes/networking.rs`; this plan.
+**What:** Remove Xbox Broadcast from global MSC Settings. Put its Microsoft device-code setup, helper JAR management, and autostart control in the active server’s Services tab beside its enable and runtime controls. Remove the email, gamertag, and password fields because the helper’s device-code sign-in does not consume them. Retire the now-unused cross-server Settings setup routes. Keep Playit account setup in global Settings.
+**Verify:** Run `npx tauri dev`; confirm MSC Settings → Services has no Xbox Broadcast section, then open a server’s Services tab and use Xbox Broadcast → Set up. The device-code prompt must appear for that server, and selecting another server must not be required.
+**Batch:** P21.40 only.
+**Commit:** `P21.40: move xbox broadcast setup to server services`
+
+### P21.41 — Reorder Xbox Broadcast server controls
+
+**Status:** Done — closed and archived at Cameron’s October 19 direction; physical acceptance remains separate.
+**Files:** `clients/desktop-web/src/lib/sections/server-editor/BroadcastTab.svelte`; this plan.
+**What:** Show Xbox Broadcast runtime status and Start/Stop first, followed by the server enable and automatic-start toggles, Microsoft sign-in, then Helper JAR download. Remove the Join address row from this card and update the enable hint for the new order.
+**Verify:** Run `npx tauri dev`; open a server’s Services tab and confirm the Xbox Broadcast rows appear in that order and each control still works as before.
+**Batch:** P21.41 only.
+**Commit:** `P21.41: reorder xbox broadcast service controls`
+
+### P21.42 — Show shared Playit agent and tunnels in MSC Settings
+
+**Status:** Done — closed and archived at Cameron’s October 19 direction; physical acceptance remains separate.
+**Files:** `crates/msc-api/src/dto/networking.rs`; `crates/msc-agent/src/routes/networking.rs`; `crates/msc-agent/tests/playit_routes.rs`; `docs/msc2/api-contract/openapi.json`; `clients/desktop-web/src/lib/api/generated.ts`; `clients/desktop-web/src/lib/sections/app-settings/AppSettingsSheet.svelte`; this plan.
+**What:** Include the saved host Playit agent ID and Java, Bedrock, and voice tunnel addresses in status even when no server is active. Show each configured tunnel on its own labeled row in global Services settings, preserving the full provider address and port. This is read-only and does not create tunnels or change server participation.
+**Verify:** Run `npx tauri dev`; open MSC Settings → Services after Playit setup and confirm the agent ID and each configured Java, Bedrock, and voice address appear on separate rows, including with no server selected. Missing tunnels should have no address row.
+**Batch:** P21.42 only.
+**Commit:** `P21.42: show shared playit agent and tunnels`
+
+### P21.43 — Show Playit tunnel addresses in server Services
+
+**Status:** Done — closed and archived at Cameron’s October 19 direction; physical acceptance remains separate.
+**Files:** `clients/desktop-web/src/lib/sections/server-editor/BroadcastTab.svelte`; this plan.
+**What:** When Playit is enabled for the active server, show the saved shared Java, Bedrock, and voice addresses as separate labeled rows in its Services tab. Preserve the Simple Voice Chat restart hint when a voice address exists and the server is running. Do not create or change tunnels.
+**Verify:** Run `npx tauri dev`; open a Playit-enabled server’s Manage → Services tab and confirm every configured shared tunnel address appears on its own row. Disable Playit for that server and confirm the address rows disappear without changing MSC Settings’ shared addresses.
+**Batch:** P21.43 only.
+**Commit:** `P21.43: show playit tunnel addresses in server services`
+
+### P21.44 — Filter Playit addresses to the selected server’s tunnels
+
+**Status:** Done — closed and archived at Cameron’s October 19 direction; physical acceptance remains separate.
+**Files:** `crates/msc-api/src/dto/networking.rs`; `crates/msc-agent/src/routes/networking.rs`; `crates/msc-agent/tests/playit_routes.rs`; `docs/msc2/api-contract/openapi.json`; `clients/desktop-web/src/lib/api/generated.ts`; `clients/desktop-web/src/lib/sections/server-editor/BroadcastTab.svelte`; this plan.
+**What:** Report which of the shared Java, Bedrock, and voice tunnel kinds the active server actually uses, following the existing backend tunnel rules. Display only those configured addresses in that server’s Services tab; MSC Settings continues to show the full shared host inventory.
+**Verify:** Run `npx tauri dev`; open a Playit-enabled Bedrock-only server and confirm only its Bedrock tunnel appears. Check a Java server, a Java server with Bedrock cross-play, and a server with Simple Voice Chat to confirm each sees only its applicable tunnel addresses.
+**Batch:** P21.44 only.
+**Commit:** `P21.44: filter server playit tunnel addresses`
+
+### P21.45 — Hide Playit addresses in server Services until revealed
+
+**Status:** Done — closed and archived at Cameron’s October 19 direction; physical acceptance remains separate.
+**Files:** `clients/desktop-web/src/lib/sections/server-editor/BroadcastTab.svelte`; this plan.
+**What:** Add an eye control immediately left of Playit Manage setup. Tunnel rows remain labeled but show “Hidden” until the eye is selected. Re-hide on server change or when the server is no longer active. This changes only on-screen visibility, not Playit networking.
+**Verify:** Run `npx tauri dev`; open a Playit-enabled server’s Services tab and confirm its tunnel addresses start hidden, the eye reveals and hides them, and selecting another server starts hidden again.
+**Batch:** P21.45 only.
+**Commit:** `P21.45: hide server playit addresses by default`
+
+### P21.46 — Hide shared Playit details in MSC Settings until revealed
+
+**Status:** Done — closed and archived at Cameron’s October 19 direction; physical acceptance remains separate.
+**Files:** `clients/desktop-web/src/lib/sections/app-settings/AppSettingsSheet.svelte`; this plan.
+**What:** Add an eye control immediately left of Playit Manage setup in MSC Settings. Keep the agent ID and configured tunnel rows labeled, but show “Hidden” until the eye is selected. Re-hide when the settings sheet is reopened. This changes only on-screen visibility.
+**Verify:** Run `npx tauri dev`; open MSC Settings → Services and confirm the Playit agent ID and tunnel addresses start hidden, the eye reveals and hides them, and reopening MSC Settings starts hidden again.
+**Batch:** P21.46 only.
+**Commit:** `P21.46: hide shared playit details by default`
+
+## Phase 16 — v0.1.31 release preparation
+
+### P16.92 — Prepare the v0.1.31 release source
+
+**Status:** Done — release source prepared at Cameron’s October 19 direction; publication and exact-artifact acceptance remain separate.
+**Files:** Agent and desktop version manifests and lockfiles; `README.md`; `docs/msc2/release/v0.1.31.md`; rolling plan, archive and pending-acceptance records.
+**What:** Align agent, desktop, bundle and lockfile versions at 0.1.31; document the native-import, storage, services and large-Bedrock-map changes accurately; update installation guidance; close and archive the implemented follow-ups at owner direction without converting missing physical evidence into a phase-gate pass. Keep the release workflow build-only.
+**Verify:** `git show v0.1.31:clients/desktop-web/package.json` — its version must be 0.1.31 after the tag is pushed; compare the published release’s nine installers/archives, checksums and signed update metadata on GitHub separately.
+**Batch:** P16.92 only.
+**Commit:** `P16.92: prepare v0.1.31 release source`
+
+## October 21, 2026 — Java and Bedrock saved-terrain map work
+
+Cameron directed P18.69–P18.94 out of the active rolling plan after confirming the latest Bedrock map and biome-colour correction work well. These records close implementation, not the independent Phase 18 gate or every physical check. P18.69 and P18.92 are preserved as superseded attempts. The [map acceptance worksheet](phase18-map-acceptance.md#p1889--java-and-bedrock-map-parity-worksheet) and [pending-acceptance index](pending-acceptance.md) retain the unmeasured cold/warm timing, cross-platform, pre-render and changed-refresh checks. Historical descriptions below retain the context in which they were written.
+
+### P18.69 — Defer detailed Bedrock tile swaps during camera movement
+
+**Status:** Closed — superseded by the later shared Java/Bedrock renderer work; Cameron observed that this alone did not stop the stutter.
+**Files:** `crates/msc-agent/src/routes/worlds/map_terrain.rs`; `crates/msc-agent/src/routes/worlds/map_terrain/bedrock.rs`; `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`; this plan.
+**What:** Bedrock camera updates run every two seconds and previously downloaded and parsed the complete manifest on the UI thread while also triggering a detailed tile replacement. The agent now answers camera updates with a small status message, keeps discovering saved terrain around the camera, and waits until camera movement has settled before replacing preview tiles with detailed meshes. Position, rotation, and zoom all count as movement, covering 2D, 3D, and Fly. Older agents continue to receive the original manifest request. The renderer still receives its normal manifest updates and can stream newly discovered previews. No test was added or run; the stutter requires owner verification in the actual large Bedrock world.
+**Verify:** Open `~/Desktop/msc2-bedrock-map-intel-p18.69.dmg`, install the app, repair the agent, and reopen the imported Bedtonic-world map. Move continuously in 2D, 3D, and Fly while preview terrain loads; motion should remain smooth, new saved areas should still appear, and detailed textures should fill in after stopping for a few seconds. Compare against a Java map to confirm Java behavior is unchanged.
+**Batch:** P18.69 only.
+**Commit:** `P18.69: defer bedrock map details while moving`
+
+## Java-first saved-terrain map performance — owner direction, October 19, 2026
+
+**Owner-visible goal.** A large, pregenerated Java world may take time on its first map preparation. After that, opening the same unchanged map should be fast, including after closing the desktop app, restarting the agent, or returning days later. In 2D, 3D, and Fly, camera controls should remain smooth while a predictable terrain radius follows the camera. Saved terrain inside that radius should arrive promptly as the user travels; if detailed tiles are still being made, a lower-detail view should cover the gap and refine without a visible reset. A distant jump into an uncached area may require catch-up, but it must not freeze input or falsely imply that the full detail radius is already present. Cameron compared this to flying through a pregenerated Minecraft world with a stable render distance (12 chunks was an analogy, not an approved MSC default). A user-invoked **Pre-render map** job should be available for people who want the populated world cached in advance. **Refresh terrain** should update only changed saved chunks and affected tiles. Once the Java behavior is verified, Bedrock should match this user experience despite its different file structure.
+
+**Current behavior and evidence.** Java's 26.x compatibility path normalizes every `.mca` file from the selected dimension into a private copy before opening Vantage. The loop is serial, reads and writes each whole region, and decompresses, parses, and recompresses each present chunk even when the normalization changes nothing. The October 19 Tectonic import showed 1,600 regions; on Cameron's 8-physical-core, 16 GB Mac the conversion used roughly one CPU core. A check during the run found 559 converted files and 108 written in the preceding three minutes; a subsequent check found 604. This was progress, not a hang; the remaining-time estimate was only an observation because region sizes vary. The preparation folder was about 4.7 GB with about 27 GB available at that check. These are observations from one machine, not performance promises or defaults.
+
+The Java renderer currently launches with `--prebake off`, `--threads 2`, `--memory 512`, and an output directory inside disposable map staging. Its compatible world copy and baked tiles are removed after 90 seconds of renderer idleness; closing the app therefore does not preserve the expensive result. The first 1,600-region pass prepares input for the renderer; it does **not** render every tile. The viewer streams tiles on demand and keeps only bounded resident and byte-cache budgets. Medium currently requests a 768-block view distance and at most 120 detailed tiles, so the effective detailed radius can shrink when tile count or memory runs out. Java Refresh terrain takes a safe world snapshot, replaces the renderer, and repeats preparation. On APFS, snapshot files can be cloned cheaply; other filesystems use a bounded copy fallback. Snapshot capture, conversion, tile baking, and viewer upload are separate costs and must be measured separately.
+
+**Proposed implementation contract.** Keep private, versioned map data on the agent host, keyed by stable server/world identity, dimension, renderer and compatibility-format version, Minecraft assets/resource-pack identity, and render settings that change tile output. Preserve it when the desktop app closes or the renderer process stops. Reuse unchanged converted regions and baked tiles across agent restarts; discard or rebuild only invalid generations. Never render from a mutable running-world path: use the existing save-flush/snapshot boundary, compare an immutable new snapshot with stored fingerprints, and publish a new generation atomically. A cheap file metadata check may narrow candidates, but correctness must come from saved chunk content fingerprints, not modification time alone. Comparing compressed chunk records is safe even if harmless recompression causes an extra rebuild. A changed chunk invalidates its containing tile, neighboring tiles when edge visibility depends on it, and affected low-detail/overview cells; added/deleted chunks must also update coverage. Texture/renderer/format changes invalidate all dependent tiles. Keep the previous visible tile until its replacement has been built and uploaded; do not clear the entire viewer on refresh. Retain old cache data only as long as needed for safe replacement, with disk estimates, bounds, and explicit cleanup.
+
+**Pre-render and resource policy proposal.** Pre-render is an explicit per-world/dimension operation, with progress, estimated storage, cancellation and resumable completed tiles; it does not block ordinary nearby viewing. A stopped server can use more CPU for first conversion and requested pre-render. On the observed 8-core/16 GB Mac, four bounded region workers are a candidate starting point, **not** a fixed cross-platform rule or a claimed fourfold speedup. Keep per-worker region buffers and total memory bounded (the converter permits regions up to 256 MB), adapt to memory/disk pressure, and reserve capacity for MSC and the OS. While the server is running, use fewer workers/lower priority; if it starts mid-job, throttle without discarding progress. Camera-visible tiles take priority over background pre-render, and GPU decode/upload work must be budgeted so a burst of completed tiles cannot hitch movement. Do not run an automatic whole-world bake just because a map was opened. Full pre-render of a very large pregenerated world may take substantial time and storage; report both instead of promising Minecraft-game speed.
+
+**Success and limits.** Separate cold first-open, warm reopen after app/agent restart, changed-terrain refresh, distant flight, return flight, stopped-server pre-render, running-server pre-render, disk use, memory, CPU, and frame-hitch measurements on Cameron's large Java world. Reopening unchanged terrain should not repeat the 1,600-region conversion. Refresh should preserve unchanged regions/tiles and show changed terrain without a blank-map reset. The selected detailed radius should be honest about tile/memory admission; lower detail is an acceptable temporary fallback when camera movement outruns baking, but prolonged empty space over known saved chunks is not. Do not assert a fixed time target or parity from a build alone; Cameron performs physical verification. No tests, CI, or release gates are authorized by this plan.
+
+### P18.70 — Record the Java-first map contract and observed bottlenecks
+
+**Status:** Done — planning record archived at Cameron's October 21 direction; remaining physical acceptance is tracked separately.
+**Files:** `docs/msc2/rolling-plan.md`.
+**What:** Record Cameron's exact first-use, warm-reopen, moving-radius, optional pre-render, incremental-refresh, stopped-server resource, and eventual Bedrock-parity goals above. Preserve measured observations and current implementation facts separately from proposed engineering choices. Keep P18.69's failed owner verification visible.
+**Verify:** Run `sed -n '16,150p' docs/msc2/rolling-plan.md` and confirm the Java-first contract, evidence, and steps match the intended behavior before implementation.
+**Batch:** P18.70 only.
+**Commit:** `P18.70: record java-first map performance plan`
+
+### P18.71 — Measure the Java map pipeline on the large world
+
+**Status:** Done — implementation archived at Cameron's October 21 direction; remaining physical acceptance is tracked separately.
+**Files:** `crates/msc-agent/src/routes/worlds.rs`; `crates/msc-agent/src/routes/worlds/map_terrain.rs`; `crates/msc-agent/src/routes/worlds/map_terrain/java_terrain_compat.rs`; `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`; `docs/msc2/rolling-plan.md`.
+**What:** Added concise agent timings for Java refresh snapshot capture/selection, compatible-region conversion (region count and input/output bytes), renderer startup, first successful detailed-tile response, and reuse of an already-running renderer. The viewer's browser console reports the first tile received, the first tile Vantage reports loaded, and aggregate frame gaps over 100 ms plus the worst observed frame when that map session closes. This separates agent tile-response delay from viewer processing/frame stalls without logging every tile or exposing credentials. Inspection of the installed Vantage 0.15.1 bundle found a bounded in-memory tile byte cache (192 MiB/4,096 entries by default), loaded/loading/total tile stats, and progressive manifest polling; these do not provide a durable cache across agent restarts. The `loaded` event is the available viewer-side completion signal, not a precise split between JavaScript decoding and GPU upload. Existing baseline observations remain above; no extra full-world scan was run.
+**Verify:** Open the large Java map, close and reopen it while the renderer remains available, refresh terrain, and inspect `rg 'Java map:' "$HOME/Library/Application Support/MSC 2/logs/agent.log" | tail -n 40` plus the browser console's `Java map:` diagnostics; confirm the measurements distinguish conversion, renderer, network response, viewer attachment, warm reuse, refresh snapshot, and frame gaps without per-tile spam.
+**Batch:** P18.71 only.
+
+### P18.72 — Persist and reuse compatible Java region preparation
+
+**Status:** Done — implementation archived at Cameron's October 21 direction; remaining physical acceptance is tracked separately.
+**Files:** `crates/msc-agent/src/routes/worlds/map_terrain.rs`; `crates/msc-agent/src/routes/worlds/map_terrain/java_terrain_compat.rs`; `docs/msc2/rolling-plan.md`.
+**What:** Java 26.x compatible regions now persist under the agent's versioned `map-cache/java-compatible-v1` directory, keyed by server, original world path, and dimension. Each prepared region is keyed by a SHA-256 fingerprint of its source bytes, written and synced before atomic publication, then hard-linked into private renderer staging. Reopening or restarting hashes the source regions but skips NBT conversion for cache hits. A refreshed snapshot uses the same original-world identity while its changed source bytes produce new entries; old cache entries are pruned only after a complete successful preparation, and an active renderer retains its own links. The cache rejects symlink/special-file paths, repairs incomplete regular entries, admits new writes against free space, and reports reused versus converted counts. The first render still converts every uncached region; renderer tiles remain disposable until P18.74.
+**Verify:** Build the optimized app with `cd clients/desktop-web && npx tauri build`, open the 1,600-region Java world, close the app and let the renderer exit, then reopen after an agent restart. In `rg 'Java map: prepared' "$HOME/Library/Application Support/MSC 2/logs/agent.log" | tail -n 3`, the second preparation should report all regions reused and none converted. Change one region in a disposable world and refresh terrain; the next line should report one conversion and the other regions reused.
+**Batch:** P18.72 only.
+**Commit:** `P18.72: persist compatible java regions`
+
+### P18.73 — Use bounded parallel Java conversion when resources permit
+
+**Status:** Done — implementation archived at Cameron's October 21 direction; remaining physical acceptance is tracked separately.
+**Files:** `crates/msc-agent/src/routes/worlds/map_terrain.rs`; `crates/msc-agent/src/routes/worlds/map_terrain/java_terrain_compat.rs`; `docs/msc2/rolling-plan.md`.
+**What:** Java compatibility conversion now uses a bounded pool sized by available logical cores, a conservative memory budget, and free staging-volume space after MSC's disk reserve, capped at four workers. It allows the pool to use its full capacity while the server is stopped and gates new region work to one active worker when the server runs; work already underway finishes before the reduced limit takes effect. Completed regions are atomically renamed into staging, progress counts completed regions despite out-of-order finishes, and chunks that need no NBT normalization retain their existing compressed payload instead of being recompressed. Agent logs report pool capacity, resource inputs, conversion totals, and when a running server reduces concurrency. This step was implemented in response to Cameron's explicit first-render parallelism request; P18.72's persistent cache remains outstanding and addresses repeated opens rather than this first conversion.
+**Verify:** Build the optimized app with `cd clients/desktop-web && npx tauri build`, then run that release app against the large Java world with the server stopped. Confirm the agent log reports multiple workers when CPU and memory permit and compare first-pass time and peak memory with P18.71. Start the server during a conversion; new region work should be limited to one active worker and progress should retain completed regions.
+**Batch:** P18.73 only.
+
+### P18.74 — Keep baked Java tiles across map sessions
+
+**Status:** Done — implementation archived at Cameron's October 21 direction; remaining physical acceptance is tracked separately.
+**Files:** `crates/msc-agent/src/routes/worlds/map_terrain.rs`; `crates/msc-agent/src/routes/worlds/map_terrain/java_terrain_compat.rs`; `crates/msc-agent/src/routes/worlds/map_terrain/dependencies.rs`; `third_party/vantage/`; `tools/release/stage-vantage.py`; `tools/release/vantage-release.json`; `docs/msc2/rolling-plan.md`.
+**What:** Java's agent-owned `map-cache/java-tiles-v1` now retains detailed Vantage tiles and low-detail coverage across map sessions. Its identity includes server, original world path, dimension and assets; the renderer stamp also includes its format and render settings. A pinned, MIT-licensed Vantage 0.15.1 source copy persists and restores the texture-layer and biome-ID tables that baked tiles depend on, plus tile revisions and manifest sizing. It admits a saved tile only when its source revision, table state and file size agree, and removes stale or incomplete entries. The renderer limits detailed tiles to at most 4 GiB per world, with a lower cap when free space requires it; the agent holds a per-cache lock until the renderer exits. Desktop and headless packages build this renderer from the same pinned source. An installation missing its bundled renderer reports a repair action instead of downloading an incompatible upstream binary. Java pre-render, changed-chunk refresh and smoother camera travel remain P18.75–P18.77. After those steps, Bedrock should apply the same user-facing contract—durable cache, explicit invalidation, bounded storage and fast reopening—through its own LevelDB pipeline.
+**Verify:** Build the optimized app with `cd clients/desktop-web && npx tauri build`. Open a Java map, visit several areas and note the first-load time; close the app and let the renderer exit, then reopen the same world after an agent restart. `rg 'reused [0-9]+ detailed tiles' "$HOME/Library/Application Support/MSC 2/logs/agent.log" | tail -n 3` should report reused tiles, the visited areas should load sooner, and an unvisited area should still bake on demand. Inspect `du -sh "$HOME/Library/Application Support/MSC 2/map-cache/java-tiles-v1"` to track storage. A changed world region should invalidate its affected cached tiles on the next safe snapshot; P18.76 will make refresh more selective.
+**Batch:** P18.74 only.
+**Commit:** `P18.74: persist java map tiles across renderer sessions`
+
+### P18.75 — Add user-invoked Java map pre-render
+
+**Status:** Done — implementation archived at Cameron's October 21 direction; remaining physical acceptance is tracked separately.
+**Files:** `crates/msc-agent/src/routes/worlds/map_terrain/pre_render.rs`; `crates/msc-agent/src/routes/worlds/map_terrain.rs`; `crates/msc-agent/src/routes/worlds/map_terrain/java_terrain_compat.rs`; `crates/msc-agent/src/backup_operations.rs`; `crates/msc-agent/src/cli/mod.rs`; `third_party/vantage/src/main.zig`; `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`; API contract and generated types; `docs/msc2/rolling-plan.md`.
+**What:** The Java map has an explicit per-dimension Pre-render map control and matching CLI start/status/cancel commands. The estimate reports saved and cached tile counts, cached bytes, approximate full-cache size, a suggested budget, and a storage ceiling that reserves room for a world snapshot. The desktop shows current and estimated cache sizes plus the user-selected cache limit in decimal GB; the API and CLI continue to accept MiB. The operation uses a safe Java snapshot, requests uncached tiles through the same Vantage server used by visible camera tiles, reports retained progress, throttles its single background lane more heavily when the server runs, and can be cancelled. Vantage identifies baked tiles, including empty ones, so an explicit restart skips valid cached work. Completed tiles and the chosen budget persist across app and agent restarts; the job itself does not auto-restart. A full-cache claim requires every listed tile to remain cached, and eviction fails the job with a useful message. The desktop now shows terminal operation errors instead of silently returning to Start/Resume. Tile request failures identify the tile and elapsed time; requests taking at least five seconds are logged for diagnosis. Vantage's independent `--prebake on` loop was inspected but not used because its lifetime and cancellation would not follow MSC's operation. The desktop polls the operation without repeatedly fetching the full manifest; cached byte totals refresh every ten seconds while the job runs. Pre-render never starts merely by opening the map. The estimate is approximate until actual tiles are baked; worlds exceeding the selected budget or the 64 GB ceiling cannot honestly report complete pre-render.
+**Verify:** Build the optimized app with `cd clients/desktop-web && npx tauri build`. Open a Java map, expand Pre-render map, confirm current cached size and full-cache estimate use GB, choose a budget, and start it. Confirm byte totals update while the operation runs. Navigate the map while it runs; close and reopen the desktop app and confirm the job and cached count remain visible. Stop and restart the job; previously cached tiles should be reused. While the job runs, start the server and confirm the background rate reduces without losing finished tiles. If the job fails, confirm the panel shows its reason and the agent log identifies any slow tile coordinates. For CLI, run `msc world map-pre-render-status`, `msc world map-pre-render --cache-budget-mib <MiB> --no-wait`, and `msc world map-pre-render-cancel` against the same selected Java world. Cameron performs this verification; it has not been run by the implementing agent.
+**Batch:** P18.75 only.
+**Commit:** `P18.75: add user-invoked java map pre-render`
+
+### P18.76 — Refresh only changed Java terrain
+
+**Status:** Done — implementation archived at Cameron's October 21 direction; remaining physical acceptance is tracked separately.
+**Files:** `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`; `third_party/vantage/src/world.zig`; `third_party/vantage/src/main.zig`; `third_party/vantage/README.md`; `tools/release/vantage-release.json`; `docs/msc2/rolling-plan.md`.
+**What:** After a safe save-flush/snapshot, the existing persistent cache reuses tiles whose chunk-content revisions still match and rebakes stale tiles. This avoids disposing the viewer after refresh: the old map stays visible, the camera is retained, and the viewer's progressive manifest poll reconciles the new immutable snapshot. Each compressed chunk record is fingerprinted independently through one bounded 8 MiB read buffer, so edits within one `.mca` no longer invalidate every tile touching that region. Tile revisions include the renderer's one-chunk seam apron, preserving correct updates at tile edges; populated-chunk membership changes also change the revision. Snapshot capture and the subsequent content scan remain separate costs. The cache stamp is versioned to discard old region-level revisions safely. An essential deterministic unit case checks that a chunk edit invalidates only overlapping tile revisions; it relies on in-memory coordinates and hashes, not filesystem state or timing, and should run in under a second. It was not run by the implementing agent.
+**Verify:** Build the optimized app with `cd clients/desktop-web && npx tauri build`. In a disposable Java world, refresh with no changes and confirm detailed tiles are reused. Then edit one chunk, refresh, and confirm only tiles intersecting that chunk or its seam apron rebake while the old map and camera remain visible. Check that added and removed chunks update map coverage, and verify source files and a running server remain safe. A refresh now reads compressed chunk data to compare content, so record scan time separately from tile rebaking.
+**Batch:** P18.76 only.
+
+### P18.77 — Make Java camera travel smooth within an honest render radius
+
+**Status:** Done — implementation archived at Cameron's October 21 direction; remaining physical acceptance is tracked separately.
+**Files:** `clients/desktop-web/package.json`; `clients/desktop-web/package-lock.json`; `clients/desktop-web/src/lib/vantage/`; `clients/desktop-web/src/App.svelte`; `clients/desktop-web/src/lib/api/client.ts`; `clients/desktop-web/src/lib/sections/shared/types.ts`; `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`; `crates/msc-agent/src/routes/worlds/map_terrain.rs`; `crates/msc-agent/src/routes/worlds/map_terrain/pre_render.rs`; `docs/msc2/rolling-plan.md`.
+**What:** Vantage 0.15.1 already plans a bounded detailed radius, looks ahead in the camera's travel direction, and retains low-detail coverage. Its pinned MIT-licensed web source now lives locally so MSC can correct the travel path without waiting on an upstream package release. Admission selects the nearest tiles first, then fetches toward camera movement; a bounded scene insertion queue gives visible detail priority over distant low-detail tiles, and coverage updates visit resident meshes rather than the whole manifest. Changed tiles retain their previous mesh until a replacement is ready, subject to the existing memory ceiling. MSC now passes Vantage's cancellation signal through authenticated tile downloads and preserves `AbortError`, freeing browser fetch lanes after a move. Java uses four viewer fetch lanes, matching the stopped-server renderer's four bake slots. The pre-render job yields new background tile claims while visible tile requests are active and briefly afterward; already-started bakes finish. The map status reports the planned detailed radius, budget reduction, and tiles shown/loading. The radius is a **plan**, not a claim that every tile is present. Cameron must verify frame smoothness and distant-jump coverage on the large world; source review and a build cannot establish those outcomes.
+**Verify:** Build the optimized app with `cd clients/desktop-web && npx tauri build`, then open its Java map without waiting for full pre-render. Fly across uncached saved areas, make a distant jump, and return through cached areas in 2D, 3D and Fly. The camera should remain responsive as obsolete tile requests are cancelled; the status should distinguish planned radius from shown/loading tiles and disclose a budget-limited radius when the quality budgets are reduced. Start Pre-render map while flying and check that nearby tiles still appear before background tiles. Inspect the viewer's frame-time diagnostics after closing the map; Cameron records visual acceptance and cold/warm/refresh timings before Bedrock parity work.
+**Batch:** P18.77 only.
+**Commit:** `P18.77: prioritize visible java map tiles during travel`
+
+### P18.78 — Keep pre-render controls available after a failure
+
+**Status:** Done — implementation archived at Cameron's October 21 direction; remaining physical acceptance is tracked separately.
+**Files:** `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`; `docs/msc2/rolling-plan.md`.
+**What:** When a pre-render operation fails, keep its error visible and restore the cache-limit field and Resume action whenever uncached tiles remain. This lets the user raise the limit after an eviction stop and retry without reopening the map or losing completed tiles. Show a short instruction to adjust the budget if storage permits. The original branch showed only the terminal error, hiding all recovery controls.
+**Verify:** Build the optimized app with `cd clients/desktop-web && npx tauri build`. In a Java map, trigger or resume a pre-render that reaches its cache limit; confirm the failure reason remains visible alongside Cache limit (GB) and Resume. Raise the budget within the displayed storage limit and resume; confirm cached tiles are retained and progress continues. Cameron performs this verification; no tests were run.
+**Batch:** P18.78 only.
+**Commit:** `P18.78: restore pre-render controls after failure`
+
+### P18.79 — Read exact pre-render progress and refresh Resume state
+
+**Status:** Done — implementation archived at Cameron's October 21 direction; remaining physical acceptance is tracked separately.
+**Files:** `third_party/vantage/src/main.zig`; `crates/msc-agent/src/routes/worlds/map_terrain/pre_render.rs`; `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`; `docs/msc2/rolling-plan.md`.
+**What:** The pre-render worker now requests an exact renderer manifest when it decides whether completed tiles are still cached. The normal viewer manifest retains its one-second coalescing window for efficient polling. Previously, a fast bake could finish more than two tiles before the coalesced manifest updated, falsely reporting cache eviction even with ample budget and free storage. After Start or Resume, the desktop forces a fresh status read and discards an older in-flight read, so the new operation appears on the first click. Cameron's 12 GB screenshot showed only about 69 MB of tile cache and about 55 GB of free disk; the stop was not evidence of storage exhaustion.
+**Verify:** Build the optimized app with `cd clients/desktop-web && npx tauri build`. Open the large Java map, set a suitable cache limit and click Resume once. Confirm the panel switches to the new running operation and cached tile progress continues beyond the previous 110-tile false stop. If it later stops, inspect the reported cached size and available storage before treating it as a true budget limit. Cameron performs this verification.
+**Batch:** P18.79 only.
+**Commit:** `P18.79: use exact pre-render progress and refresh resume state`
+
+### P18.80 — Allow the exact pre-render manifest route
+
+**Status:** Done — implementation archived at Cameron's October 21 direction; remaining physical acceptance is tracked separately.
+**Files:** `third_party/vantage/src/serve.zig`; `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`; `docs/msc2/rolling-plan.md`.
+**What:** Vantage's HTTP artifact allowlist now admits the `manifest-fresh.json` route introduced in P18.79. The producer already handled that route, but the transport rejected it first with HTTP 400 `bad path`, stopping pre-render after the next progress check. Add the path to the existing allowlist check while keeping all other private cache files inaccessible. The desktop suggests increasing the cache limit only when a failure actually mentions cache, storage, or eviction. The existing route-allowlist unit case includes the new path; it was not run.
+**Verify:** Build the optimized app with `cd clients/desktop-web && npx tauri build`. Open the large Java map and click Resume once. Confirm progress continues past the prior 171-tile HTTP 400 stop and the cached-tile count rises. Cameron performs this verification.
+**Batch:** P18.80 only.
+**Commit:** `P18.80: allow exact pre-render manifest route`
+
+### P18.81 — Use bounded parallel Java tile pre-rendering
+
+**Status:** Done — implementation archived at Cameron's October 21 direction; remaining physical acceptance is tracked separately.
+**Files:** `crates/msc-agent/src/routes/worlds/map_terrain.rs`; `crates/msc-agent/src/routes/worlds/map_terrain/pre_render.rs`; `docs/msc2/rolling-plan.md`.
+**What:** The pre-render job no longer fetches all 25,600 tiles serially. When the server is stopped, the renderer uses a bake budget based on available memory and logical cores, capped at four bake slots and 1,024 MiB; the job uses at most three background lanes, leaving a slot for visible terrain. A running server starts with the smaller 512 MiB budget and one background lane. If the server starts during a stopped-server job, extra lanes finish their current tile and pause before taking more work. Each lane still uses the ordinary persistent tile route, so cancellation and a later Resume retain completed tiles. The coordinator reports exact retained counts, stops on the first request error, and does not miscount tiles completed concurrently. The previous mandatory 60 ms pause per stopped-server tile is removed. This raises throughput only where tile bakes can run in parallel; it does not make a 25,600-tile world instant or promise a fixed speedup.
+**Verify:** Build the optimized app with `cd clients/desktop-web && npx tauri build`. Resume the large Java map pre-render with the server stopped; confirm `rg 'pre-render using|renderer allowing' "$HOME/Library/Application Support/MSC 2/logs/agent.log" | tail -n 8` reports multiple background lanes on a host with available cores and memory, and compare tiles per minute with the serial run. Move the camera while it runs, then start the server and confirm progress remains cancellable and the server stays responsive. Stop and Resume; cached tiles should remain.
+**Batch:** P18.81 only.
+**Commit:** `P18.81: parallelize java map pre-render within host limits`
+
+## Bedrock saved-terrain parity — planned after Cameron's Java travel acceptance
+
+**Owner-visible contract.** Java's map is the standard for both editions, including preparation, first presentation and later travel. On a cold Bedtonic open, show a real `completed / total` conversion count for saved 32×32-chunk regions (the total is Bedtonic's actual saved-region count, not Java Tectonic's 1,600), then the brief renderer handoff, then an already useful detailed camera area that expands/refines promptly. Do not make a long-lived coarse Bedrock preview the normal initial view. The same Vantage renderer should then provide detailed tiles, low detail where needed, bounded camera-following radius, smooth controls in 2D/3D/Fly, durable cache, explicit Pre-render map, and changed-terrain Refresh. Closing/reopening the app or restarting the agent should reuse converted regions and baked tiles. A distant move may need catch-up, but known saved terrain should appear and refine with Java-like responsiveness. Each Bedrock-only stage must be explained by an actual format difference; it is not a reason for a different map experience. Preserve Bedrock source data untouched. Measure cold preparation, first useful detailed view, flight, pre-render and refresh on the 7.9 GB Bedtonic world against the corresponding Java world in optimized builds. Do not claim a fixed speed target before measuring.
+
+**Mechanism found in code.** Java routes the map artifact request to `RendererStore`, obtains official Java assets, prepares compatible `.mca` region files with a bounded worker pool, and reports `converted / total regions` through `/v1/worlds/map/progress`. It launches the vendored Vantage `server` process on that private region copy with persistent tiles and `--prebake off`. Vantage reads each region's location table, decodes modern Java chunk NBT, streams camera-visible `.vtile` requests, and retains immutable tiles by per-chunk content revisions, including seam dependencies. The shared desktop Vantage viewer progressively admits those tiles. Java Pre-render invokes the same renderer's manifest and tile endpoints in bounded background lanes; Refresh takes a safe new snapshot, reselects the renderer and retains unchanged compatible regions/tiles by content identity. Thus `x / 1600` measures *region input preparation*, not full tile baking, and the first map can still refine after the panel disappears.
+
+Bedrock currently routes to a separate `BedrockStore`: it snapshots LevelDB, opens it through `world-map-proof`, creates a spawn-near preview catalog, and then exports preview/detail tiles one at a time under a shared state lock and mutable atlas. The viewer limits this path to one fetch lane. This explains the coarse first image and slower refinement seen on Bedtonic; it does not prove LevelDB itself must render more slowly. Vantage presently expects Anvil `.mca` files containing Java-style chunk NBT (`sections`, `block_states`, `biomes`), so changing filenames alone would not work. A read-only Bedrock-to-renderer adapter must decode Bedrock sections, block states, biome data and dimensions, map edition-specific content faithfully, and produce validated private renderer input. Once that input satisfies Vantage's contract, the Java renderer path can be reused downstream. Official Java assets are not automatically a faithful substitute for Bedrock-specific blocks or packs; visual parity and supported fallback behavior need explicit checks. The existing general-purpose Chunker world-conversion facility may help a feasibility comparison, but a full playable-world conversion is not assumed to be a fast or incremental map pipeline.
+
+**Architecture direction and decision gate.** Prefer one Vantage renderer/streaming/cache path after a Bedrock-specific, read-only input adapter. First prove on a bounded Bedtonic area that converted chunks render correct terrain, foliage, water, caves, biomes, dimensions and textures; compare end-to-end wall time, CPU, memory, peak scratch/durable disk, first detailed tile and movement against the Java release build. Then choose the conversion implementation and bounded concurrency from evidence, recording unsupported block mappings instead of silently replacing them with air or misleading textures. If Anvil conversion cannot meet fidelity or resource bounds, retain the same Java visible contract by adding a native Bedrock input adapter *inside* Vantage or a shared renderer input interface; do not continue expanding the old preview/detail backend as the default without a documented parity reason and Cameron's review. A small converted map area may be used to prove the boundary, but a final design must support the whole saved world and distant camera travel without reconverting every chunk on each open. Keep safe BDS save-hold/resume, cancellation, disk reserve and source-world permissions. Use a small disposable Bedrock world for change/remove refresh checks. No automatic whole-world tile bake, test run, CI gate or release attempt is authorized by this plan.
+
+### P18.82 — Measure Bedrock map latency and identify the hot path
+
+**Status:** Done — implementation archived at Cameron's October 21 direction; remaining physical acceptance is tracked separately.
+**Files:** `crates/msc-agent/src/routes/worlds/map_terrain/bedrock.rs`; `tools/world-map-proof/src/main.rs`; `tools/world-map-proof/src/render.rs`; `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`; `docs/msc2/rolling-plan.md`.
+**What:** Slow Bedrock artifact requests now log worker-queue wait, state-lock wait and time spent under the lock by request kind. Region discovery and manifest assembly report their own slow paths. The exporter reports LevelDB open, tile-session query/export, texture restore and atlas write times; existing snapshot, catalog, preview and detailed-mesh timings remain. The viewer records manifest arrival, first tile response/attachment, viewer readiness and long frame gaps for Bedrock as it already did for Java. The interval from tile response to attachment includes decode, GPU upload and viewer scheduling; it is not falsely labeled as GPU time alone. Request logs omit coordinates, and fast requests do not produce per-request timing lines. Cameron's optimized-build Bedtonic measurements are still needed to choose concurrency and memory limits for subsequent steps; debug speed is not the baseline.
+**Verify:** `cd clients/desktop-web && npx tauri build` — Cameron opens Bedtonic in that app, flies locally and jumps to distant known terrain in all three modes, then checks the Bedrock map agent/viewer timing summary for wait versus bake versus upload and records visible gaps and resource use.
+**Batch:** P18.82 only.
+**Commit:** `P18.82: measure bedrock map travel latency`
+
+### P18.82a — Prove the shared Bedrock-to-Vantage boundary
+
+**Status:** Done — implementation archived at Cameron's October 21 direction; remaining physical acceptance is tracked separately.
+**Files:** `tools/world-map-proof/Cargo.toml`; `tools/world-map-proof/Cargo.lock`; `tools/world-map-proof/src/main.rs`; `tools/world-map-proof/src/render.rs` (formatter only); `tools/world-map-proof/src/anvil_probe.rs`; `docs/msc2/bedrock-vantage-boundary-proof.md`; `docs/msc2/rolling-plan.md`.
+**What:** The bounded, read-only `anvil-probe` writes a 4×4-chunk private Anvil sample and reports its actual Bedrock block names, numeric biomes, section ranges, secondary layers and omitted properties. Optimized Bedtonic Overworld, Nether and End samples all produced detailed Vantage `.vtile` geometry. The Overworld sample had 16 saved chunks, 46,454 triangles, 29.86 s LevelDB open, 0.056 s bounded scan, 0.033 s chunk read, 0.93 s conversion, 0.76 s Vantage mesh, and a 2.2 MB tile; the helper peaked at about 22 MB resident memory. The already-prepared Java comparison tile took 0.21 s but is different terrain and cannot establish equivalent throughput. The proof records missing Java block assets, provisional biome IDs, discarded state properties/secondary layers and the lack of a full-world conversion estimate. Select a private Anvil adapter feeding shared Vantage as the input boundary, conditional on P18.83 closing fidelity gaps and measuring full-region first-open cost. No production route, playable world or Vantage code changed.
+**Verify:** `cargo build --manifest-path tools/world-map-proof/Cargo.toml --release` — Cameron can run the bounded `anvil-probe` and Vantage `meshtex` commands in `docs/msc2/bedrock-vantage-boundary-proof.md`, inspect `probe.json` and the `.vtile`, then judge matching-area Java/Bedrock visuals and acceptable first-open cost before closing this step.
+**Batch:** P18.82a only.
+**Commit:** `P18.82a: prove shared bedrock renderer input`
+
+### P18.83 — Prepare durable Bedrock input for the shared renderer
+
+**Status:** Done — implementation archived at Cameron's October 21 direction; remaining physical acceptance is tracked separately.
+**Files:** `tools/world-map-proof/Cargo.toml`; `tools/world-map-proof/Cargo.lock`; `tools/world-map-proof/src/main.rs`; `tools/world-map-proof/src/anvil_probe.rs`; `tools/world-map-proof/src/anvil_convert.rs`; `docs/msc2/bedrock-vantage-boundary-proof.md`; `docs/msc2/rolling-plan.md`.
+**What:** Add `anvil-convert` for offline Bedrock snapshots. It inventories saved chunks across the three supported dimensions, groups them into actual 32×32-chunk Anvil regions (including negative coordinates), reads at most 32 chunks per batch with at most four workers, and emits private region files without touching the source. It raises the macOS open-file limit for LevelDB, and checks available disk space before publishing each region while preserving a 512 MiB reserve. It carries section Y, visible block states and their properties, and 3D biome cells through an exact-save-version registry when supplied. Unknown dimensions and chunks without supported render data stop conversion instead of producing falsely complete regions; unknown biome IDs stop only in strict registry mode. The report lists source biome-registry identity, block-name counts and aliases, biome counts, vertical coverage, and sections containing secondary layers (the bridge selects the visible Bedrock layer). Each region is written to a temporary file and renamed atomically; a versioned manifest hashes canonical converted chunk payloads and the region file, allowing interruption to resume and unchanged regions to be verified and reused. These hashes are checked after reading and decoding a region, so this step currently saves region compression/write work on resume, not LevelDB scanning or chunk decoding. Production app routing, Java-style progress UI, server-running throttling, configurable disk budgets, and refresh-time source diffing remain in P18.84–P18.88.
+**Verify:** `cargo build --manifest-path tools/world-map-proof/Cargo.toml --release` — Cameron runs the helper's `anvil-convert` on the immutable Bedtonic snapshot with a registry whose five-part version exactly matches `level.dat`, checks `conversion-report.json` and region files from distant coordinates/all dimensions, interrupts and resumes once, and confirms the source snapshot is unchanged. Record elapsed time and resource use; do not substitute a nearby-version registry.
+**Batch:** P18.83 only.
+**Commit:** `P18.83: prepare durable bedrock renderer regions`
+
+### P18.84 — Open Bedrock through Java's renderer and preparation flow
+
+**Status:** Done — implementation archived at Cameron's October 21 direction; remaining physical acceptance is tracked separately.
+**Files:** `crates/msc-agent/src/routes/worlds/map_terrain.rs`; `crates/msc-agent/src/routes/worlds/map_terrain/bedrock.rs`; `tools/world-map-proof/src/anvil_probe.rs`; `tools/world-map-proof/src/anvil_convert.rs`; `docs/msc2/bedrock-vantage-boundary-proof.md`; `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`; `docs/msc2/rolling-plan.md`.
+**What:** Route Bedrock's immutable saved snapshot through the same `RendererStore`/Vantage process, manifest and detailed-tile endpoints used by Java. Bedrock's input boundary converts its LevelDB chunks to private Anvil regions, retaining Bedrock section Y and visible block states; downstream it uses Java's renderer, asset selection, cache and tile routes. To avoid blocking the renderer on a missing exact Bedrock biome registry, unmapped biome IDs use the owner-approved neutral fallback while known IDs retain their mapped biomes. Cold opening reports the actual number of saved Bedrock regions discovered and converted in the shared **Preparing map** panel, then hands off to the renderer; scanning uses a labeled indeterminate progress stage until its total is known. The viewer now uses Java's normal Vantage streaming concurrency and no longer polls or displays the old Bedrock nearby-catalog preview path. Conversion still runs once per in-memory snapshot; retaining converted regions across restart, refresh diffing, Bedrock pre-render, and final Java-parity travel verification remain in P18.85–P18.89.
+**Verify:** `cd clients/desktop-web && npx tauri build` — Cameron opens Bedtonic and Java in the optimized app, compares their preparation stages and honest region counters, and confirms Bedrock reaches a detailed, usable first view through the same Vantage manifest/tile route instead of lingering in a simple preview. Repeat with BDS running to verify the safe snapshot boundary.
+**Batch:** P18.84 only.
+**Commit:** `P18.84: open bedrock through shared vantage renderer`
+
+**Bedtonic first-open observation and audit, October 20, 2026.** In Cameron's optimized app with BDS stopped, the new converter indexed 1,608 saved Bedrock regions in 56.9 seconds. It then entered the counted conversion stage; after about two further minutes it had published one region. One first region is not a valid whole-world time estimate, but the sequential conversion and delayed progress warrant a bounded throughput investigation before asking Cameron to wait for a full run. The helper was still active; the 0/1608 display was not a hang. The counter currently advances only every ten completed regions. Code review also found three correctness/parity issues: converted NBT compounds and region chunk ordering are not guaranteed deterministic even though their bytes feed cache fingerprints; macOS/Linux shutdown does not signal the converter's cancellation flag before cache cleanup waits for the conversion lock; and the adapter copies Bedrock `level.dat` unchanged while Vantage expects Java spawn metadata, so it falls back to the populated-bounds center. These are findings to fix, not proof of a completed or failed full-world render. Do not run another full Bedtonic conversion merely to diagnose them.
+
+### P18.84p — Plan Bedrock conversion corrections from the full-size opening
+
+**Status:** Done — planning record archived at Cameron's October 21 direction; remaining physical acceptance is tracked separately.
+**Files:** `docs/msc2/rolling-plan.md`.
+**What:** Record the first optimized Bedtonic indexing/conversion observation and the audited cancellation, deterministic-revision and spawn-location gaps. Insert narrowly scoped P18.84a–P18.84d before durable cache work, with bounded verification that does not require another 1,608-region wait. Keep P18.85–P18.89 as the subsequent warm-open, travel, pre-render, refresh and final parity work.
+**Verify:** `sed -n '170,275p' docs/msc2/rolling-plan.md` — confirm the observed facts, four follow-up steps, and later parity steps match Cameron's intended order.
+**Batch:** P18.84p only.
+**Commit:** `P18.84p: plan bedrock conversion corrections`
+
+### P18.84a — Cancel Bedrock preparation on every platform
+
+**Status:** Done — implementation archived at Cameron's October 21 direction; remaining physical acceptance is tracked separately.
+**Files:** `crates/msc-agent/src/routes/worlds.rs`; `crates/msc-agent/src/routes/worlds/map_terrain/bedrock.rs`; `docs/msc2/rolling-plan.md`.
+**What:** Agent shutdown now signals Bedrock conversion on macOS and Linux as well as Windows before cache cleanup waits for Bedrock state. The existing conversion poll kills and reaps the child when that signal arrives. A shutdown check before launch avoids starting a new converter after stop begins; if the child lacks a progress pipe, it is also stopped and reaped before returning an error. Region publication remains atomic in the converter, and a fresh agent starts with a clear shutdown flag. Physical cancellation and retry remain for Cameron to verify.
+**Verify:** `cd clients/desktop-web && npx tauri build` — Cameron then starts conversion on a small disposable Bedrock world, stops the agent before completion, and confirms prompt exit, no leftover converter, and a successful later retry; no full Bedtonic run is needed.
+**Batch:** P18.84a only.
+**Commit:** `P18.84a: cancel bedrock map conversion on shutdown`
+
+### P18.84b — Make converted region revisions deterministic
+
+**Status:** Done — implementation archived at Cameron's October 21 direction; remaining physical acceptance is tracked separately.
+**Files:** `tools/world-map-proof/src/anvil_probe.rs`; `tools/world-map-proof/src/anvil_convert.rs`; `docs/msc2/rolling-plan.md`.
+**What:** Converted chunks now use fixed-order typed NBT fields and sorted block properties; sections and region chunks are sorted by saved coordinates before hashing and writing. The manifest uses format 2 / converter `bedrock-anvil-v3`, rejecting older nondeterministic entries rather than accepting them as cache hits. A matching immutable snapshot should now produce the same fingerprints and reuse its regions; changed saved chunks still alter the revision. Physical reuse and changed-chunk checks remain for Cameron.
+**Verify:** `cargo build --manifest-path tools/world-map-proof/Cargo.toml --release` — Cameron converts a bounded immutable sample twice into the same output, checks that the second pass reports region reuse and identical hashes, then changes one chunk in a disposable snapshot and confirms its region changes.
+**Batch:** P18.84b only.
+**Commit:** `P18.84b: stabilize bedrock converted region revisions`
+
+### P18.84c — Speed up and expose Bedrock region conversion
+
+**Status:** Done — implementation archived at Cameron's October 21 direction; remaining physical acceptance is tracked separately.
+**Files:** `tools/world-map-proof/Cargo.toml`; `tools/world-map-proof/Cargo.lock`; `tools/world-map-proof/src/anvil_convert.rs`; `crates/msc-agent/src/routes/worlds/map_terrain/bedrock.rs`; `docs/msc2/bedrock-vantage-boundary-proof.md`; `docs/msc2/rolling-plan.md`.
+**What:** The helper now logs LevelDB opening and saved-region indexing separately, then reports aggregate worker time for chunk reads, NBT encoding and compression and wall time for region publication/hash and manifest sync. An optional one-to-eight-region selector bounds measurement without a full conversion. Region tasks can run concurrently, capped at four and further limited by available logical cores, half of currently available memory at an estimated 768 MiB per worker, and staging-volume free space; each worker keeps one region in flight and no more than 32 chunk reads per request. A running BDS forces one region worker; if it starts mid-conversion, the agent stops/reaps the helper and restarts it at one worker against the same private staging output, reusing completed regions. Each region is still published atomically with a disk reserve and now advances visible progress individually. The documented single-worker versus pool comparison uses the same bounded immutable snapshot and separate outputs; Cameron must judge the speedup and peak memory before another full Bedtonic opening.
+**Verify:** `cargo build --manifest-path tools/world-map-proof/Cargo.toml --release` — Cameron runs the documented bounded conversion on the same immutable sample before and after, compares stage timings and peak resources, and sees per-region progress; a full Bedtonic conversion is not required for this step.
+**Batch:** P18.84c only.
+**Commit:** `P18.84c: accelerate bedrock region preparation`
+
+### P18.84d — Open Bedrock at its saved spawn
+
+**Status:** Done — implementation archived at Cameron's October 21 direction; remaining physical acceptance is tracked separately.
+**Files:** `tools/world-map-proof/src/anvil_convert.rs`; `docs/msc2/rolling-plan.md`.
+**What:** The converter reads native Bedrock `SpawnX/Y/Z` integer coordinates from `level.dat` and, for a valid Overworld-height spawn, writes a minimal gzip Java-NBT `Data.SpawnX/Y/Z` document into the private converted input. Vantage's existing Java spawn reader and dimension mapping can therefore set the same initial camera and region-priority pivot for Bedrock. Missing or invalid saved coordinates leave the native metadata in the private input so Vantage falls back to populated bounds. Publication uses a temporary file and rename; the playable Bedrock save is never rewritten. Cameron's off-center-world opening remains the physical coordinate check.
+**Verify:** `cd clients/desktop-web && npx tauri build` — Cameron opens a small disposable Bedrock world with a known off-center spawn and confirms the first camera position matches it; Bedtonic's full conversion is not needed.
+**Batch:** P18.84d only.
+**Commit:** `P18.84d: use bedrock saved spawn for first view`
+
+### P18.85 — Reuse prepared regions and detailed tiles on warm open
+
+**Status:** Done — implementation archived at Cameron's October 21 direction; remaining physical acceptance is tracked separately.
+**Files:** `crates/msc-agent/src/routes/worlds/map_terrain.rs`; `crates/msc-agent/src/routes/worlds/map_terrain/bedrock.rs`; `crates/msc-agent/src/routes/worlds/map_terrain/java_terrain_compat.rs`; `docs/msc2/rolling-plan.md`.
+**What:** Bedrock's converted Anvil input now lives in a persistent, source-content-addressed generation under `map-cache`, separate from the temporary LevelDB snapshot. A stopped world with an unchanged SHA-256 content fingerprint and a completed, checksum-validated region manifest reuses that generation without another snapshot or conversion; a running BDS still crosses the safe snapshot boundary before comparing. Partial, missing, corrupt or incompatible entries cannot be accepted as warm hits and are rebuilt or resumed. The private source stamp is published only after conversion completes. A revision lock protects each generation while Vantage reads it; old unlocked generations are pruned, and the converter retains the existing disk-reserve check. The temporary snapshot is released once converted input is ready. Bedrock's Vantage tile cache uses a separate edition/format key while retaining Java's persistent tile validation and bounded disk-budget policy. The agent logs converted-region reuse; Cameron must measure tile reuse and warm-open time on Bedtonic.
+**Verify:** `cd clients/desktop-web && npx tauri build` — Cameron records Bedtonic cold-open region conversion and tile bakes, closes/restarts desktop and agent, then revisits the same area; the region and detailed-tile hit counts show reuse and the map reaches detailed terrain substantially sooner without another whole-world pass.
+**Batch:** P18.85 only.
+**Commit:** `P18.85: reuse bedrock renderer input and tiles`
+
+### P18.85a — Keep Bedrock conversion workers fed and publish regions in parallel
+
+**Status:** Done — implementation archived at Cameron's October 21 direction; remaining physical acceptance is tracked separately.
+**Files:** `tools/world-map-proof/src/anvil_convert.rs`; `docs/msc2/rolling-plan.md`.
+**What:** Replace fixed groups of four with Java's continuous shared work queue so a finished worker immediately takes the next saved region. Size the stopped-server pool from logical cores, half of available memory at the existing 768 MiB per-region estimate, and free disk after the 512 MiB reserve, with an eight-worker ceiling; a running Bedrock server remains at one. Region compression, disk-space reservation, atomic file publication, and file hashing now happen in the worker, and the region hash is calculated from the exact output bytes without rereading the just-written file. Persist the resumable manifest every 16 completed regions and at successful completion; a crash may redo at most the uncheckpointed region records, while atomically published data remains safe. This targets the measured conversion queue and serial output path. Snapshot fingerprinting, LevelDB open, and region indexing remain separate cold-open stages and need their own timings before changing their correctness checks.
+**Verify:** `cd clients/desktop-web && npx tauri build` — Cameron checks the optimized Bedtonic run log for the selected worker count, steady progress beyond the earlier 40-region point, and final read/encode/publish/manifest timings; record elapsed time, peak memory and disk use against the prior run.
+**Batch:** P18.85a only.
+**Commit:** `P18.85a: pipeline bedrock region conversion`
+
+### P18.85b — Transcode Bedrock block palettes without per-block reconstruction
+
+**Status:** Done — implementation archived at Cameron's October 21 direction; remaining physical acceptance is tracked separately.
+**Files:** `tools/world-map-proof/src/anvil_probe.rs`; `docs/msc2/rolling-plan.md`.
+**What:** The converter now lowers each source palette entry to its canonical Anvil name/properties once per subchunk, then traverses numeric indices to select the same topmost non-air state across layers and build Anvil indices in the existing X-fastest order. It aggregates report counts after the voxel pass instead of allocating and hashing names/properties for every block. The output palette is still ordered by first visible occurrence, preserving deterministic NBT output and the current converter/cache identity. The test covers a secondary air layer falling through to the base block, a block-name alias, its property value, packed output indices and report counts. The current per-region `reused` decision still reads and re-encodes each source chunk to verify its converted-content hash, so those entries skip compression/publication rather than the expensive translation; that correctness check remains. The converter's existing `--region` selector allows a bounded one-to-eight-region release-build comparison instead of another full Bedtonic pass. Record P18.85a's aggregate read/NBT/compression timings alongside the sample to determine how much of the total this optimization addresses.
+**Verify:** `cd tools/world-map-proof && cargo build --release` — Cameron compares a release-build conversion of the same one-to-eight saved Bedtonic regions before and after this step, records the existing read/NBT/compression timings, and confirms the converted block/biome report and visible terrain are unchanged. No test command is run by the agent.
+**Batch:** P18.85b only.
+**Commit:** `P18.85b: transcode bedrock palettes directly`
+
+### P18.86 — Match Java's camera-following detail and travel
+
+**Status:** Done — implementation archived at Cameron's October 21 direction; remaining physical acceptance is tracked separately.
+**Files:** `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`; `docs/msc2/rolling-plan.md`.
+**What:** A source audit confirmed Bedrock's prepared Anvil world already enters Java's `RendererStore`/Vantage route, whose viewer uses four tile-fetch lanes and whose renderer selects the same bounded bake capacity; there is no longer a separate one-lane path in the active route. The remaining code-level parity gap was that the shared viewer hid its planned detail radius and shown/loading counts for Bedrock, and labeled the first attached Bedrock tile as Java. Those diagnostics are now edition-neutral and appear for both maps. No separate scheduler or concurrency limit was added because that would duplicate the shared pipeline without evidence of a Bedrock-only cap. Whether Bedrock now has Java-like visible travel speed and smooth frames remains a physical Bedtonic comparison for Cameron; any measured difference should be traced to the converted input or resources before tuning shared limits.
+**Verify:** `cd clients/desktop-web && npx tauri build` — Cameron flies locally, jumps to a distant known Bedtonic area and returns in 2D, 3D and Fly, comparing first-detail and radius-fill times and frame gaps with Java. Terrain refines without prolonged simple patches, blank saved regions or recurring input stutter.
+**Batch:** P18.86 only.
+**Commit:** `P18.86: match java map travel on bedrock`
+
+### P18.87 — Use Java's optional pre-render path for Bedrock
+
+**Status:** Done — implementation archived at Cameron's October 21 direction; remaining physical acceptance is tracked separately.
+**Files:** `crates/msc-agent/src/routes/worlds/map_terrain/pre_render.rs`; `crates/msc-agent/src/routes/worlds/map_terrain/bedrock.rs`; `crates/msc-agent/src/routes/worlds/map_terrain.rs`; `crates/msc-agent/src/cli/mod.rs`; `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`; `docs/msc2/api-contract/openapi.json`; `clients/desktop-web/src/lib/api/generated.ts`; `docs/msc2/rolling-plan.md`.
+**What:** Bedrock now uses the same Pre-render map operation as Java. The operation first selects the existing content-addressed Bedrock Anvil conversion, then requests Vantage's shared manifest and uncached detailed tiles; it does not reconvert the world as pre-render work or invoke the older Bedrock preview exporter. The edition-specific persistent tile cache receives the user's selected budget before the renderer restarts, and completed tiles remain available for Stop/Resume. The desktop control, API operation/schema names, CLI descriptions, progress messages and diagnostics now describe saved terrain rather than Java-only work. Disk estimates account for Bedrock's already-prepared input, and camera-visible requests retain priority over background baking. Cameron still needs to verify Bedtonic's pre-render, flight, Stop/Resume and cache behavior in the optimized build.
+**Verify:** `cd clients/desktop-web && npx tauri build` — Cameron starts Bedrock Pre-render, flies while it runs, stops, restarts the app/agent and resumes; already prepared regions and baked tiles remain, visible work wins, and the counts/budget behave as on Java without requiring a full Bedtonic bake to verify the controls.
+**Batch:** P18.87 only.
+**Commit:** `P18.87: share java map pre-render with bedrock`
+
+### P18.88 — Refresh changed Bedrock terrain through shared revisions
+
+**Status:** Done — implementation archived at Cameron's October 21 direction; remaining physical acceptance is tracked separately.
+**Files:** `tools/world-map-proof/src/anvil_convert.rs`; `crates/msc-agent/src/routes/worlds.rs`; `crates/msc-agent/src/routes/worlds/map_terrain/bedrock.rs`; `docs/msc2/rolling-plan.md`.
+**What:** Refresh still starts from the consistent Bedrock snapshot. It hashes that snapshot to identify the saved revision, then indexes render records by actual region and stores a stable per-region source fingerprint. Changed snapshots seed a private generation from the active converted regions using hard links when available; conversion skips decoding and rewriting regions whose source fingerprints and MCA hashes still match, and removes stale regions before publishing the new generation. The renderer keeps using its current prepared world until the new generation is complete, then switches to the shared Java/Vantage renderer so its existing chunk revision and seam-aware tile invalidation can retain unaffected tiles. An unchanged refresh reuses the active converted input and tile cache; for older manifests it performs a one-time index-only pass to add fingerprints without rewriting MCA regions. The old Bedrock catalog export/diff path is no longer used for Refresh. The initial full snapshot hash and LevelDB region-index scan still read saved data; a global save-format or biome-registry change still requires rebuilding all regions. No mutable live LevelDB is consulted.
+**Verify:** `cd clients/desktop-web && npx tauri build` — Cameron will run this optimized-build verification later: refresh unchanged Bedtonic and confirm it does not reconvert regions or reset the view; on a disposable Bedrock world, edit/add/remove chunks and confirm only affected converted regions and dependent tiles change, the old view remains during preparation, and the source world stays unchanged.
+**Batch:** P18.88 only.
+**Commit:** `P18.88: refresh changed bedrock renderer regions`
+
+### P18.89 — Compare Java and Bedrock on the same release-build map contract
+
+**Status:** Done — implementation archived at Cameron's October 21 direction; remaining physical acceptance is tracked separately.
+**Files:** `docs/msc2/phase18-map-acceptance.md`; `docs/msc2/rolling-plan.md`.
+**What:** Add a structured side-by-side Java/Bedtonic optimized-build worksheet to `phase18-map-acceptance.md`. It captures cold progress and stage timings, first detailed terrain, warm reopen, 2D/3D/Fly local and distant travel, detail-radius fill, pre-render Stop/Resume, unchanged/changed Refresh, CPU, memory, disk and frame gaps. The worksheet distinguishes Java's physical Anvil region files from Bedrock's logical regions indexed from LevelDB, and separates safe snapshot/index work from conversion and shared-renderer work. Cameron will record release-build evidence after implementation; the current worksheet is explicitly pending and makes no parity pass claim. A lingering simple-first view, slower sustained Bedrock refinement, blank saved terrain, misleading count or periodic stutter remains an open parity defect. Any backend divergence must be traced to a concrete edition-format difference and recorded with its user impact. This step does not publish a release or close the independent phase gate.
+**Verify:** `cd clients/desktop-web && npx tauri build` — Cameron performs the documented Java/Bedtonic cold-open, warm-open, flight, pre-render and refresh comparisons and records whether Bedrock now provides the same experience, including any measured remaining gap.
+**Batch:** P18.89 only.
+**Commit:** `P18.89: record shared java bedrock map parity`
+
+### P18.90 — Render converted Bedrock blocks with the correct Java models
+
+**Status:** Done — implementation archived at Cameron's October 21 direction; remaining physical acceptance is tracked separately.
+**Files:** `third_party/vantage/src/chunk.zig`; `crates/msc-agent/src/routes/worlds/map_terrain.rs`; `crates/msc-agent/src/routes/worlds/map_terrain/pre_render.rs`; `docs/msc2/rolling-plan.md`.
+**What:** Bedtonic's converted regions correctly retain Bedrock palette names and state properties, but Vantage had looked them up as if they were Java names. This made legacy `hardened_clay`, `grass_path`, `reeds`, `wooden_door`, and other Bedrock blocks use fallback models or colors. Vantage now translates recognized Bedrock IDs and properties when decoding each palette: uncolored terracotta, dirt paths and sugar cane use their Java models; logs use `axis`, glass panes use boolean directional connections, doors use facing/half/hinge/open, and snow layers use their saved height. Additional unambiguous legacy IDs use their matching Java models. This is a renderer-side translation so existing private Anvil regions remain reusable; the 1,608-region Bedrock conversion is not repeated. Bedrock's baked-tile cache identity changes once so previously incorrect tiles rebake; Java's cache identity and rendering stay unchanged. The old Bedrock tile cache remains on disk for separate cleanup after visual verification, and its prior pre-render count is not carried into the corrected cache. One deterministic palette-level test covers representative aliases and log, pane and door states; it has no filesystem or timing dependency and should run in under a second. It was not run by the implementing agent.
+**Verify:** `cd clients/desktop-web && npx tauri build` — Cameron opens Bedtonic in the optimized app and revisits the pictured mesa, trees, sugar cane and village. Terracotta and paths have their expected textures, upright logs show bark on their sides, cane is crossed rather than a solid green column, and panes and doors use their saved shape and orientation. Confirm the agent reuses the prepared Bedrock regions rather than counting through all 1,608 again; corrected detailed tiles rebake as visited or pre-rendered.
+**Batch:** P18.90 only.
+**Commit:** `P18.90: resolve bedrock palettes to java block models`
+
+### P18.91 — Keep depth changes from jumping to the terrain surface
+
+**Status:** Done — implementation archived at Cameron's October 21 direction; remaining physical acceptance is tracked separately.
+**Files:** `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`; `docs/msc2/rolling-plan.md`.
+**What:** The shared viewer's one-second player-status poll calls `stopFollowing()` when the server is stopped. That previously restored the normal terrain-height sampler even while a depth slice remained open. The next map frame could move the camera Y toward the terrain surface before another slider event disabled the sampler, producing the reported 63 → 120 → 63 jump. Keep terrain-follow disabled for the entire depth session, including while switching 2D, 3D, and Fly modes; restore it only after Home or a player focus clears the slice. Both Option+arrow and slider dragging use the same `setDepth` path. Reset the saved sampler when the viewer is disposed so changing worlds cannot reuse an old height source.
+**Verify:** `cd clients/desktop-web && npx tauri build` — in both Java and Bedrock maps with the server stopped, open Depth and change Y by one using Option+Up/Down and by dragging. Repeat in 2D, 3D and Fly, then switch modes while Depth remains active. The camera Y should move toward the selected value without jumping to the surface on the next player-status poll; Home and focusing a player should restore normal terrain-following.
+**Batch:** P18.91 only.
+**Commit:** `P18.91: keep depth camera off terrain follow`
+
+### P18.92 — Name Bedrock biomes without flattening them to Plains
+
+**Status:** Closed — superseded by P18.93 after Cameron found unmapped biome values in the first optimized build.
+**Files:** `tools/world-map-proof/data/bedrock-biome-ids-1.26.60.json`; `tools/world-map-proof/data/LICENSE.chunker`; `tools/world-map-proof/src/anvil_convert.rs`; `tools/world-map-proof/src/anvil_probe.rs`; `crates/msc-agent/src/routes/worlds/map_terrain.rs`; `crates/msc-agent/src/routes/worlds/map_terrain/bedrock.rs`; `docs/msc2/bedrock-biome-registry.md`; this plan.
+**What:** The Bedrock converter formerly wrote `minecraft:plains` for every numeric biome ID when no registry was supplied, making the legend report Plains everywhere. Bundle the pinned MIT-licensed Chunker ID map for saves reporting Bedrock `[1, 26, 60, 0, 0]` and use it for any matching world, not just Bedtonic. Its 89 entries cover all 60 IDs in Bedtonic's prior conversion report. Other save versions and unknown IDs retain explicit `unmapped` names and neutral tint rather than false Plains labels; an optional supplied registry still requires an exact metadata-version match. The source is a version-gated external converter map, not an exact BDS extraction, so worlds with mixed-version chunks remain a validation limit. Advance the converted-region and detailed-tile cache identities without overwriting old private caches; Bedtonic needs one fresh 1,608-region conversion and tile rebake before the indicator changes. Source and limits are documented in the registry proof.
+**Verify:** `cd clients/desktop-web && npx tauri build` — open Bedtonic in the optimized app and allow the new conversion to finish. Open Biomes in places known to differ (ocean, mesa/badlands, forest or savanna); the legend should show distinct Bedrock biome names rather than Plains 100%. After reopening, confirm the converted regions are reused. If another save reports `[1, 26, 60, 0, 0]`, its known IDs should use the same map; a save from a different version should report unmapped IDs, not Plains. Cameron performs this verification.
+**Batch:** P18.92 only.
+**Commit:** `P18.92: resolve versioned bedrock biome ids`
+
+### P18.93 — Read biome data at the matching block height
+
+**Status:** Done — implementation archived at Cameron's October 21 direction; remaining physical acceptance is tracked separately.
+**Files:** `tools/world-map-proof/src/anvil_probe.rs`; `tools/world-map-proof/src/anvil_convert.rs`; `crates/msc-agent/src/routes/worlds/map_terrain.rs`; `crates/msc-agent/src/routes/worlds/map_terrain/bedrock.rs`; `docs/msc2/bedrock-biome-registry.md`; this plan.
+**What:** Bedtonic's P18.92 converted regions had a valid 1.26.60 numeric registry and reported real biome IDs, but every rendered sample became `4294967295`, the converter's missing-value sentinel. Bedrock block subchunks are indexed by section number (`4` means Y 64), while parsed Data3D biome storages are keyed by absolute block height (`64`). The converter had looked for key `4` instead of `64`. Multiply the section index by 16 before selecting its biome layer, retaining the legacy 2D-column fallback. Reject a chunk with saved biome layers but no sampleable biome value, so a key mismatch cannot silently produce a wholly unmapped chunk again. Advance the converter and both persistent-cache identities: old regions and detailed tiles contain wrong biome palettes and cannot be reused. Add one in-memory test for section-to-height lookup and 2D fallback; it protects this observed failure without timing, filesystem, or world-size dependencies and should run in under a second. Cameron has not authorized running it.
+**Verify:** `cd clients/desktop-web && npx tauri build` — open Bedtonic, let the corrected conversion finish, and inspect Biomes over ocean and a distinct land biome. The legend should show different names and percentages instead of `Unmapped Bedrock Biome 4294967295` at 100%. Reopen the unchanged map and confirm its corrected regions are reused. Cameron performs this verification.
+**Batch:** P18.93 only.
+**Commit:** `P18.93: align bedrock biome layers with block sections`
+
+### P18.94 — Keep biome colours current while terrain streams
+
+**Status:** Done — Cameron confirmed the Bedtonic biome-colour fix works and directed this implementation archived on October 21. The remaining parity checks are tracked separately.
+**Files:** `clients/desktop-web/src/lib/vantage/three/materials.ts`; `clients/desktop-web/src/lib/vantage/three/tiles.ts`; `clients/desktop-web/src/lib/vantage/three/viewer.ts`; this plan.
+**What:** After P18.93, Bedrock names and colours stream into the biome legend, but detailed terrain can turn pure black with Biomes on in 2D, 3D and Fly. The quantized terrain shader reads colours from a GPU palette sized only at map open, while the progressive renderer appends biome IDs as new tiles bake. Grow the shared GPU palette when a manifest adds IDs, recolour resident legend entries without reloading tiles, and use the neutral no-data colour when a tile arrives before its biome ID appears in the next manifest. This is shared Java/Bedrock viewer behavior; no world conversion or cache invalidation is needed.
+**Verify:** `cd clients/desktop-web && npx tauri build` — reopen Bedtonic, turn Biomes on and inspect the previously black area around X -557, Z -962 in 2D, 3D and Fly. Detailed terrain should remain coloured while tiles load, and newly discovered biomes should appear in the legend with matching colours. Turn Biomes off to confirm normal textures, then check a Java map's biome view for regression. Cameron performs this verification.
+**Batch:** P18.94 only.
+**Commit:** `P18.94: grow progressive biome palette`
+
+### P18.95 — Archive completed saved-terrain implementation steps
+
+**Status:** Done — Cameron explicitly directed the closure and archive on October 21, 2026.
+**Files:** `docs/msc2/rolling-plan.md`; `docs/msc2/rolling-plan-archive.md`; `docs/msc2/pending-acceptance.md`.
+**What:** Move P18.69–P18.94 and their Java/Bedrock map contract into the archive, distinguish superseded attempts from implemented work, and preserve outstanding physical acceptance separately. This documentation cleanup makes no new renderer or release-artifact claim.
+**Verify:** `rg -n 'P18\.95|P18\.94|P18\.69' docs/msc2/rolling-plan-archive.md && cat docs/msc2/rolling-plan.md` — the archived steps should be present and the active plan should have no completed map implementation queue.
+**Batch:** P18.95 only.
+**Commit:** `P18.95: archive completed saved-terrain steps`
+
+## October 21, 2026 — v0.1.32 release preparation
+
+### P16.93 — Prepare the v0.1.32 saved-terrain release source
+
+**Status:** Done — source and release notes prepared at Cameron's direction; publication and exact-artifact acceptance are separate.
+**Files:** Agent and desktop version manifests and lockfiles; `README.md`; `docs/msc2/release/v0.1.32.md`; this archive.
+**What:** Align agent, desktop, bundle and lockfile versions at 0.1.32; describe the Java cache, shared Bedrock renderer, pre-render, refresh, block and biome corrections without claiming unmeasured parity. Keep the release workflow build-only and the Phase 16 physical gate open.
+**Verify:** `git show v0.1.32:clients/desktop-web/package.json` — the pushed tag should contain version 0.1.32. The release workflow must publish the nine installers/archives, `SHA256SUMS`, and signed update metadata before the release is considered published.
+**Batch:** P16.93 only.
+**Commit:** `P16.93: prepare v0.1.32 map parity release`
+
+
+## October 23, 2026 — implemented owner-testing findings and release work
+
+Implementation is recorded as DONE at Cameron’s request. Each original Verify line remains below; a DONE implementation does not assert that the owner’s physical check passed. Open findings remain in the rolling plan.
+
+### P18.99 — Decode Intel macOS region zlib with the system library
+
+**Status:** DONE — Fix prepared; owner verification pending.
+**Files:** `third_party/vantage/build.zig`; `third_party/vantage/src/compress.zig`; `docs/msc2/rolling-plan.md`.
+**What:** The v0.1.38 Intel renderer serves visible map tiles, then pre-render crashes while inflating region chunks. The October 23 crash report again stops at `libdeflate_adler32`, this time on a pre-render connection thread, despite the portable Adler-32 build flag. Use macOS's zlib decoder for Intel region zlib chunks, leaving libdeflate and all other platforms' paths intact. The local Intel Vantage build links `/usr/lib/libz.1.dylib` and imports `uncompress`. The crash's exact low-level cause remains unknown; this change bypasses its observed path.
+**Verify:** Install the local Intel candidate on the second Mac, reopen the same Bedrock world, start pre-render, and run `tail -n 60 -f "$HOME/Library/Application Support/MSC 2/logs/agent.log"` to confirm cached tile count advances without a new `vantage` crash report or `Peer disconnected` lines.
+**Batch:** P18.99 only.
+
+### P18.98 — Retry transient Apple ticket lookup failures
+
+**Status:** DONE — Workflow correction prepared; release verification pending.
+**Files:** `.github/workflows/release.yml`; `docs/msc2/rolling-plan.md`.
+**What:** The v0.1.37 Intel DMG was signed, notarized, and accepted by Gatekeeper, but `stapler validate` failed when Apple's CloudKit ticket lookup lost its network connection (`NSURLErrorDomain` -1005, error 68). Retry only that explicit connection-loss failure up to three times. Invalid or missing tickets and all other errors still fail immediately.
+**Verify:** In the next release run, confirm a transient CloudKit connection loss retries and later validates, while the step still rejects a DMG without a valid stapled ticket.
+**Batch:** P18.98 only.
+
+### P18.97 — Preserve libdeflate compiler flags on every target
+
+**Status:** DONE — Fix prepared; Linux and Windows GNU cross-builds pass; tagged workflow verification pending.
+**Files:** `third_party/vantage/build.zig`; `docs/msc2/rolling-plan.md`.
+**What:** The v0.1.37 Linux and Windows renderer builds failed because moving `adler32.c` into its own compile entry omitted the two AVX-512 exclusion flags used for libdeflate's other C files. Keep those flags on `adler32.c` for every target and add the portable Adler-32 define only for Intel macOS. The Intel v0.1.37 app built and notarized, but Apple's stapled-ticket validation then failed after its CloudKit connection dropped (error 68); Apple Silicon passed.
+**Verify:** In the next tagged release workflow, confirm the Linux and Windows staging steps compile Vantage successfully and both macOS jobs complete stapled-DMG validation.
+**Batch:** P18.97 only.
+
+### P18.96 — Use portable Adler-32 for Intel Bedrock map rendering
+
+**Status:** DONE — Candidate verified by Cameron on the second Intel Mac; release source prepared.
+**Files:** `third_party/vantage/build.zig`; `third_party/vantage/vendor/libdeflate/lib/adler32.c`; `docs/msc2/rolling-plan.md`.
+**What:** The Intel Vantage crash report stops in `libdeflate_adler32` while checking a zlib chunk during `bakeTileFromRegions`. Cameron had already confirmed the P18.93 converted biome data and P18.94 viewer fix worked on October 21; no map renderer or converter code changed between that check and v0.1.36. The failing host has its own converted-region cache and rebuilt all 1,608 regions, so its input path reached the crashing checksum under a separate host runtime. Compile only Intel macOS with libdeflate's portable Adler-32 routine, leaving other architectures and Bedrock conversion unchanged. Build a local Intel DMG for Cameron to test on the second Intel Mac against the same world. Cameron confirmed the map opens with the fix.
+**Verify:** Install `target/release-artifacts/MSC-2-intel-map-candidate.dmg` on the Mac that hosts the agent, open the same Bedrock map, and confirm the log reports the converted regions reused, Vantage ready, and no renderer crash.
+**Batch:** P18.96 only.
+**Commit:** `P18.96: use portable adler32 on intel macOS`
+
+
+## v0.1.33 release candidate
+
+**Owner request (2026-10-22):** Increment the next tag and start the release workflow so Cameron can test the macOS changes in a downloaded build. The previous published tag is `v0.1.32`; `v0.1.33` is the next patch version. This release includes the changes recorded below through P16.117.
+
+**Release preparation:** Bump the agent, desktop, Tauri, bundle identity, and lockfile versions together because the release workflow compares them and requires the tag to match. Add candidate release notes and update the download links and signing description. The tag push will start the build-only workflow for macOS Intel and Apple Silicon, Windows, and Linux, then publish the prerelease only after all nine desktop and headless artifacts are assembled with checksums and signed update metadata. This is the first release using the newly configured Apple notarization path, so successful workflow publication and Cameron's clean-Mac first-open check are still separate outcomes.
+
+**P16.118 — Prepare and launch v0.1.33 release**
+
+- **Status:** DONE — release attempt completed; v0.1.33 was not published.
+- **Files:** `crates/msc-agent/Cargo.toml`; `Cargo.lock`; `clients/desktop-web/package.json`; `clients/desktop-web/package-lock.json`; `clients/desktop-web/src-tauri/Cargo.toml`; `clients/desktop-web/src-tauri/Cargo.lock`; `clients/desktop-web/src-tauri/tauri.conf.json`; `clients/desktop-web/src/lib/bundle-identity.ts`; `clients/desktop-web/static/bundle-identity.json`; `docs/msc2/release/v0.1.33.md`; `README.md`; `docs/msc2/rolling-plan.md`.
+- **What:** Align all release identities at 0.1.33, document the candidate, push its source and exact tag, and start the existing build-only release workflow without changing its checks or moving an old tag.
+- **Verify:** Run `gh run list --workflow release.yml --limit 1 --repo ctemple9/msc2` to inspect the `v0.1.33` run. After it completes successfully, open the v0.1.33 release page and confirm all nine platform artifacts, `SHA256SUMS`, and both signed update metadata files are present. Cameron then installs the exact Intel macOS DMG on a clean Mac and checks Finder first-open behavior.
+- **Batch:** P16.118 only.
+
+**Release failure (2026-10-22):** The v0.1.33 workflow run failed both macOS jobs at Apple notarization; Windows and Linux builds succeeded, but the publish job was skipped. Apple's log named `msc`, `bedrock-map`, `vantage`, and the Intel-only `BedrockSidecar` inside `MSC 2.app/Contents/Resources/agent`. Each lacked a valid Developer ID signature, secure timestamp, and hardened runtime. Tauri copied these as resources and signed the outer app, which did not sign the embedded executables. The release was not published. The next attempt must use a new version and tag.
+
+**P16.119 — Sign bundled macOS helpers before notarization**
+
+- **Status:** DONE — Implementation prepared; owner verification and a new release candidate pending.
+- **Files:** `.github/workflows/release.yml`; `tools/release/sign-macos-agent-resources.sh`; `README.md`; `docs/msc2/rolling-plan.md`.
+- **What:** After staging, sign each macOS helper with the configured Developer ID identity, hardened runtime, and secure timestamp. Apply the existing virtualization entitlement explicitly to the Intel Bedrock sidecar. Fail before the Tauri build if any helper lacks a valid signature, timestamp, hardened runtime, or sidecar entitlement. Correct the README to point to the actual latest published release, v0.1.32. Preserve the existing build-only artifact set and release gates; do not move or rerun v0.1.33.
+- **Verify:** On a macOS runner with the configured Developer ID identity, run `APPLE_SIGNING_IDENTITY='Developer ID Application: Cameron Temple (6898622Y3Y)' bash tools/release/sign-macos-agent-resources.sh macos-x86_64` after staging the matching release payload. Confirm all four helpers report `signed and verified`; on Apple Silicon use `macos-aarch64` and confirm the three supported helpers. The next new-tag workflow must then pass notarization and publish all nine artifacts; Cameron checks the exact downloaded DMG on a clean Mac.
+- **Batch:** P16.119 only.
+
+**P16.120 — Prepare and launch v0.1.34 release**
+
+- **Status:** DONE — release attempt completed; v0.1.34 was not published.
+- **Files:** `crates/msc-agent/Cargo.toml`; `Cargo.lock`; `clients/desktop-web/package.json`; `clients/desktop-web/package-lock.json`; `clients/desktop-web/src-tauri/Cargo.toml`; `clients/desktop-web/src-tauri/Cargo.lock`; `clients/desktop-web/src-tauri/tauri.conf.json`; `clients/desktop-web/src/lib/bundle-identity.ts`; `clients/desktop-web/static/bundle-identity.json`; `docs/msc2/release/v0.1.34.md`; `docs/msc2/rolling-plan.md`.
+- **What:** Give the signing correction its own immutable release tag, align the agent and desktop versions at 0.1.34, document the candidate, and launch the unchanged build-only publishing workflow. Do not move or rerun v0.1.33.
+- **Verify:** Run `gh run list --workflow release.yml --limit 1 --repo ctemple9/msc2` and inspect the v0.1.34 run. After publication, check the release page for nine platform artifacts, `SHA256SUMS`, and both signed update metadata files; then install the exact Intel DMG on a clean Mac and open it through Finder.
+- **Batch:** P16.120 only.
+
+**Release failure (2026-10-22):** The v0.1.34 workflow signed all bundled helpers on both macOS runners. Apple's notary service returned `Accepted` and Tauri stapled both apps. Tauri then built the DMGs and removed its temporary `bundle/macos/MSC 2.app` directories. The workflow's existing post-build verification searched those removed directories and failed with “Tauri app bundle is missing” on both macOS jobs. Windows and Linux succeeded, but publication was skipped. This is a verification-path error after successful notarization, not another signing failure. The finished DMG contains `MSC 2.app`; that mount-and-find path was checked locally using the prior Intel DMG.
+
+**P16.121 — Verify the macOS app inside the finished DMG**
+
+- **Status:** DONE — Implementation prepared; owner verification and a new release candidate pending.
+- **Files:** `.github/workflows/release.yml`; `docs/msc2/rolling-plan.md`.
+- **What:** Mount the finished macOS DMG read-only and run the existing signature, Gatekeeper, and stapled-ticket checks against its actual app. Detach the image after verification. Preserve the build-only release workflow and its complete artifact requirements.
+- **Verify:** On macOS, mount a finished release DMG with `hdiutil attach -readonly -nobrowse`, confirm `MSC 2.app` is present at its top level, then run `codesign --verify --deep --strict`, `spctl --assess --type execute`, and `xcrun stapler validate` on that mounted app. The next new-tag workflow must pass both macOS jobs and publish all nine artifacts.
+- **Batch:** P16.121 only.
+
+**P16.122 — Prepare and launch v0.1.35 release**
+
+- **Status:** DONE — release attempt completed; v0.1.35 was not published.
+- **Files:** `crates/msc-agent/Cargo.toml`; `Cargo.lock`; `clients/desktop-web/package.json`; `clients/desktop-web/package-lock.json`; `clients/desktop-web/src-tauri/Cargo.toml`; `clients/desktop-web/src-tauri/Cargo.lock`; `clients/desktop-web/src-tauri/tauri.conf.json`; `clients/desktop-web/src/lib/bundle-identity.ts`; `clients/desktop-web/static/bundle-identity.json`; `docs/msc2/release/v0.1.35.md`; `docs/msc2/rolling-plan.md`.
+- **What:** Align release identities at 0.1.35, document the macOS post-notarization correction, and launch a new immutable tag through the existing build-only workflow. Keep the failed v0.1.33 and v0.1.34 tags fixed.
+- **Verify:** Inspect the v0.1.35 release workflow and, after publication, check the release page for all nine platform artifacts, `SHA256SUMS`, and both signed update metadata files. Cameron then installs the exact Intel macOS DMG on a clean Mac and opens it through Finder.
+- **Batch:** P16.122 only.
+
+**Release failure (2026-10-22):** In v0.1.35, the Apple Silicon, Windows, and Linux jobs succeeded. Apple accepted and Tauri stapled the Intel app; its finished DMG contained an app with a valid signature, and `spctl` reported `accepted` with source `Notarized Developer ID`. However, `xcrun stapler validate` on the Intel app inside the finished DMG said no ticket was stapled to that copy, so the Intel job failed and publication was skipped. Apple's distribution guidance recommends notarizing and stapling the outermost DMG. The workflow must check the final distribution image's ticket, not rely on the app's temporary pre-DMG ticket surviving packaging.
+
+**P16.123 — Notarize and staple the distributed macOS DMG**
+
+- **Status:** DONE — Implementation prepared; owner verification and a new release candidate pending.
+- **Files:** `.github/workflows/release.yml`; `docs/msc2/rolling-plan.md`.
+- **What:** After Tauri signs and packages the macOS app, submit the final signed DMG to Apple, require an Accepted result, and staple its ticket. Keep signature and Gatekeeper checks on the app inside the mounted image, but validate the stapled ticket on the distributable DMG. This applies to both macOS architectures and does not add a test or lint release gate.
+- **Verify:** On the next tagged release, both macOS jobs must log Accepted for the final DMG, pass `xcrun stapler validate` on the DMG, and pass the mounted app's `codesign` and `spctl` checks. Publication must include nine artifacts, checksums, and signed update metadata; Cameron checks Finder first open on the downloaded Intel DMG.
+- **Batch:** P16.123 only.
+
+**P16.124 — Prepare and launch v0.1.36 release**
+
+- **Status:** DONE — v0.1.36 published; owner first-open verification pending.
+- **Files:** `crates/msc-agent/Cargo.toml`; `Cargo.lock`; `clients/desktop-web/package.json`; `clients/desktop-web/package-lock.json`; `clients/desktop-web/src-tauri/Cargo.toml`; `clients/desktop-web/src-tauri/Cargo.lock`; `clients/desktop-web/src-tauri/tauri.conf.json`; `clients/desktop-web/src/lib/bundle-identity.ts`; `clients/desktop-web/static/bundle-identity.json`; `docs/msc2/release/v0.1.36.md`; `docs/msc2/rolling-plan.md`.
+- **What:** Align release identities at 0.1.36, document the final-DMG notarization change, and launch a new immutable tag through the existing build-only workflow. Keep all three failed candidate tags fixed.
+- **Verify:** Inspect the v0.1.36 release workflow and, after publication, check the release page for all nine platform artifacts, `SHA256SUMS`, and both signed update metadata files. Cameron then installs the exact Intel macOS DMG on a clean Mac and opens it through Finder.
+- **Batch:** P16.124 only.
+
+**Release outcome (2026-10-22):** [v0.1.36](https://github.com/ctemple9/msc2/releases/tag/v0.1.36) published as a prerelease. In the first workflow attempt, the Apple Silicon runner could not resolve `static.crates.io` while downloading a Rust dependency; the Intel macOS, Windows, and Linux jobs succeeded. A selective retry of the failed job on the same immutable tag succeeded. Both macOS jobs reported accepted notarization for their final DMGs, stapled and validated those DMGs, and passed signature and Gatekeeper checks on the apps inside. The completed release has all nine desktop and headless artifacts, `SHA256SUMS`, and both signed update metadata files. Cameron's Finder first-open check of the downloaded Intel DMG is still pending.
+
+**P16.125 — Point public install instructions to v0.1.36**
+
+- **Status:** DONE — Documentation updated; owner verification of the published download remains pending.
+- **Files:** `README.md`; `docs/msc2/rolling-plan.md`.
+- **What:** Point the current-release and install instructions to the published v0.1.36 artifacts, describe the macOS signing state, and record the release outcome without treating Cameron's first-open check as passed.
+- **Verify:** Open `https://github.com/ctemple9/msc2/releases/tag/v0.1.36` and confirm the nine platform artifacts, `SHA256SUMS`, `msc2-update-manifest.json`, and `msc2-update-manifest.sig`; then inspect the README install links. Cameron opens the downloaded Intel DMG through Finder to close Finding 1.
+- **Batch:** P16.125 only.
+
+**P16.126 — Move download instructions to the top of the README**
+
+- **Status:** DONE — Updated; awaiting Cameron's review.
+- **Files:** `README.md`; `docs/msc2/rolling-plan.md`.
+- **What:** Put a short v0.1.36 download and install guide immediately after the introduction, with one quick action per platform and the update path. Keep readers from having to scan detailed release history to find the right installer.
+- **Verify:** Confirm `## Download and install` appears before `## Current release and support`, and that the release link and headless update command point to v0.1.36.
+- **Batch:** P16.126 only.
+
+**P16.127 — Move release and support details to the README bottom**
+
+- **Status:** DONE — Updated; awaiting Cameron's review.
+- **Files:** `README.md`; `docs/msc2/rolling-plan.md`.
+- **What:** Move the technical release history, platform support details, signing notes, update policy, and prerelease acceptance status to the end of the README so most users reach them only if they want those details.
+- **Verify:** Confirm `## Current release and support` is the final README section and that the top still links to v0.1.36 for quick downloads and updates.
+- **Batch:** P16.127 only.
+
+
+## v0.1.37 release candidate
+
+**Owner request (2026-10-22):** Publish the tested Intel Bedrock renderer fix as the next GitHub prerelease. The previous published release is `v0.1.36`; keep all earlier failed candidate tags fixed.
+
+**P16.128 — Prepare and launch v0.1.37 release**
+
+- **Status:** DONE — release attempt completed; v0.1.37 was not published.
+- **Files:** `crates/msc-agent/Cargo.toml`; `Cargo.lock`; `clients/desktop-web/package.json`; `clients/desktop-web/package-lock.json`; `clients/desktop-web/src-tauri/Cargo.toml`; `clients/desktop-web/src-tauri/Cargo.lock`; `clients/desktop-web/src-tauri/tauri.conf.json`; `clients/desktop-web/src/lib/bundle-identity.ts`; `clients/desktop-web/static/bundle-identity.json`; `docs/msc2/release/v0.1.37.md`; `README.md`; `docs/msc2/rolling-plan.md`.
+- **What:** Align release identities at 0.1.37, document the Intel renderer fix confirmed on the second Mac, and launch the unchanged build-only release workflow using a new immutable tag.
+- **Verify:** Run `gh run list --workflow release.yml --limit 1 --repo ctemple9/msc2`; after the run completes, confirm the v0.1.37 release has all nine desktop and headless artifacts, `SHA256SUMS`, `msc2-update-manifest.json`, and `msc2-update-manifest.sig`.
+- **Batch:** P16.128 only.
+
+**Release failure (2026-10-23):** The Apple Silicon job passed. Linux and Windows failed while compiling Vantage's `adler32.c`: its new standalone compile entry omitted the AVX-512 exclusion flags passed to the other libdeflate C sources. Intel macOS built, signed, and notarized the app, then `xcrun stapler validate` failed with error 68 after a lost connection to Apple's CloudKit ticket service. Publication was skipped. The v0.1.37 tag remains fixed. P18.97 restores the missing compile flags; the next attempt must use a new tag.
+
+
+
+## v0.1.38 release candidate
+
+**Owner request (2026-10-22, continued):** Publish the Intel Bedrock renderer fix after Cameron confirmed the local candidate on the second Intel Mac. Preserve the failed v0.1.37 tag; use v0.1.38.
+
+**P16.129 — Prepare and launch v0.1.38 release**
+
+- **Status:** DONE — v0.1.38 published; Intel Bedrock pre-render verification pending.
+- **Files:** `crates/msc-agent/Cargo.toml`; `Cargo.lock`; `clients/desktop-web/package.json`; `clients/desktop-web/package-lock.json`; `clients/desktop-web/src-tauri/Cargo.toml`; `clients/desktop-web/src-tauri/Cargo.lock`; `clients/desktop-web/src-tauri/tauri.conf.json`; `clients/desktop-web/src/lib/bundle-identity.ts`; `clients/desktop-web/static/bundle-identity.json`; `docs/msc2/release/v0.1.38.md`; `README.md`; `docs/msc2/rolling-plan.md`.
+- **What:** Align all release identities at 0.1.38, include the Intel Bedrock fix and corrected Vantage compiler flags, document v0.1.37's failures, and launch a new immutable tag through the unchanged build-only workflow.
+- **Verify:** Run `gh run list --workflow release.yml --limit 1 --repo ctemple9/msc2`; after completion, confirm all four platform jobs pass and the release has all nine desktop and headless artifacts, `SHA256SUMS`, `msc2-update-manifest.json`, and `msc2-update-manifest.sig`.
+- **Batch:** P16.129 only.
+
+
+## macOS owner testing — 0.1.32
+
+**Started:** October 21, 2026
+**Artifact:** `/Users/camerontemple/Downloads/msc2-0.1.32-macos-x86_64.dmg`
+**State:** In progress. Cameron is testing a clean install after uninstalling MSC 2 and clearing its remaining app data.
+
+### Finding 1 — macOS blocks the downloaded app at first open
+
+**What Cameron experienced:** After downloading and opening `MSC 2.app` from the 0.1.32 disk image, macOS showed a warning titled “MSC 2.app Not Opened.” It said Apple could not verify that the app is free of malware that may harm the Mac or compromise privacy. The dialog offered **Done** and **Move to Trash**, with no way to open the app from that dialog. Cameron expects a normal download-and-open flow: download MSC 2, open the app, and begin using it without having to work around a Gatekeeper block.
+
+**Investigation:** The exact tested DMG reports `code object is not signed at all` under `codesign -dv`; `spctl` rejects it. The release workflow builds the Tauri app with `--no-sign` and writes an unsigned-beta notice stating there is no release code signing, notarization, or publisher identity. The published installation guide documents the same limitation. Apple’s [Developer ID distribution guidance](https://developer.apple.com/developer-id/) says Developer ID signing lets Gatekeeper verify software from an identified developer; Apple’s [notarization guide](https://developer.apple.com/documentation/security/notarizing-macos-software-before-distribution) describes the notarization ticket Gatekeeper can check when an app is first opened. This is therefore a release-signing and notarization gap, not a problem specific to Cameron’s Mac.
+
+**User outcome required:** Sign distributed macOS desktop apps with the appropriate Developer ID identity, notarize the distributed app (and disk image where required by the packaging flow), staple the ticket where supported, and verify the exact downloaded artifact opens through the ordinary Finder double-click flow on a clean Mac without the malware-verification block.
+
+**Implementation work (2026-10-21):** The macOS release legs in `.github/workflows/release.yml` now import the Developer ID certificate into a temporary keychain and require App Store Connect notarization credentials before building. Tauri builds the macOS DMGs with signing enabled; the workflow then checks the app signature with `codesign`, Gatekeeper assessment with `spctl`, and the app’s stapled notarization ticket with `xcrun stapler validate`. These checks are part of producing a trusted macOS release artifact. The existing platform artifact set, checksum generation, signed update manifest, and Windows/Linux unsigned-beta behavior remain in place. The per-platform macOS notice now says the desktop app is signed and notarized and distinguishes the separate, unsigned headless archive.
+
+**Release setup (2026-10-21):** Cameron configured the required GitHub Actions secrets (`APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`, `MACOS_KEYCHAIN_PASSWORD`, and `APPLE_API_KEY_P8_BASE64`) and repository variables (`APPLE_SIGNING_IDENTITY`, `APPLE_API_KEY`, and `APPLE_API_ISSUER`). The workflow fails before packaging if any are absent, instead of producing another untrusted app while appearing to succeed. The next macOS release still needs to complete and Cameron must verify the downloaded app on a clean Mac.
+
+**Verify after publication:** Install the exact new x86_64 DMG on a clean Mac, drag MSC 2 to Applications, and open it with a normal Finder double-click. Gatekeeper should not show the malware-verification block. The release build also records machine checks for `codesign --verify --deep --strict`, `spctl --assess --type execute`, and `xcrun stapler validate` on the bundled app. Until that downloaded-artifact check passes, this finding remains open.
+
+**P16.94 — Add Developer ID signing and notarization to macOS releases**
+
+- **Status:** DONE — implementation recorded; Apple credentials configured, awaiting owner verification of the next release.
+- **Files:** `.github/workflows/release.yml`; `docs/msc2/rolling-plan.md`.
+- **What:** Require Apple signing and notarization credentials, build the macOS DMGs with Tauri signing enabled, and verify the app signature, Gatekeeper assessment, and stapled ticket. Preserve the nine release assets, checksum generation, signed update metadata, and unsigned Windows/Linux behavior.
+- **Verify:** Install the next x86_64 DMG on a clean Mac, then run `codesign --verify --deep --strict "/Applications/MSC 2.app" && spctl --assess --type execute "/Applications/MSC 2.app" && xcrun stapler validate "/Applications/MSC 2.app"`; open the app with Finder and confirm Gatekeeper does not block it.
+- **Batch:** P16.94 only.
+
+### Finding 2 — The DMG install window needs clearer, cleaner guidance
+
+**What Cameron experienced:** The mounted disk image opens as a large, mostly empty Finder window. It shows the Applications shortcut and the MSC 2 app near the upper left, but there is no arrow or other visual cue telling a new user to drag MSC 2 onto Applications. When Finder is set to show hidden files, a third item named `.VolumeIcon.icns` appears beside the app. Cameron wants the installer window to feel finished: smaller, arranged around the install action, and clearly showing the app being dragged to Applications.
+
+**Investigation:** The Tauri bundle configuration had no `macOS.dmg` settings. Tauri’s [DMG configuration](https://v2.tauri.app/reference/config/#dmgconfig) supports a custom background image, window size, and positions for the app and Applications folder. Its normal Finder-based layout step is skipped in CI, however, unless `TAURI_BUNDLER_DMG_IGNORE_CI=true` is set; this release is built on GitHub Actions, which explains why relying on Tauri’s defaults does not produce the intended layout in the published DMG. The `.VolumeIcon.icns` name and appearance identify the extra item as the disk image’s custom volume icon resource. Finder normally hides dot-prefixed files, which is why it is absent in the first screenshot and visible in the second. Cameron decided to keep this resource, so it remains part of the volume presentation.
+
+**User outcome required:** A compact Finder window should place the MSC 2 app and Applications shortcut with a clear arrow between them, making the expected drag-and-drop install obvious. Cameron decided to keep the custom mounted-volume icon even though `.VolumeIcon.icns` is visible when Finder is set to show hidden files; removing the icon is not part of this finding. Tauri’s documented layout controls have been confirmed; implementation can focus on the DMG window dimensions, item positions, and a background image that shows the drag direction.
+
+**Implementation work (2026-10-21):** Added a 640 × 360 DMG layout in `clients/desktop-web/src-tauri/tauri.conf.json`, positioned MSC 2 and Applications on opposite sides, and added a restrained background instruction with a right-pointing arrow. The macOS release build now sets `TAURI_BUNDLER_DMG_IGNORE_CI=true` so Tauri applies its Finder-based background, window, and icon layout on the GitHub Actions runners. The custom volume icon remains untouched. Tauri documents the DMG layout fields in its [configuration reference](https://v2.tauri.app/reference/config/#dmgconfig) and [DMG guide](https://v2.tauri.app/distribute/dmg/); the CI override follows the Tauri bundler maintainers’ documented resolution in [issue #740](https://github.com/tauri-apps/tauri-action/issues/740).
+
+**P16.95 — Polish the macOS DMG install window**
+
+- **Status:** DONE — implementation recorded; awaiting owner verification on the next macOS release.
+- **Files:** `clients/desktop-web/src-tauri/tauri.conf.json`; `clients/desktop-web/src-tauri/dmg-background.png`; `.github/workflows/release.yml`; `docs/msc2/rolling-plan.md`.
+- **What:** Set a compact 640 × 360 Finder window, place MSC 2 and Applications around a clear drag instruction and arrow, and enable the Tauri DMG layout step on CI. Keep the custom volume icon.
+- **Verify:** Open Downloads in Finder with `open "$HOME/Downloads"`, then open the next x86_64 DMG; confirm the window is compact, the app and Applications icons flank the arrow, and `.VolumeIcon.icns` remains hidden unless Finder is set to show hidden files.
+- **Batch:** P16.95 only.
+
+### Finding 3 — First-time setup leaves too much empty space and underspecifies the steps
+
+**What Cameron experienced:** On the first page of First-time Setup, the “What You’ll Do” section puts three steps in a horizontal row: choosing a server platform, setting up the host, and reviewing access. The row ends well above the bottom of the sheet, leaving a large unused area. Cameron suggests stacking the three steps vertically and adding useful explanation so the page uses that area to help new users understand what they will choose, without merely stretching the layout or creating a different empty area.
+
+**Investigation and design:** `SetupIntro.svelte` rendered this as a three-column ordered list. The later pages show what each step entails: selecting Java and/or Bedrock, choosing a servers folder and (for Java) selecting or installing a Java runtime, then reviewing optional playit.gg and Xbox Broadcast setup. The list can stay numbered while stacking its entries vertically and describing the choices shown on those pages:
+
+1. **Choose what to host** — Select Java, Bedrock, or both. Bedrock is available when the selected host can run it.
+2. **Set up your host** — Choose where server files live. For Java, select an installed runtime or install one; Bedrock uses MSC’s built-in runtime.
+3. **Review ways for players to join** — playit.gg can let friends join without port forwarding, and Xbox Broadcast helps console players find the server. Both are optional and can be configured later.
+
+Keep this as one simple numbered list with a clear title and readable secondary descriptions; do not wrap each row in another card. This fills the current blank area with information that prepares users for the next pages, while keeping optional network setup clearly optional. The screenshot establishes the layout problem; the descriptions follow the current setup-page behavior in `SetupIntro.svelte`.
+
+**Implementation work (2026-10-21):** The three summaries now stack vertically, with more specific descriptions of the actual server type, host, and optional connection choices. The existing numbered-list structure remains, without new cards or decorative accents. Spacing and text size give the entries room to read while using the previously empty part of the fixed-height sheet. Compact and narrow layouts use the same vertical order, with tighter spacing on narrow windows.
+
+**P16.96 — Explain the first-time setup steps vertically**
+
+- **Status:** DONE — implementation recorded; awaiting owner verification on the next macOS build.
+- **Files:** `clients/desktop-web/src/lib/help/SetupIntro.svelte`; `docs/msc2/rolling-plan.md`.
+- **What:** Replace the horizontal three-column setup preview with a single vertical numbered list and accurate descriptions of Java/Bedrock selection, server storage and runtime, and optional player access.
+- **Verify:** On a clean install of the next macOS build, run `open -a "MSC 2"`; on the first First-time Setup page, confirm the three steps read vertically, explain the upcoming choices, and fit comfortably above the footer without clipping.
+- **Batch:** P16.96 only.
+
+### Finding 4 — Optional Playit setup needs a clearer label and account-capacity warning
+
+**What Cameron experienced and wants:** On the playit.gg page in First-time Setup, the subtitle begins with “Optional,” but that word looks like ordinary subtitle text. Cameron wants “Optional” to stand out in orange on every optional page in this setup flow, including playit.gg and Xbox Broadcast, so users can recognize before proceeding that they may skip those services. He also reports a concrete failure from prior testing: when a Playit account already had one MSC agent, trying to create another MSC agent on that account did not work. This is why users need a warning before sign-in, rather than discovering the account limit through a failed setup. A user who already has a free account may have agents or tunnels using the account’s allowance and may need to make room. The page should explain that MSC reuses the Playit agent and tunnel for each server type across servers: Java servers share the Java public address, and Bedrock servers share the Bedrock public address. It should set that expectation before the user creates or reuses Playit resources.
+
+**Investigation:** `SetupIntro.svelte` marks both optional pages with “Optional” in the subtitle but applies no separate emphasis. Its Playit copy currently says free accounts include one agent and up to three tunnels, but does not warn existing users that an account already containing an MSC agent may reject another MSC agent. Cameron’s prior hands-on result confirms that this is a real setup failure. Current Playit docs confirm that the free tier supports Minecraft Java and Bedrock and that Premium raises the port allowance from four to sixteen and provides more agents; they do not state the exact free-agent count or confirm the app’s “three tunnels” wording. See [Playit’s current pricing page](https://playit.gg/pricing) and [Premium feature details](https://playit.gg/support/playit-premium/). Preserve Cameron’s observed failure as the basis for the warning, and do not present the current exact quota text as independently verified until checked against Playit’s account UI or current support documentation.
+
+The MSC setup code claims a Playit agent for a new account setup, or reuses the agent already saved for this host. It inventories and reuses named Java, Bedrock, and voice tunnels; the stable tunnel names are shared across servers rather than creating a separate tunnel for every server. That means servers of the same type use the same public tunnel address. MSC does not currently offer a choice of an arbitrary existing Playit agent or automatically delete Playit agents/tunnels to free account capacity. The warning must not imply that MSC will clean up the user’s account for them.
+
+**User outcome required:** Emphasize the “Optional” label in orange on every optional First-time Setup page, consistently and without recoloring the entire subtitle. Before directing the user to sign in, explain that Playit limits the number of agents and ports/tunnels on an account, that existing resources may use that allowance, and that they may need to review or remove unused resources in their Playit account before MSC setup can finish. Explain that MSC reuses one Java tunnel and one Bedrock tunnel across servers of each type, so those servers share the corresponding public address rather than receiving a unique Playit address per server. Verify quota wording against Playit’s then-current authoritative information before shipping exact numbers.
+
+**Voice direction and proposed copy:** Cameron wants this real first-person experience to appear in the app. It gives the guidance a human voice and shows that the person building MSC has encountered the same setup snag. Keep it direct and useful, without turning the page into marketing copy. Draft notice:
+
+> I ran into this while testing MSC: I couldn’t add another MSC agent to a Playit account that already had one. If you already use Playit, check your account for room before continuing; you may need to remove agents or tunnels you no longer use. MSC reuses one Java tunnel and one Bedrock tunnel across your servers, so all your Java servers share one Playit address, and all your Bedrock servers share another.
+
+Keep the first-person account tied to Cameron’s reported experience. Do not imply that MSC can inspect or clean up the user’s Playit account, and avoid fixed quota numbers until verified.
+
+**Implementation work (2026-10-21):** Both optional setup pages now render “Optional” as a separate orange label before the page description. The Playit page removes the unverified fixed quota claim, adds Cameron’s first-person report about the failed second-agent setup, tells users to review their free-account capacity and remove only unused resources if needed, and explains that Java servers share one Playit address while Bedrock servers share another.
+
+**P16.100 — Clarify optional Playit setup and account capacity**
+
+- **Status:** DONE — implementation recorded; awaiting owner verification on the next macOS build.
+- **Files:** `clients/desktop-web/src/lib/help/SetupIntro.svelte`; `docs/msc2/rolling-plan.md`.
+- **What:** Emphasize the optional label on both optional setup pages and replace fixed Playit quota text with the observed account-capacity warning and shared Java/Bedrock tunnel explanation.
+- **Verify:** On a clean install of the next macOS build, open First-time Setup and confirm “Optional” is orange on the playit.gg and Xbox Broadcast pages; confirm the Playit page describes the prior second-agent failure, advises reviewing account capacity without fixed quota numbers, explains shared Java and Bedrock addresses, and still allows the page to be skipped.
+- **Batch:** P16.100 only.
+
+### Finding 6 — The first tour card uses an em dash Cameron considers AI-like
+
+**What Cameron experienced:** On the initial **Welcome to MSC** tour card, the body reads: “Let’s get your first Minecraft server online. This tour takes about two minutes — we’ll do everything together.” Cameron called out the dash as AI slop and wants it removed from this first card. The punctuation makes a short, simple welcome line feel like generated marketing copy instead of MSC speaking plainly.
+
+**Investigation and copy proposal:** The sentence is the `welcome` entry in `content/guides/onboarding.json`. The dash is an em dash, not a hyphen. Replace it with ordinary sentence punctuation and make the guidance concrete. Suggested copy: “Let’s get your first Minecraft server online. This tour takes about two minutes. I’ll guide you through each step.” This keeps the time estimate and friendly first-person voice while removing the stylized pause.
+
+**User outcome required:** Remove the em dash from the body of the first tour card. Keep the welcome concise and natural; use a period between the time estimate and the guidance rather than another decorative dash.
+
+**Implementation work (2026-10-21):** Replaced the em dash in the welcome card with a period and changed the second clause to a direct first-person promise: “I'll guide you through each step.” The tour duration remains unchanged.
+
+**P16.103 — Rewrite the first tour card without an em dash**
+
+- **Status:** DONE — implementation recorded; awaiting owner verification on the next macOS build.
+- **Files:** `content/guides/onboarding.json`; `docs/msc2/rolling-plan.md`.
+- **What:** Remove the em dash from the first Welcome to MSC tour card and make the guidance concise and personal.
+- **Verify:** On the next macOS build, open the first tour card and confirm it reads, “Let's get your first Minecraft server online. This tour takes about two minutes. I'll guide you through each step.”
+- **Batch:** P16.103 only.
+
+### Finding 7 — Hidden-tour controls overlap MSC’s top-right controls
+
+**What Cameron experienced:** After hiding the tour tip, the **Show tip** and **Skip tour** buttons appear in the upper-right corner of the app. In the screenshot they sit on top of MSC’s own header controls, so the controls visually collide and are harder to distinguish. Cameron wants this area cleaned up so the tour actions remain available without covering MSC buttons.
+
+**Investigation:** `TourOverlay.svelte` renders the hidden-tour buttons in `.hidden-pills`, positioned `fixed` at `top: 16px; right: 16px`. The `TopBar.svelte` independently places MSC’s sidebar, console, help, preferences, and refresh buttons at the right edge of the same app window. The tour placement is therefore anchored to the viewport corner rather than to space reserved by the app shell, which causes the collision visible in Cameron’s screenshot.
+
+**User outcome required:** Keep **Show tip** and **Skip tour** reachable while the tour card is hidden, but place them in a deliberate region that does not cover the native title bar or MSC’s top-right controls. Check the layout at typical and narrower window widths so the tour controls do not collide with either the header actions or page content.
+
+**Implementation work (2026-10-21):** The hidden-tour actions now appear in the TopBar’s action layout beside MSC’s existing controls, so they take up real header space instead of floating over those controls. At widths of 600 pixels or less, the tour actions move to a separate row beneath the icon controls. The tour state publishes the two actions to the header only while its card is hidden and clears them when the tour advances or closes.
+
+**P16.104 — Keep hidden-tour actions out of the header controls**
+
+- **Status:** DONE — implementation recorded; awaiting owner visual verification on the next macOS build.
+- **Files:** `clients/desktop-web/src/lib/help/onboarding.ts`; `clients/desktop-web/src/lib/help/TourOverlay.svelte`; `clients/desktop-web/src/lib/components/shell/TopBar.svelte`; `docs/msc2/rolling-plan.md`.
+- **What:** Put **Show tip** and **Skip tour** in the TopBar’s normal layout, with a separate row at narrow widths, and clear those controls when the tour card returns or the tour closes.
+- **Verify:** On the next macOS build, hide a tour card at the normal window width and at 600 pixels or less; confirm both actions remain reachable, sit within the header layout, and never cover MSC’s icon controls or page content. Use **Show tip** and **Skip tour** to confirm each action still works.
+- **Batch:** P16.104 only.
+
+### Finding 8 — Choosing Java can sit on “Detecting installed Java runtimes” for too long
+
+**What Cameron experienced:** While creating a Java server, the **Choose Java for this server** dialog can remain on “Detecting installed Java runtimes…” for a noticeable time. Cameron described it as the app taking a long time to discover which Minecraft version he is using and wants the wait shortened so server setup does not stall on this step. The screenshot already shows that the selected Minecraft version requires Java 25, while the runtime list is still loading, so the user is left waiting after that key information is known.
+
+**Investigation:** `AddServerWizard.svelte` first resolves the Minecraft release and required Java major, then waits for the `/v1/java-runtimes` response before it can show the runtime choices. That route scans the machine’s Java locations and probes every discovered Java executable by running `java -version`. Those probes ran one after another, and each has a timeout of up to ten seconds. This source tracing localizes the wait to Java runtime detection after the Minecraft version requirement is known. I did not measure timings on Cameron’s Mac, so I cannot say whether filesystem scanning also adds noticeable time or identify a specific slow Java executable from the screenshot.
+
+**User outcome required:** Reduce the time the Java picker blocks on runtime detection while preserving the correct compatibility check for the selected Minecraft version. A focused investigation should measure the stages separately (version lookup, filesystem scan, Java probes); then avoid making the whole picker wait on slow probes, for example by reusing valid recent probe results or checking candidates with a bounded amount of parallel work. Keep slow or failed runtimes from holding up usable choices unnecessarily, and show an honest state if the results are still being completed.
+
+**Implementation work (2026-10-21):** The `/v1/java-runtimes` route was checking discovered Java executables one at a time, and each `java -version` probe can wait up to ten seconds. The route now checks up to four runtimes concurrently and restores the original discovery order before responding. This keeps the same real version probes and compatibility results while preventing the delay from every installed runtime from accumulating in sequence. A single slow runtime can still take up to ten seconds; the next macOS build needs owner verification to confirm the picker feels faster on the test machine.
+
+**P16.105 — Check installed Java runtimes concurrently**
+
+- **Status:** DONE — implementation recorded; awaiting owner verification on the next macOS build.
+- **Files:** `crates/msc-agent/src/routes/versions.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Probe up to four installed Java runtimes at once instead of waiting for each ten-second `java -version` timeout in sequence. Preserve each runtime's existing verification and the endpoint's stable response order.
+- **Verify:** On the next macOS build, open **Add Server**, choose a Java server, and select Java for that server. Confirm the detected runtime list appears sooner when multiple Java runtimes are installed, and that the listed Java versions and compatibility choices remain correct.
+- **Batch:** P16.105 only.
+
+### Finding 11 — Put “Change Version” in the server card’s action menu
+
+**What Cameron experienced and wants:** On the Components page, the Paper server card has a standalone **Change Version** button at its far right. Cameron wants the whole server card to use the same interaction as the installed plugin rows: clicking the card selects it, shows the blue perimeter highlight, and opens an anchored action menu. That menu should contain **Change Version**, so the action appears in the context of the selected server card instead of sitting by itself beside the card.
+
+**Investigation and design direction:** In `ComponentsSection.svelte`, the Java server card currently renders a passive row plus a separate **Change Version** button; the Bedrock runtime card uses the same standalone-button arrangement. Installed add-on rows already implement the requested pattern: clicking the row records which item is selected, applies the blue outline, and opens the shared anchored `Menu`. The version picker itself is already a separate `VersionPickerSheet`, so the menu item can open the existing picker without changing version-selection behavior. Preserve the current rule that version changes are unavailable while the server is running. The server card can follow the add-on row’s selected outline and menu placement, with keyboard activation opening the menu at a sensible position relative to the card.
+
+**User outcome required:** Make the Java server card select and highlight on activation, then show an anchored action menu containing **Change Version**. Keep the existing version picker and running-server restriction. Apply the same interaction to the Bedrock runtime card for consistency, unless a platform-specific reason makes that behavior inappropriate.
+
+**Implementation work (2026-10-21):** The Java, modded-loader, and Bedrock server cards now open the shared anchored action menu when activated. The selected card gets the same restrained blue perimeter used by the add-on rows, and **Change Version** opens the existing picker. The action remains disabled while the server is running. Keyboard activation places the menu below the focused card; mouse activation anchors it at the click.
+
+**P16.106 — Move server version changes into the card menu**
+
+- **Status:** DONE — implementation recorded; awaiting owner visual and keyboard verification on the next macOS build.
+- **Files:** `clients/desktop-web/src/lib/sections/components/ComponentsSection.svelte`; `docs/msc2/rolling-plan.md`.
+- **What:** Make Java/loader and Bedrock server cards selectable, show the blue perimeter while their action menu is open, and move **Change Version** into that menu. Reuse the current picker and keep version changes unavailable while the server runs.
+- **Verify:** On the next macOS build, open **Components** for a Java server and for a Bedrock server. Click each server card and confirm it highlights and opens a menu with **Change Version**; choose it and confirm the existing picker opens. Repeat by focusing the card and pressing Enter or Space. Start a server and confirm **Change Version** is disabled in the menu.
+- **Batch:** P16.106 only.
+
+### Finding 12 — Show “chunks” beside Simulation Distance on Java and Bedrock
+
+**What Cameron experienced and wants:** In the Paper Settings screen, **View Distance** shows its unit, “chunks,” while **Simulation Distance** is only a number. The missing unit leaves users to infer what the value measures and makes two related distance settings look inconsistent. Cameron wants the “chunks” unit shown for Simulation Distance anywhere MSC exposes that setting, across all server types.
+
+**Investigation:** The Java Settings response exposes `simulation-distance`; the Bedrock Settings response exposes the equivalent `tick-distance`, both labeled **Simulation Distance**. Both currently omit their unit in the setting-field DTO, while View Distance includes `chunks`. The archived P14.97 step removed the suffix from both Java and Bedrock fields, so this new owner direction reverses that earlier presentation choice for both server types. Preserve the existing numeric limits and values; this is a unit-label change.
+
+**User outcome required:** Show **chunks** beside Simulation Distance for Java (`simulation-distance`) and Bedrock (`tick-distance`), matching the existing View Distance unit treatment. Apply it consistently wherever these server settings are rendered.
+
+**Implementation work (2026-10-21):** Added the existing `chunks` unit to the Java `simulation-distance` and Bedrock `tick-distance` field descriptions. Their numeric values, bounds, and setting behavior are unchanged. The Settings screen already displays a field’s unit when supplied, so no separate UI change was needed.
+
+**P16.107 — Show chunks for Simulation Distance**
+
+- **Status:** DONE — implementation recorded; awaiting owner verification on the next macOS build.
+- **Files:** `crates/msc-agent/src/routes/settings.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Add the `chunks` unit to Java Simulation Distance and Bedrock Simulation Distance while preserving the numeric settings and limits.
+- **Verify:** On the next macOS build, open Settings for Java and Bedrock servers and confirm both Simulation Distance fields show **chunks**, matching View Distance.
+- **Batch:** P16.107 only.
+
+### Finding 13 — Add thumbnail and map actions to the Overview’s Active World card
+
+**What Cameron wants:** On Overview, clicking the Active World thumbnail should select the thumbnail area with the same blue perimeter used for selected cards elsewhere in MSC, then open a small action menu with **Change Thumbnail** and **View Map**. Choosing **Change Thumbnail** should take the user to the Worlds tab and open the same image-selection flow as **Set Thumbnail** on the world card. Choosing **View Map** should take the user to the Worlds tab and start the existing map-view flow for that world. This gives users a direct route from the Overview card while keeping the actual world actions in the Worlds area.
+
+**Investigation:** `ActiveWorldCard.svelte` currently renders the thumbnail as a non-interactive `div`; the card has only **Switch** and **Backup** actions. `WorldSlotCard.svelte` already provides the thumbnail flow: **Set Thumbnail** opens the native image picker for PNG, JPG/JPEG, GIF, or WebP, then uses the existing staged upload and per-slot thumbnail endpoint. `WorldsSection.svelte` owns the world selection state, action menus, and map viewer. Its map viewer is opened for the active slot, and the existing **View Map** button is available when that slot is selected. The Overview and Worlds sections are separate route sections, so the action needs to pass the active slot and requested action across navigation, then have Worlds select that slot before starting the corresponding existing flow. For changing the thumbnail, reuse the existing picker/upload sequence rather than creating a second upload implementation; for viewing the map, reuse `WorldMapViewer` rather than opening a separate map instance.
+
+**User outcome required:** Make the Active World thumbnail a clear, keyboard-accessible action target. Activating it should show the blue selected perimeter and an anchored menu with **Change Thumbnail** and **View Map**. Choosing either action should navigate to Worlds and target the active world. **Change Thumbnail** should open the same native file picker and upload flow as that world card’s **Set Thumbnail** action. **View Map** should select the active slot and open its existing map viewer. Preserve the existing map behavior and thumbnail upload safeguards.
+
+**Implementation work (2026-10-21):** Made the Overview thumbnail a keyboard-accessible button with the blue selection perimeter while its action menu is open. The menu offers **Change Thumbnail** and **View Map**. A small navigation request carries the host, server, and active world across the lazy-loaded tab switch; Worlds selects that same active slot, then starts the existing native thumbnail picker/upload path or opens the existing map viewer. The thumbnail flow still uses the per-world staged upload and cleanup safeguards.
+
+**P16.108 — Add Active World thumbnail actions**
+
+- **Status:** DONE — implementation recorded; awaiting owner verification on the next macOS build.
+- **Files:** `clients/desktop-web/src/lib/sections/home/ActiveWorldCard.svelte`; `clients/desktop-web/src/lib/sections/home/HomeSection.svelte`; `clients/desktop-web/src/lib/sections/worlds/WorldSlotCard.svelte`; `clients/desktop-web/src/lib/sections/worlds/WorldsSection.svelte`; `clients/desktop-web/src/lib/sections/worlds/world-navigation.ts`; `docs/msc2/rolling-plan.md`.
+- **What:** Add an accessible action menu to the Overview Active World thumbnail and route its thumbnail and map actions to the matching active world in Worlds, reusing the existing workflows.
+- **Verify:** On the next macOS build, open Overview for Java and Bedrock servers. Activate the Active World thumbnail by mouse and keyboard; confirm its blue perimeter and the **Change Thumbnail** / **View Map** menu. Choose **Change Thumbnail** and confirm Worlds selects that world and opens the existing image picker; cancel the picker. Return to Overview, choose **View Map**, and confirm Worlds opens that world’s existing map viewer.
+- **Batch:** P16.108 only.
+
+### Finding 14 — Select the active world automatically when opening Worlds
+
+**What Cameron experienced and wants:** When he opens the **Worlds** tab, the active world card should already be selected. That way the related **Datapacks** section and **Backups** panel are immediately showing the active world’s information, without requiring an extra click on the card first. This should happen for every server type, including Java and Bedrock.
+
+**Investigation:** `WorldsSection.svelte` initializes `selectedSlotId` as undefined. Loading the world list fills `worlds.activeSlotId` but does not copy that value into the selection state. The selected slot drives the per-world details below the cards: the datapack or Bedrock pack section and the selected world’s backups. A fresh visit can therefore show the active badge while those sections remain empty until the user clicks a card. Refreshes and server changes also need to distinguish a new server’s active slot from a user’s deliberate selection of another existing slot. Recommendation: select the active slot when data first loads or the active world changes; preserve a deliberate selection through ordinary refreshes while that slot still exists. Clicking an already-selected card should leave it selected so the details do not silently disappear.
+
+**User outcome required:** On entering Worlds, select the active slot by default so its card has the selected outline and its backups and datapacks/world packs appear immediately. Apply this consistently to Java and Bedrock servers. On a server change or active-world change, select that server’s current active slot; if the selected slot disappears during refresh, fall back to the active slot. Preserve a user’s deliberate selection of another existing slot through routine refreshes. If a server has no active slot, keep the initial no-selection empty state. Clicking a selected card should keep it selected.
+
+**Implementation work (2026-10-21):** World data now initializes the selected slot from `activeSlotId` when it loads for a host/server, and selection is reset while switching scope so another server’s selection cannot linger. Refreshes select the active slot when the active world changes or the current selection disappears, while preserving an existing deliberate selection otherwise. Clicking a selected card no longer clears it. These rules apply to Java and Bedrock and keep each slot’s backups and datapacks/world packs in view.
+
+**P16.109 — Select the active world in Worlds**
+
+- **Status:** DONE — implementation recorded; awaiting owner verification on the next macOS build.
+- **Files:** `clients/desktop-web/src/lib/sections/worlds/WorldsSection.svelte`; `docs/msc2/rolling-plan.md`.
+- **What:** Select the active world on load and scope changes, follow active-world changes or removal of the selected slot, preserve another deliberate selection during ordinary refreshes, and keep a selected card selected when clicked again.
+- **Verify:** On the next macOS build, open Worlds for Java and Bedrock servers. Confirm the active card is selected and its Datapacks/World Packs and Backups are shown. Switch servers and confirm the newly selected server’s active world is selected. Select another slot, wait through a normal world refresh, and confirm that slot remains selected; then activate a different slot and confirm the new active world is selected. Click the selected card again and confirm its details stay visible. If available, open a server with no active world and confirm it begins with no selection.
+- **Batch:** P16.109 only.
+
+### Finding 16 — Java default game mode changes do not switch players who are already online
+
+**What Cameron experienced:** On his Paper server, Cameron changed the game mode from Survival to Creative using MSC's sidebar and the active world's settings. The control showed the new choice, but his player did not switch modes while playing. He later stopped the server, started it again, and rejoined; only then did he see the new mode. He is not sure whether the restart was necessary, but the change did not feel immediate. Bedrock behaves the way he expects: changing the active world's game mode also switches everyone currently online, after the Bedrock-specific achievements warning when applicable. Cameron wants Java servers to switch all online players at once too, without an achievements warning. He also wants to understand what **Enforce Gamemode** does and whether it is needed to make that live change work on Paper.
+
+**Investigation (2026-10-21):** The sidebar saves `gameplay.default-game-mode` to the active world's profile; the World Settings flow uses the same profile path. On a running Java server, the agent calls `apply_active_java_world_gameplay()`. That path sends `defaultgamemode <mode>` but does **not** send `gamemode <mode> @a`. Bedrock's corresponding path deliberately sends both commands; P12.215 added the second command to switch players already online. [Minecraft's Java 26.3 notes](https://feedback.minecraft.net/hc/en-us/articles/48913133328013-Minecraft-Java-Edition-26-3) distinguish the world default set by `defaultgamemode` from a player's current mode set by `gamemode`. Therefore Java supports an immediate change for online players; MSC simply has not wired it to this world-wide control. The Paper server inspected during this finding has `gamemode=creative` and `force-gamemode=true` saved in `server.properties`, consistent with the result seen after rejoining, but this does not prove the restart itself was required to change the world default.
+
+**Enforce Gamemode explained:** [Paper's server.properties reference](https://docs.papermc.io/paper/reference/server-properties/) says `force-gamemode` makes players join in the default mode and resets their previous mode when they reconnect. It is a server-wide join policy, separate from immediately changing the mode of players who are online. MSC currently treats toggling it as restart-required. It should remain a separate choice: turning it on may be useful when a server owner wants returning players' personal modes replaced at every join, but it should not be a prerequisite for the requested live switch.
+
+**User outcome required:** When the active Java world's default game mode changes from either the sidebar or World Settings while a Java server is running, save the world default and issue the appropriate `gamemode <mode> @a` command so all currently connected players switch immediately, matching the intended Bedrock experience. Keep **Enforce Gamemode** separate as the policy for future joins/rejoins; changing it need not itself switch current players. Report success only after the live command is accepted, and show a clear pending or failed state if it cannot be sent. Do not show Bedrock's achievement-loss notice for Java. Check this on Paper and other supported Java flavors, with multiple players online and with Enforce Gamemode both on and off; ensure the selected world default survives restart and applies as intended to later joiners.
+
+**P16.98 — Record the Java live game mode finding**
+
+- **Status:** DONE — implementation recorded; live-player fix remains open.
+- **Files:** `docs/msc2/rolling-plan.md`.
+- **What:** Record the observed Java delay, the difference between world default and online player mode, and Enforce Gamemode's separate join-time purpose.
+- **Verify:** On a running Paper server with two players online, change the active world's game mode in MSC; both players should switch immediately without restarting or reconnecting, and the world default should persist for future joins. Repeat with Enforce Gamemode on and off.
+- **Batch:** P16.98 only.
+
+**Implementation work (2026-10-22):** When the active Java world's game mode is changed while the server is running, MSC now sends `defaultgamemode` to retain the world default and then `gamemode <mode> @a` to switch players already online. The second command is sent only for a deliberate game mode change, not when gameplay settings are restored at startup, so starting a server does not override returning players' modes when Enforce Gamemode is off. The profile response reports the live change only if both commands are accepted by the server process; otherwise it reports that the saved choice could not be fully applied live, with the command error. Enforce Gamemode remains a separate join policy.
+
+**P16.110 — Apply Java game mode changes to online players**
+
+- **Status:** DONE — implementation recorded; awaiting owner verification on a running Java server.
+- **Files:** `crates/msc-agent/src/routes/lifecycle.rs`; `crates/msc-agent/src/routes/worlds.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Send the live all-player Java game mode command after updating the world default, only when the active world's mode is explicitly changed.
+- **Verify:** On a running Paper server with two players online, change the active world's game mode in MSC; both players should switch immediately without restarting or reconnecting. Repeat with Enforce Gamemode on and off, then restart and check that the world default persists. The same flow should work on another supported Java flavor.
+- **Batch:** P16.110 only.
+
+### Finding 17 — Messages beneath the console cannot be dismissed
+
+**What Cameron experienced:** After an attempted console action failed, MSC showed red text beneath the console input saying “server is not running.” That message stayed visible while Cameron continued using the app. In the screenshot, the Paper server now appears to be running and the console has startup output, yet the old red message is still pinned under the input. It looks like a current server problem even though it describes an earlier attempt. Cameron wants every transient message shown in that under-console position to disappear when he clicks it, so he can clear outdated notices without sending another command or closing the console.
+
+**Investigation:** `ConsoleDock.svelte` stores command and relative-time failures in `sendError` and renders that string as a red paragraph below the input. It clears `sendError` only when another command or relative-time action begins. The message has no click or keyboard dismissal handler, and **Clear console** clears log lines but does not clear this separate error. The dock stays mounted while the selected host changes, so a prior error can remain visible after the server state or selected host changes. The screenshot is consistent with this persistence; it does not prove why the original command was rejected.
+
+**User outcome required:** Let the user dismiss any transient message rendered beneath the docked console by activating the message itself with a mouse or keyboard. Use a semantic, accessible control styled to retain the current low-profile text treatment; clearing it should not remove actual console history. Ensure stale command errors do not carry into a different host's console or continue to imply a current failure after a successful later action. Check command failures and relative-time failures, including the case where the server state changes after the error appears.
+
+**Implementation work (2026-10-22):** The under-console error is now a text-styled button inside a status region. Clicking it, or focusing it and pressing Enter or Space, clears the notice without clearing console lines. Changing hosts clears the notice and resets the dock's pending send generation. Command and relative-time requests now ignore late results from an older action or host, so an old failure cannot reappear after a later success. A new successful action also clears the previous notice.
+
+**P16.111 — Dismiss transient console notices**
+
+- **Status:** DONE — implementation recorded; awaiting owner verification in the next desktop build.
+- **Files:** `clients/desktop-web/src/lib/components/ApplicationShell.svelte`; `clients/desktop-web/src/lib/components/shell/ConsoleDock.svelte`; `docs/msc2/rolling-plan.md`.
+- **What:** Make the error beneath the console input accessible and dismissible, and prevent stale async errors from carrying across actions or hosts.
+- **Verify:** In the next desktop build, cause a command or relative-time action to fail, then click its red notice to dismiss it; repeat with keyboard focus and Enter or Space. Confirm console history remains. Cause another failure, then complete a later action or switch hosts, and confirm the old notice does not return.
+- **Batch:** P16.111 only.
+
+### Finding 18 — Java Creative console warning is misleading and blocks the command
+
+**What Cameron experienced:** After entering a Java `/gamemode` command for Creative on his Paper server, the dock showed a long red message beneath the input: “Java Creative mode changes the world's advancement and command semantics. Java does not have Bedrock's permanent Xbox-achievement consequence.” Cameron questions whether this is true and wants to click the message to dismiss it. Presented as an error with no visible Continue or Confirm action, it does not tell him whether his command ran, what changed for his player, or what he should do next. The same message position is affected by Finding 17's persistent, non-dismissible notice behavior.
+
+**Investigation:** The text comes from `JavaCreative` in `world_safety.rs`. The command route requires an acknowledgement token before dispatching Creative-changing Java commands and otherwise returns a `confirmation_required` response. `ConsoleDock.svelte` catches that response as a generic error and prints its message as `sendError`; it has no confirmation flow to resubmit the command with the token. For a two-token `gamemode creative` command, the safety classifier chooses the *world-scoped* `JavaCreative` warning; an explicitly targeted `gamemode creative <player>` gets a different player-scoped confirmation but is still unconfirmable in this dock. Thus the warning can stop the command from being sent at all.
+
+The warning also overstates the consequence. [Minecraft's Java 26.3 notes](https://feedback.minecraft.net/hc/en-us/articles/48913133328013-Minecraft-Java-Edition-26-3) distinguish `gamemode` for a player's current mode from `defaultgamemode` for the world default. A Java player switching to Creative does not itself change the world's command permissions or permanently disable Java advancements. Particular gameplay actions may behave differently in Creative, but the current “world's advancement and command semantics” statement is not a sound description of this command. The comparison with Bedrock's permanent Xbox-achievement consequence is directionally correct, but irrelevant as a red failure message after an ordinary Java player-mode command.
+
+**User outcome required:** Correct or remove the broad Java Creative warning so the copy accurately describes the specific action and does not imply a permanent advancement or command-permission change. Decide whether a Java player-mode command merits confirmation at all; if a confirmation remains, the dock must present an actionable confirmation and send the command after acknowledgement, rather than strand it as red error text. Distinguish player-targeted `gamemode` from world-default `defaultgamemode`, including commands entered without an explicit target from the server console. Give clear success or failure feedback. Any resulting under-console message must be click- and keyboard-dismissible as in Finding 17. Keep Bedrock's separate achievement warning where its permanent world consequence actually applies.
+
+**P16.99 — Record console message and Creative warning findings**
+
+- **Status:** DONE — implementation recorded; dismissal behavior remains open.
+- **Files:** `docs/msc2/rolling-plan.md`.
+- **What:** Record the persistent under-console error, Cameron's click-to-dismiss expectation, and the misleading Java Creative confirmation that the dock cannot complete.
+- **Verify:** Trigger a command error in the docked console, click the message beneath the input, and confirm it disappears without clearing console log lines. Repeat with keyboard activation, a relative-time error, and a server or host state change. On Java, check that `gamemode creative <player>` either runs directly or offers a working, accurate confirmation rather than only red text.
+- **Batch:** P16.99 only.
+
+**Implementation work (2026-10-22):** Java `gamemode creative <player>` and `gamemode creative @a` are now treated as player-mode commands and sent without an achievement or world-change warning. A Java `gamemode creative` command entered in the server console without a player is rejected with a specific explanation and an example; `defaultgamemode creative` remains the world-default command. The Java world-default confirmation now says only that Creative becomes the default and does not permanently disable Java advancements. The dock displays an actionable confirmation for commands that still require one, then sends the command with the agent's acknowledgement token and the originally selected server ID so a later server switch cannot redirect it. It reports that a command was *sent* rather than claiming Minecraft executed it, and shows failures separately; both messages can be dismissed with a click or keyboard activation. Bedrock's achievement confirmation remains in place. One focused assertion was added to the existing safety-classifier test because the prior regression trapped player-mode commands behind a world confirmation; it has no timing or environment dependency and should take under a millisecond. Cameron has not authorized running it.
+
+**P16.112 — Correct Java Creative console commands and confirmation**
+
+- **Status:** DONE — implementation recorded; awaiting owner verification on a running Java server.
+- **Files:** `crates/msc-application/src/world_safety.rs`; `crates/msc-agent/src/routes/commands.rs`; `clients/desktop-web/src/lib/components/ApplicationShell.svelte`; `clients/desktop-web/src/lib/components/shell/ConsoleDock.svelte`; `docs/msc2/rolling-plan.md`.
+- **What:** Let targeted Java player-mode commands run directly, reject a missing player clearly, correct the world-default warning, and make required dock confirmations actionable with dismissible send feedback.
+- **Verify:** On a running Paper server, enter `gamemode creative <online-player>` in the dock and confirm the player switches without a warning. Enter `gamemode creative` and confirm MSC explains that a player is required. Enter `defaultgamemode creative`, use **Send command** in the confirmation, and confirm the command is sent; cancel a second attempt and confirm it is not sent. Click or keyboard-dismiss the resulting notice. Repeat the Creative command on a Bedrock server and confirm its achievement warning still appears.
+- **Batch:** P16.112 only.
+
+### Finding 19 — Xbox Broadcast actions should match the Components menu pattern
+
+**What Cameron experienced and wants:** On a server’s Components tab, MCXboxBroadcast has an always-visible Download button while plugins and the server JAR open an action menu when their row is clicked. The Java row also has a toggle beside the broadcast name. Cameron wants to click the broadcast row, see the same blue selection outline as other component rows, and use its menu to download the JAR or enable or disable Xbox Broadcast. The action should read **Disable** when that server has broadcast enabled and **Enable** when it is disabled. Cameron withdrew a later suggestion to replace the row’s Installed status with Enabled or Disabled or to hide the row when the JAR is absent; retain its existing status display and visibility.
+
+**Investigation:** The old Java toggle called `/v1/broadcast/autostart`, which controls automatic start at the agent level. It did not change whether the selected server uses Xbox Broadcast. The server setting is `xboxBroadcastEnabled` and is changed through `/v1/servers/xbox-broadcast`; the separate agent-wide automatic-start setting remains in Broadcast settings. The JAR download endpoint already stores the helper in the shared agent cache, so moving its action into a menu does not change download or launch behavior.
+
+**Implementation work (2026-10-22):** Both Java and Bedrock broadcast rows now open a Components-style action menu and receive the blue perimeter while selected. The menu contains a per-server Enable or Disable action and the existing shared-JAR download action. The Java row keeps Installed or Missing, and the Bedrock row keeps its Running or Stopped indicator. The obsolete agent-wide toggle and its extra status request were removed from this tab.
+
+### Finding 20 — Handbook topic list stops halfway down the page
+
+**What Cameron experienced and wants:** In the Server Handbook, the topic list on the left stops around the middle of the available page even while the article on the right continues below it. Cameron likes being able to scroll the topics and wants the list to reach down through the usable Handbook area. The scroll indicator should stay hidden.
+
+**Investigation:** `HandbookBrowser.svelte` capped the topic list at `26rem`, regardless of window height or the article’s space. The desktop shell already hides scrollbars globally, so no scrollbar styling is needed. The Handbook can fill the available content panel and let its topic list and article scroll within that panel; the narrow single-column layout still needs its compact topic list and ordinary page scrolling.
+
+**Implementation work (2026-10-22):** The Handbook panel now fills the available tab height. The fixed desktop list cap is gone; its list grows to the bottom of the panel and remains scrollable. The article scrolls alongside it, while the narrow layout keeps its short list and page flow. No scroll indicator was added.
+
+**P16.113 — Align broadcast component actions and extend Handbook navigation**
+
+- **Status:** DONE — implementation recorded; awaiting owner verification in the next desktop build.
+- **Files:** `clients/desktop-web/src/lib/sections/components/ComponentsSection.svelte`; `clients/desktop-web/src/lib/sections/handbook/HandbookBrowser.svelte`; `clients/desktop-web/src/lib/sections/handbook/HelpSection.svelte`; `docs/msc2/rolling-plan.md`.
+- **What:** Move Xbox Broadcast download and per-server enable/disable into the selected-row menu while preserving the row’s status text, and make the Handbook topic list use the full available panel height without showing a scrollbar.
+- **Verify:** In the next desktop build, select a Java server and a Bedrock server in turn. Open Components, click MCXboxBroadcast, and confirm the blue outline and Download plus Enable or Disable menu actions; confirm the row’s Installed/Missing or Running/Stopped status remains. Toggle broadcast, reopen the menu, and confirm the opposite action appears. Open Handbook, scroll the left topics to the last entry, and confirm the list reaches the panel bottom without a visible scrollbar; confirm the article still scrolls and a narrow window remains usable.
+- **Batch:** P16.113 only.
+
+### Finding 21 — The Handbook needs a useful starting point and app-specific first-server guides
+
+**What Cameron experienced and wants:** After installing MSC 2 and completing First-time Setup, a user can open the Handbook and face a long list of topics with no reminder that it is a reference they can return to later. Cameron wants a short MSC-themed message at the top explaining that they do not have to read everything now. He also wants the three Getting Started guides saved at the top of the contents by default, with the option to remove those favorites or save other topics without moving any topic out of its usual category. The existing first-server pages describe broad Minecraft server setup, but they do not walk someone through MSC 2's actual screens after a skipped or forgotten tour. A reader should be able to follow the Java, modded Java, or Bedrock creation path, open related Handbook topics in place, and use a Back button beside the page title to return to the guide.
+
+**Investigation:** The Handbook catalog and article prose come from the Rust agent. `HandbookBrowser.svelte` rendered that catalog as a grouped list and displayed Markdown through a deliberately limited HTML renderer. The three Getting Started files in `content/help/handbook/` used generic steps. The current Add Server flow exposes Configure, Network, World, optional Add-ons, and Confirm; the Java path offers a runtime chooser, while Bedrock has no Java runtime or Add-ons step. Local browser storage can hold a user's favorites without changing the shared agent catalog. Handbook-only `help:` links can be recognized and routed through the existing topic selection function, leaving normal web links under the renderer's existing URL safety rules.
+
+**Implementation work (2026-10-22):** Added the quiet opening message and a Favorites section above the original topic groups. The three first-server guides are favorites on first use; saving and removing topics updates local favorites while their original entries stay in place. Rewrote the standard Java, modded Java, and Bedrock guides around the MSC 2 creator, optional services, first start, and later management. Related-topic links now open inside the Handbook without reloading the desktop app. A history-based Back button sits to the right of each article title, and opening another article returns its reader to the top.
+
+### Finding 22 — The Handbook contents moved above the article
+
+**What Cameron experienced and wants:** While reviewing the Handbook in his macOS app, Cameron found that the table of contents had become a full-width block above the article. Its search field and topics occupied the top of the Handbook, and the article began beneath them. This differs from the intended view, where the scrollable contents stay in a left column beside the article. He wants that side-by-side layout restored while keeping the taller contents list from Finding 20 and without adding a visible scroll indicator.
+
+**Investigation:** The Handbook's narrow-screen rule changed its two-column layout into a single column at a 720 CSS-pixel viewport width. The app's available content area can be narrower than the full macOS window because the main sidebar also occupies width. That responsive rule is consistent with the screenshot's stacked search and article. The in-progress banner and favorites need one explicit columns container so both stay aligned beneath the banner. The contents and article also need to be allowed to shrink within that container instead of forcing a wrap.
+
+**Implementation work (2026-10-22):** The Handbook now uses an explicit full-width side-by-side container with a stable left contents column and a flexible article column. The single-column fallback starts only at a genuinely narrow 560 CSS-pixel viewport. Both columns retain independent scrolling at desktop widths, and the existing hidden-scrollbar behavior is unchanged. Cameron's installed build has not yet been updated with this correction.
+
+**P16.114 — Make the Handbook a usable in-app reference**
+
+- **Status:** DONE — implementation recorded; awaiting owner verification in the next desktop build.
+- **Files:** `clients/desktop-web/src/lib/help/markdown.ts`; `clients/desktop-web/src/lib/sections/handbook/HandbookBrowser.svelte`; `clients/desktop-web/src/lib/sections/handbook/HelpSection.svelte`; `content/help/handbook/first-server.md`; `content/help/handbook/first-modded-server.md`; `content/help/handbook/first-bedrock-server.md`; `docs/msc2/rolling-plan.md`.
+- **What:** Add the opening message, persistent favorites, in-app related-topic links and Back navigation; rewrite the three first-server guides around MSC 2; restore the contents column beside the article at Cameron's desktop window size.
+- **Verify:** In the next desktop build, open Handbook at Cameron's usual window size and confirm the contents list is on the left of the article, scrolls to its end, and shows no scroll indicator. Confirm the opening message and three default favorites; save and remove a topic and reopen Handbook to check persistence while the topic remains in its original category. Open each first-server guide, follow a related-topic link, then use Back to return without an app reload. Narrow the window enough to check the compact layout remains usable.
+- **Batch:** P16.114 only.
+
+### Finding 23 — Favorites controls crowd every Handbook title
+
+**What Cameron experienced and wants:** With Favorites added to the Handbook, every entry in the left table of contents has a visible Save or Remove button. The same action repeats beside each title, taking space from topic names and making the contents list feel busy. Cameron wants the list to show just the titles. On a Mac, right-clicking or two-finger clicking a title should open the relevant Save or Remove action for that topic.
+
+**Investigation:** `HandbookBrowser.svelte` rendered a second button in each favorite and category row. Both buttons called the same existing favorites toggle, which already saves the choice locally; changing how the action is opened does not require a new storage path. MSC 2 already has a compact, viewport-clamped `Menu` component for row actions. The browser's `contextmenu` event covers a mouse right-click and a trackpad secondary click, and the title button can also expose the action to keyboard users with Shift+F10 or the Menu key.
+
+**Implementation work (2026-10-22):** Removed the repeated visible Save and Remove controls. A secondary click on any title opens a single action menu, labeled **Save to Favorites** or **Remove from Favorites** according to its current state. The same menu opens from the keyboard, with focus moved to its action. Normal clicking still opens the article, and topics stay in their original category after being saved.
+
+**P16.115 — Put Handbook favorite actions in a title context menu**
+
+- **Status:** DONE — implementation recorded; awaiting owner verification in the next desktop build.
+- **Files:** `clients/desktop-web/src/lib/sections/handbook/HandbookBrowser.svelte`; `docs/msc2/rolling-plan.md`.
+- **What:** Remove repeated Save and Remove buttons and use the existing action menu on a Handbook title's secondary click or keyboard context-menu shortcut.
+- **Verify:** In the next desktop build, open Handbook and confirm titles have no adjacent Save or Remove buttons. Right-click or two-finger click an unsaved topic, choose **Save to Favorites**, and confirm it appears at the top while remaining in its category. Secondary-click it again, choose **Remove from Favorites**, and confirm it remains in the category. Repeat the menu with Shift+F10 while a title has keyboard focus.
+- **Batch:** P16.115 only.
+
+### Finding 24 — Router Guide entries repeat their names
+
+**What Cameron experienced and wants:** In Router Guide's picker, each router row shows a main name and a second line with the brand or provider. For example, the list shows **ASUS Router** with **ASUS Router** again beneath it, and **Linksys / Velop** repeats the same words on both lines. Even when the wording differs slightly, such as **AT&T Gateway** followed by **AT&T**, the category and main name already give the reader enough context. Cameron wants each router listed once so the inventory is easier to scan.
+
+**Investigation:** `RouterGuidePanel.svelte` renders `guide.displayName` on the first line, then chooses `providerDisplayName`, `deviceDisplayName`, or category for a second line. Some catalog records put the same product name in both fields; others put a provider name already present in the main label. The router guides are already grouped by device category, and search still uses the catalog data, so the secondary display line is unnecessary in the picker. The generic **I don't know my router** card has a distinct explanatory line and is not affected.
+
+**Implementation work (2026-10-22):** Removed the secondary line from the shared router-row renderer, which covers browse entries and search results. Each row now shows its guide name once with its navigation chevron. The underlying catalog, search behavior, and guide content are unchanged.
+
+**P16.116 — Show each router guide name once**
+
+- **Status:** DONE — implementation recorded; awaiting owner verification in the next desktop build.
+- **Files:** `clients/desktop-web/src/lib/sections/handbook/RouterGuidePanel.svelte`; `docs/msc2/rolling-plan.md`.
+- **What:** Remove the redundant provider or device subtitle from Router Guide picker rows while keeping the distinct generic-guide explanation.
+- **Verify:** In the next desktop build, open Router Guide and confirm entries such as ASUS Router and Linksys / Velop show one name each. Search for a router and confirm result rows also show one name and still open the correct guide.
+- **Batch:** P16.116 only.
+
+### Finding 25 — Port forwarding advice does not lead to the Router Guide
+
+**What Cameron experienced and wants:** While reading **Port Forwarding & DuckDNS** in the Handbook, Cameron sees an explanation of ports and why router settings matter, but there is no direct way from that page to the guided router instructions. He wants a short statement near the top telling readers that help configuring their router is available, with a link they can click to open MSC 2's Router Guide. The reader should stay in the app instead of having to find the separate Guide switcher themselves.
+
+**Investigation:** The article text lives in `content/help/handbook/port-forwarding-duckdns.md` and is served by the agent. The desktop Handbook renders that text with a limited Markdown renderer; it already recognizes in-app links to other Handbook topics, but not the Router Guide view. `HelpSection.svelte` already switches between Handbook and Router Guide without a reload. A dedicated internal link can reuse that view switch while keeping the article's guidance in the agent-owned content file.
+
+**Implementation work (2026-10-22):** Added a brief question and **Open the Router Guide** link at the start of the port forwarding article. The Markdown renderer recognizes this exact internal destination, and the Handbook passes its click to the existing Router Guide view. The link opens the router picker in the same desktop screen; ordinary web links and other Handbook topic links keep their existing behavior.
+
+**P16.117 — Link port forwarding advice to Router Guide**
+
+- **Status:** DONE — implementation recorded; awaiting owner verification in the next desktop and agent build.
+- **Files:** `content/help/handbook/port-forwarding-duckdns.md`; `clients/desktop-web/src/lib/help/markdown.ts`; `clients/desktop-web/src/lib/sections/handbook/HandbookBrowser.svelte`; `clients/desktop-web/src/lib/sections/handbook/HelpSection.svelte`; `docs/msc2/rolling-plan.md`.
+- **What:** Put a Router Guide link near the top of the Port Forwarding & DuckDNS article and route it to MSC 2's existing Router Guide picker without reloading the app.
+- **Verify:** In a build with the updated desktop and agent content, open Handbook → Port Forwarding & DuckDNS. Click **Open the Router Guide** near the top and confirm Router Guide opens in the same window at its router picker. Switch back to Handbook and confirm the article is still available.
+- **Batch:** P16.117 only.
+
+### Completed substep from open Finding 5
+
+**P16.102 — Reuse the agent's selected Xbox Broadcast JAR**
+
+- **Status:** DONE — implementation recorded; awaiting owner verification on the next macOS build. Finding 5 remains open for shared sign-in and Components behavior.
+- **Files:** `crates/msc-infrastructure/src/xbox_broadcast.rs`; `crates/msc-application/src/xbox_broadcast.rs`; `crates/msc-application/tests/xbox_broadcast.rs`; `crates/msc-agent/src/routes/networking.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Reuse a verified setup download across server starts, recognize an existing valid cache, report one current JAR, and prevent an explicit update from replacing a JAR while any broadcaster uses it.
+- **Verify:** Run `open -a "MSC 2"` on the next macOS build; download Xbox Broadcast in First-time Setup, create an enabled server, disconnect the network, and start its broadcaster. It should use the installed JAR without another download. Reconnect, stop all broadcasters, explicitly download from Components, and confirm the reported version is the same from each enabled server. An update attempted while a broadcaster is running should explain why it cannot proceed.
+- **Batch:** P16.102 only.
+
+
+## Phase 22 — Restored full-screen terminal client
+
+**Owner acceptance:** Cameron confirmed the TUI is in the desired state on
+2026-10-30. P22.1–P22.70 implementation records are preserved below for
+history and troubleshooting. Acceptance of the current TUI does not claim
+Windows/Linux physical verification or close unrelated open release and
+owner-testing work.
+
+## Phase 22 — Restored full-screen terminal client
+
+**Owner direction (2026-10-26):** Restore the redesigned TUI as a functional
+client on macOS, Windows, and Linux. Begin with Manage Agents. Build it one
+screen or bounded behavior at a time; there is no separate plan stage. Record
+each completed slice as the next P22 step in this section during the same
+conversation. Do not prewrite steps for later screens. The one-shot CLI remains
+scriptable, and the TUI runs on the agent host in a local or SSH terminal.
+
+**Starting point:** Cameron reviewed an interactive HTML design preview for
+the terminal shell, server views, create-server flow, and Manage Agents. That
+preview uses sample host data and is not production TUI code. Phase 22 turns
+approved slices into a real Rust terminal client against the existing agent
+API and local service controls. The first production slice is the Agents page.
+
+**Phase-specific loop:** Cameron names the next screen or behavior. The agent
+implements only that slice, adds its P22 record with Status, Files, What,
+Verify, Batch, and Commit, makes one commit, and stops for Cameron's manual
+verification. When Cameron asks for phase review, a different agent checks the
+result. No up-front Plan/Read move, test run, or release gate is implied.
+
+### P22.1 — Record the restored TUI direction and phase workflow
+
+- **Status:** Documentation recorded; owner verification pending.
+- **Files:** `docs/msc2/msc2-decisions.md`; `docs/msc2/MSC2-VISION.md`; `docs/msc2/msc2-product.md`; `docs/msc2/msc2-engineering.md`; `docs/msc2/msc2-port-plan.md`; `docs/msc2/rolling-plan.md`; `AGENTS.md`; `CLAUDE.md`.
+- **What:** Add owner-approved D-043 to supersede the retired TUI decision, align the controlled vision set with the restored host-local client, and establish Phase 22's one-slice-at-a-time record without a plan stage. Preserve the existing one-shot CLI, local authorization boundary, and browser retirement.
+- **Verify:** Run `rg -n 'D-043|Phase 22|P22\.1' docs/msc2/{msc2-decisions.md,MSC2-VISION.md,msc2-product.md,msc2-engineering.md,msc2-port-plan.md,rolling-plan.md} AGENTS.md CLAUDE.md` and confirm the restored TUI and no-plan-stage workflow are described consistently. No test command is part of this step.
+- **Batch:** P22.1 only.
+- **Commit:** `P22.1: record restored tui direction`
+
+### P22.2 — Open the functional Manage Agents terminal screen
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/Cargo.toml`; `Cargo.lock`; `crates/msc-agent/src/cli/mod.rs`; `crates/msc-agent/src/cli/service.rs`; `crates/msc-agent/src/cli/tui.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Add `msc tui` with a full-screen, keyboard-controlled Manage Agents page. Read the installed service and boot state through the existing platform service adapter; read configured servers through the same host-local authorized API as the one-shot CLI. Arrow keys choose an action, Enter executes it, letter keys choose an action, and Esc/q exits. Service start/stop and boot enable/disable reuse the existing platform behavior; stopping asks for confirmation. Show API unavailability honestly and keep the page usable when the service is stopped. Restore the terminal on exit. This first slice does not yet include server navigation.
+- **Verify:** Run `cargo run -p msc-agent -- tui` in an interactive terminal. Confirm the service, boot, connection, and server information reflects this host; use Up/Down and Enter on Refresh; press Esc and confirm the shell returns normally. Service-changing actions are available for deliberate manual checking. No test command is part of this step.
+- **Batch:** P22.2 only.
+- **Commit:** `P22.2: add functional agents tui page`
+
+### P22.3 — Match the Manage Agents terminal layout to the approved preview
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Replace the simplified single-column Agents screen with the preview's two-line banner, current-host sidebar, two-column Current Agent and Actions panels, and lower On This Agent and Another Computer panels. Keep real service, boot, connection, and server data. Show the actual server names and software without inventing a running state or version. Use this agent, Manage servers, sidebar Start/Manage, Help, and Settings are visible but report that their destination is not connected; no server action is performed. Service controls and refresh remain functional. The full layout needs at least a 100-by-24 terminal and tells the user when the window is smaller.
+- **Verify:** Run `cargo run -p msc-agent -- tui` in a terminal at least 100 columns by 24 rows. Compare the banner, sidebar, four bordered sections, and five action rows with the approved preview. Confirm the host/server values are real, select Use this agent or Manage servers and press Enter to see the unavailable message, then use Refresh and Esc. No test command is part of this step.
+- **Batch:** P22.3 only.
+- **Commit:** `P22.3: complete agents tui layout`
+
+### P22.4 — Manage the local agent's server selection
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Open a Manage Servers dialog from the Agents action or `m`, using the authenticated local `/v1/servers` list. Show the real active server from `/v1/status`, its known running state, and its name in the sidebar. Arrow keys move through the list without mouse scrolling; the visible window follows the selection. Enter selects that server through the same `/v1/active-server` route as `msc server use`, then refreshes the page. Esc closes the dialog. An empty agent gets an honest empty state; Transfer (`t`) and Create (`c`) remain visible but report that they are not connected yet. Do not invent a state for non-active servers.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, press `m`, and confirm the dialog reflects this host's actual server list or its empty state. Use Esc to close it; press `t` or `c` to confirm no operation occurs. If servers are configured, use Up/Down and Enter to select one, then check that the sidebar names it and `cargo run -p msc-agent -- server list` marks it active. No test command is part of this step.
+- **Batch:** P22.4 only.
+- **Commit:** `P22.4: add manage servers tui dialog`
+
+### P22.5 — Complete the keyboard-driven create-server flow
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui.rs`; `crates/msc-agent/src/cli/tui/create.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Connect Manage Servers' `c` action to a terminal wizard for fresh Java and Bedrock servers, modpack archives, and imports from local folders or ZIP files. Match the renderer's first page with two large side-by-side choices (“Import or Create from Modpack” and “Start Fresh”); the first opens a keyboard-driven import-versus-modpack choice. Keep the outer step counter and breadcrumb aligned with the renderer. Make Configure an inner sequence matching the renderer: server type, name, standard/modded category, software, source/version, and cross-play; Bedrock has its edition-specific version/player and broadcast pages. Show a visible loading message while Minecraft versions and Java runtimes are fetched, across Java software flavors and Bedrock version lookup, and show lookup failures in the wizard. On the Java source page, Left/Right chooses the source; Enter activates “Choose version…,” then Left/Right cycles Minecraft versions and Enter continues. Finish Java Configure with a Java selection step that lists every detected runtime, marks incompatible ones “Needs newer Java,” and requires an explicitly selected compatible runtime. Its `i` action opens an install step with Java 25/21/17/8 choices; Enter installs through the agent operation route, waits for completion, refreshes detection, and selects the newly installed compatible runtime. Split Network into the renderer's two keyboard-driven pages: select Port Forwarding or Tunnel (playit.gg), then edit the applicable ports. Wrap both connection-card descriptions to fit fully in the terminal cards. Show Java TCP plus Bedrock/Geyser UDP when Java cross-play is enabled, or Bedrock UDP for Bedrock servers, using local-port labels for tunnels. Keep every page usable with arrow keys, Space, `e`, and Enter, with all page fields visible in a 100-by-24 terminal. Read current Minecraft and Java runtime options from the agent, use the capability route to show and submit only world settings supported by the chosen edition/version, and poll durable operations. Allow recovery by checking an already-submitted operation again after a temporary status error, preventing a repeated create request. After creation, apply a selected first-world backup or local world pack/add-on and report follow-up failures without inviting a duplicate server. Keep Modrinth catalog browsing out of this terminal flow as requested; local files remain available. Imported servers expose port forwarding and explain that a tunnel can be enabled after import, because the import route does not apply tunnel settings. New Java server EULA acceptance remains in Settings after creation, matching the existing app flow.
+- **Verify:** Run `cargo run -p msc-agent -- tui` in a terminal at least 100 columns by 24 rows. Open Manage Servers with `m`, press `c`, and confirm the first page shows two side-by-side cards matching the renderer. Choose Start Fresh and walk Configure's Java inner pages, checking the edition/name/category/software/source/cross-play layouts against the preview; on Source, select “Choose version…” with Left/Right, press Enter to activate version selection, cycle with Left/Right, and press Enter to continue. Confirm a loading message appears during option lookup, Java runtimes populate for supported Java software choices, and Bedrock versions populate for Bedrock. On Java selection, confirm detected runtimes and compatibility labels; select a compatible runtime, or open Install Java with `i`, choose a Java version, press Enter to install, and confirm MSC selects it after the operation completes. Also check Bedrock's edition-specific pages. On Network, verify Page 1/2 contains the full, uncut connection-card descriptions and Page 2/2 shows the right editable port fields: Java TCP, plus Bedrock/Geyser UDP when cross-play is on; Bedrock UDP for a Bedrock server. Confirm Tunnel changes those labels to local ports, Enter advances, and Esc returns to the prior wizard page. Choose “Import or Create from Modpack,” then use the arrow keys and Enter to choose Import existing or Modpack archive. Walk Fresh Java, Fresh Bedrock, Modpack archive, and Import existing through their confirmation pages. Confirm the selected server type/version, runtime, world capability context, import scan values, and keyboard-only navigation are visible. Then create controlled Java and Bedrock servers, import a test server folder or ZIP, and create from a test modpack archive; verify the new entries and report any post-create world/add-on warning. No test command is part of this step.
+- **Batch:** P22.5 only.
+- **Commit:** `P22.5: complete create server tui flow`
+
+### P22.6 — Match the create-server World and Add-ons pages
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui/create.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Split the first-world setup into the renderer's seven keyboard pages: world source, essentials, world generation basics, advanced generation, gameplay rules, rule text, and local datapacks/behavior packs. Keep the World step in the six-step breadcrumb while its page counter advances independently. New-world options use the agent's edition/version capabilities, Bedrock rules include cheats, coordinates, experiments, and starting map, and world packs are checked and installed after creation. The Java Gameplay Rules page exposes Add Rule and Edit as Text actions. Match the Add-ons page with a local `.jar` path and explain that Modrinth browsing is omitted. Preserve arrow-key field/choice controls, Enter to continue, and Esc to go back; no scrolling is introduced. Local pack and plugin paths can be typed and submitted; a file chooser and adding multiple plugin files are not connected. The imported-backup route remains a shorter source/path path.
+- **Verify:** Run `cargo run -p msc-agent -- tui` in a terminal at least 100 columns by 24 rows. Open Manage Servers, start the Create flow, choose Start Fresh, then walk the World pages and Add-ons page. Confirm the World breadcrumb remains step 4, the inner counter reaches 7/7 for a new world, Java and Bedrock show their applicable settings, left/right changes choices, `e` edits text, `a` adds a Java rule, Enter advances, and Esc returns to the previous inner page. Confirm the datapack/behavior-pack path and local plugin `.jar` path appear on their own pages and Modrinth browsing is identified as omitted. No test command is part of this step.
+- **Batch:** P22.6 only.
+- **Commit:** `P22.6: align create wizard world pages`
+
+### P22.7 — Let the rules editor continue to Datapacks
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui/create.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Fix the World page 6/7 action so Enter clearly opens the game-rule editor, Enter saves the rule list, and the next Enter continues to Datapacks instead of reopening the editor. Change the heading, field label, and footer while editing or after saving so each state is visible. Pressing `e` after saving reopens the editor.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, navigate to World page 6/7, and press Enter. Confirm the heading and footer indicate rule editing; type a `rule=value` pair and press Enter to save. Confirm the saved state says Enter continues to Datapacks, then press Enter and verify page 7/7 appears. Press `e` to reopen editing and Esc to cancel. No test command is part of this step.
+- **Batch:** P22.7 only.
+- **Commit:** `P22.7: fix rules editor navigation`
+
+### P22.8 — Add Skip actions to optional create pages
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui/create.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Give World page 6/7, World page 7/7, and Add-ons a selectable Skip row. Up/Down moves between the edit/path row and Skip; Enter on Skip advances without opening an editor. Skipping the rule editor leaves any rules already chosen on the preceding gameplay page. Skipping a datapack/behavior pack or plugin clears a previously entered path so that file is not installed. Update the footer to describe the keyboard action.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, navigate to World page 6/7, press Down and Enter, and confirm page 7/7 opens without editing rules. On page 7/7, press Down and Enter to reach Add-ons. On Add-ons, press Down and Enter to reach Confirm. Go back and enter a pack path, choose Skip, then return to page 7/7 and confirm the path is empty. Enter a plugin path, choose Skip, and confirm the Confirm page says “Local add-on: None.” No test command is part of this step.
+- **Batch:** P22.8 only.
+- **Commit:** `P22.8: add skip actions to optional create pages`
+
+### P22.9 — Let the first version lookup finish
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/transport.rs`; `crates/msc-agent/src/cli/tui/create.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Give the create wizard's Minecraft version lookup a 30-second response window so a cold provider request can finish on the first attempt. Keep ordinary CLI requests at their existing timeout and preserve the explicit timeout environment override.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, start a fresh Java Paper server, and advance from Configure page 4/7 to the Source page 5/7. Confirm the versions load on the first visit and Choose version can cycle through them without returning to page 4/7. No test command is part of this step.
+- **Batch:** P22.9 only.
+- **Commit:** `P22.9: allow cold version lookup to finish`
+
+### P22.10 — Add the seven server workspace tabs
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Open the server workspace from Use this agent or a selected server. Add the seven approved tabs—Overview, Players, Worlds, Performance, Components, Settings, and Files—with 1–7 keyboard navigation, Agents and Manage navigation, and a real server summary on Overview. The remaining tab bodies and server controls identify their sections but are not connected yet.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, press Enter on Use this agent, and confirm all seven tab names are visible. Press 1–7 and confirm the active tab and heading change. Check that Overview shows the selected server's software, local port, running state, and notes. Press `a` to return to Agents, then `m` to open Manage Servers and select a server; confirm the workspace opens on Overview. No test command is part of this step.
+- **Batch:** P22.10 only.
+- **Commit:** `P22.10: add seven server workspace tabs`
+
+### P22.11 — Match the Overview tab layout
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Arrange Overview like the approved renderer: Status with Connection Info and Live Stats cards, Activity with Players, Active World, and Chat cards, Notes, and a separate Console bar. Show a distinct empty state when no server is selected. Read available player count, active world, and performance values from the agent; show unavailable values honestly. Keep Chat and Console controls marked as upcoming work.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, open Overview with the created server, and compare its card layout to the renderer. Confirm the server name, software, local port, running state, notes, and any available live values reflect this host. Open the workspace without an active server and confirm its empty state. Resize the terminal below 40 rows and confirm Overview stays readable. No test command is part of this step.
+- **Batch:** P22.11 only.
+- **Commit:** `P22.11: match overview tab layout`
+
+### P22.12 — Show live players in the Players tab
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Match the approved Players tab's sparse layout with an online count and roster. Read live names from the agent's players endpoint and saved profiles from its profiles endpoint. Show the preview's empty state when both are empty; identify known players separately when profiles exist because the API does not provide a session-by-session history. Keep the no-server and unavailable states honest.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, select a server, and press `2`. Confirm the online count and player names match the agent's current roster; when no one is connected, confirm the empty message. If saved player profiles exist, confirm they appear under Known Players. Press `a`, return to a workspace without an active server, and confirm the no-server message. No test command is part of this step.
+- **Batch:** P22.12 only.
+- **Commit:** `P22.12: show live players in tui`
+
+### P22.13 — Manage worlds and backups in the Worlds tab
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui.rs`; `crates/msc-agent/src/cli/tui/worlds.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Show the selected server's saved world slots and active world, plus backups for that world. Enter opens world actions for rename, duplicate, and confirmed delete; Convert World and World Settings are visible placeholders for later pages. Use Tab to move to backups, Enter to restore or delete with confirmation, `b` to back up now, and `r` to toggle recurring backups. Show operation progress from the agent.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, select a server, and press `3`. Confirm the world slot list and active label match MSC 2. Select a world with Enter and inspect all five actions; confirm Convert World and World Settings say their pages are coming later. Press Tab to see backups, use `b` for a manual backup, and confirm it appears after the operation finishes. Inspect the restore and delete confirmation prompts without accepting them. Check `r` changes the recurring backup state. No test command is part of this step.
+- **Batch:** P22.13 only.
+- **Commit:** `P22.13: add worlds and backups workspace`
+
+### P22.14 — Show live performance in the Performance tab
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui.rs`; `crates/msc-agent/src/cli/tui/worlds.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Match the renderer's sparse Performance tab with live TPS, CPU, memory, and online-player values from the selected server's performance endpoint. Show an em dash for unavailable metrics and a clear no-server state. Remove the View Map shortcut from Worlds because a terminal map is not part of the current world screen.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, select a server, and press `4`. Confirm the four metric rows match available live values, and stopped or unavailable metrics show an em dash. Open the workspace without a server and confirm the no-server message. Press `3` and confirm Worlds no longer offers View Map. No test command is part of this step.
+- **Batch:** P22.14 only.
+- **Commit:** `P22.14: show live performance in tui`
+
+### P22.15 — Add live terminal graphs to Performance
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui.rs`; `crates/msc-agent/src/cli/tui/performance.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Keep the four numeric performance readings and add scrolling TPS and CPU history plus a terminal-character memory ring. Record bounded samples only while the TUI is open, reset history when the selected server changes, and show missing values honestly. Use the existing five-second agent snapshot refresh; no new agent metrics or history storage are introduced.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, select a server, and press `4`. Confirm TPS and CPU graphs gain one sample about every five seconds and the memory ring percentage agrees with the used/limit numbers. Stop the server and confirm unavailable metrics show gaps or dashes. Select another server and confirm the graphs start fresh. Reopen the TUI and confirm history starts fresh. No test command is part of this step.
+- **Batch:** P22.15 only.
+- **Commit:** `P22.15: add live terminal performance graphs`
+
+### P22.16 — Graph memory history instead of a ring
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui/performance.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Replace the memory circle with a third scrolling graph that spans the Performance content width. Plot the agent's recent used-memory samples against its reported limit, or against the highest observed value when no limit is available; label that relative scale explicitly. Preserve the numeric memory reading and keep the graph visible in a 100-by-24 terminal.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, select a server, and press `4`. Confirm TPS, CPU, and Memory each have a full-width history graph, the memory circle is gone, and the memory graph gains samples as the agent refreshes. Resize to 100 columns by 24 rows and confirm all three graphs remain above the Console line. No test command is part of this step.
+- **Batch:** P22.16 only.
+- **Commit:** `P22.16: graph memory history in tui`
+
+### P22.17 — Manage server components in the TUI
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui.rs`; `crates/msc-agent/src/cli/tui/components.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Show the selected server's software, applicable mods or plugins, and Xbox Broadcast in the Components tab. Read the agent's local inventories and shared broadcast JAR status. Enter opens contextual actions: select and change a supported server version while stopped; enable, disable, update, or confirm uninstall for an add-on; update Geyser/Floodgate through their managed helper route; and toggle Broadcast or download its JAR. Show agent errors when an add-on has no update source or a version change is unsupported, and follow durable operations to completion.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, select a Java server, and press `5`. Confirm the software and installed plugins or mods match MSC 2, then press Enter on each category to inspect its actions. For a stopped server, inspect the software version list; use Esc without changing it. Toggle a suitable test add-on off and on and confirm its state refreshes. Inspect Uninstall's confirmation and cancel with Esc. Confirm Xbox Broadcast shows whether its shared JAR is installed and offers the matching download/update action. Switch to a Bedrock server and confirm only applicable categories appear. No test command is part of this step.
+- **Batch:** P22.17 only.
+- **Commit:** `P22.17: manage components in tui`
+
+### P22.18 — Fill the Performance view with responsive charts
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui/performance.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Divide the space below the live readings and above Console evenly among TPS, CPU, and memory history. Draw multi-row terminal plots with scale labels when the terminal is tall, and collapse each to a one-line graph at the 100-by-24 minimum. Clear graph history when the server stops and show an explicit stopped message instead of rows of missing-sample dots.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, select a running server, and press `4`. At a tall terminal size, confirm three evenly spaced panels fill the Performance area and gain points on refresh. Resize to 100 columns by 24 rows and confirm all three compact plots remain above Console. Stop the server and confirm the graphs are replaced by a stopped message. No test command is part of this step.
+- **Batch:** P22.18 only.
+- **Commit:** `P22.18: fill performance view with responsive charts`
+
+### P22.19 — Edit server settings in the TUI
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/mod.rs`; `crates/msc-agent/src/cli/tui.rs`; `crates/msc-agent/src/cli/tui/settings.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Populate Settings from the selected server's agent-provided schema so Java and Bedrock show their own sections and fields. Support boolean, choice, number, and text edits with local bounds checks, report save and restart results, and honor the API's world-safety confirmation token.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, select a Java server, press `6`, and confirm the Runtime, Server, and Network sections and their current values. Toggle a safe setting and check it updates; edit a number and cancel with Esc. Switch to a Bedrock server and confirm its own sections and choices appear. No test command is part of this step.
+- **Batch:** P22.19 only.
+- **Commit:** `P22.19: edit server settings in tui`
+
+### P22.20 — Browse and edit server files in the TUI
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/transport.rs`; `crates/msc-agent/src/cli/tui.rs`; `crates/msc-agent/src/cli/tui/files.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Populate Files from the active server's authorized file-browse route, navigate folders with the keyboard, and launch local nano for previewable text files. Resolve each target and require it to remain inside the selected server directory before opening it; restore the full-screen terminal after nano exits. Show binary files as non-editable and report when nano cannot be launched.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, select a server, and press `7`. Confirm its folders and files appear; open a folder with Enter and return with Backspace. Open a safe text file such as `server.properties` with Enter, make a small edit in nano, save and exit, and confirm the TUI returns and the file contains the edit. Confirm a `.jar` is shown but does not open in nano. No test command is part of this step.
+- **Batch:** P22.20 only.
+- **Commit:** `P22.20: browse and edit server files in tui`
+
+### P22.21 — Edit world settings from the Worlds tab
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui.rs`; `crates/msc-agent/src/cli/tui/worlds.rs`; `crates/msc-agent/src/cli/tui/world_settings.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Replace the World Settings placeholder with a slot-local TUI editor. Load the selected world's saved profile and edition/version capabilities, show applicable Essentials, World Generation, and Gameplay Rules fields, stage keyboard edits, and save them through the world profile route. Report the agent's apply status and request its world-safety acknowledgement when required.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, select a server, press `3`, choose a world, then World Settings. Confirm its saved name, seed, difficulty, and game mode appear; move with Up/Down, change a safe value with Left/Right or Enter, and press `s` to save. Reopen the view to confirm readback. Check a Bedrock world to confirm Java-only fields are absent and Bedrock fields appear. Esc closes the view. No test command is part of this step.
+- **Batch:** P22.21 only.
+- **Commit:** `P22.21: edit world settings in tui`
+
+### P22.22 — Edit selected server configuration in the TUI
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui.rs`; `crates/msc-agent/src/cli/tui/server_editor.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Open a server editor after selecting a server from Manage Servers. General shows and edits display name, directory, RAM for Java, edition-appropriate local ports, and Java EULA acceptance; it also shows folder size. Services shows the selected server's Xbox Broadcast and Playit enablement for the upcoming service setup step. Java exposes executable and JVM flags using the existing host-wide Java configuration route and labels that scope explicitly. Bedrock omits Java-only controls. Validate numeric inputs and use the agent's existing routes for saves; keep the deeper service setup and initiation flow for later owner-requested steps.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, open Manage Servers with `m`, and select a Java server. Confirm the editor opens with General, Services, and Java tabs. Check name, directory, RAM, Java port, optional Geyser port, folder size, and EULA status; edit a safe field and confirm its value on reopen. Check that Services reports current Broadcast and Playit enablement and that Java labels its executable and flags as host-wide. Select a Bedrock server and confirm General omits RAM, Java port, and EULA, showing its Bedrock port instead, and that no Java tab appears. No test command is part of this step.
+- **Batch:** P22.22 only.
+- **Commit:** `P22.22: edit server configuration in tui`
+
+### P22.23 — Detect and install Java runtimes in the TUI
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui.rs`; `crates/msc-agent/src/cli/tui/server_editor.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Add Detected Java Runtimes and Install Java views to the selected Java server editor. Detect lists the host's runtimes and lets the owner select an executable through the existing host-wide Java configuration route. Install offers Java 25, 21, 17, and 8 through the agent's durable install operation, reports progress, and refreshes the editor after completion. These controls are absent for Bedrock servers.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, open Manage Servers with `m`, select a Java server, and press `3` for Java. Press `d` to inspect detected runtimes, use Up/Down and Enter to choose one, and reopen the editor to confirm the executable path. Press `i` to inspect the four install choices; Esc cancels. Optionally install a needed runtime and confirm progress and subsequent detection. Select a Bedrock server and confirm no Java tab appears. No test command is part of this step.
+- **Batch:** P22.23 only.
+- **Commit:** `P22.23: add java runtime views to tui`
+
+### P22.24 — Control services and Xbox Broadcast sign-in in the TUI
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-api/src/dto/networking.rs`; `crates/msc-agent/src/routes/networking.rs`; `crates/msc-agent/src/cli/tui.rs`; `crates/msc-agent/src/cli/tui/server_editor.rs`; `crates/msc-agent/tests/xbox_broadcast_routes.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Make Broadcast and Playit enablement selectable in the selected server's Services tab. Expose whether the host has saved Xbox Broadcast device sign-in. When it is missing, Setup enables and starts Broadcast and shows the agent's Microsoft link and device code; poll status and close the view after authentication. When sign-in is saved, Clear asks for explicit confirmation because it removes shared host credentials for all servers. Playit account setup remains the later dedicated Services slice.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, open Manage Servers with `m`, select a server, and press `2` for Services. Use Up/Down and Enter to toggle Broadcast and Playit, then reopen the editor to confirm each value. With Broadcast sign-in absent, select Setup and confirm the live Microsoft URL and code appear; complete sign-in and confirm the view closes automatically. Reopen Services to confirm Clear is offered. Confirm that choosing Clear requires `y` and that another key cancels. No test command is part of this step.
+- **Batch:** P22.24 only.
+- **Commit:** `P22.24: control services and broadcast sign-in in tui`
+
+### P22.25 — Stop Xbox Broadcast when TUI setup is cancelled
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui/server_editor.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Make Esc in the Xbox Broadcast device sign-in view stop the helper through the existing agent route, which also cancels an in-progress start. Restore the previous per-server enable setting when setup enabled Broadcast temporarily. Keep the sign-in view open if the stop request fails, and restore the previous setting when startup fails before sign-in. Label Esc as Stop setup.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, select a server in Manage Servers, and open Services with `2`. Start Xbox Broadcast setup while sign-in is absent, then press Esc in the device-code view. Confirm the view closes with a stopped message and `cargo run -p msc-agent -- broadcast status` reports it is not running. If Broadcast was disabled before setup, confirm it is disabled again on reopening Services. Repeat with Broadcast previously enabled and confirm the setting remains enabled but the helper is stopped. No test command is part of this step.
+- **Batch:** P22.25 only.
+- **Commit:** `P22.25: stop broadcast on tui setup cancellation`
+
+### P22.26 — Give TUI services their own control views
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui/server_editor.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Show Xbox Broadcast and Playit as two selectable entries in the server editor's Services tab. Enter opens a service detail view. Broadcast detail reads running status, supports Start/Stop, per-server enablement, host-wide autostart, Microsoft sign-in setup or clear, and shared helper JAR download/update. Playit detail reads running and account status and supports Start/Stop and per-server enablement. Use the agent's existing routes and operation status for live progress; Playit account setup remains its later dedicated step.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, open Manage Servers with `m`, select a server, and press `2`. Confirm the Services tab lists only Broadcast and Playit with live state. Enter each detail view and use Up/Down and Enter to control enabled state and Start/Stop; verify status changes after refresh (`r`) or the automatic refresh. In Broadcast detail, toggle host autostart, inspect Setup/Clear and the JAR version, and use Update while stopped. Esc returns to the two-service list. No test command is part of this step.
+- **Batch:** P22.26 only.
+- **Commit:** `P22.26: add service control views to tui`
+
+### P22.27 — Set up Playit from TUI Services
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui/server_editor.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Add a masked email/password form to Playit detail, submit native setup through the agent, show operation progress and cancellation, then show completion and public addresses. Let the owner review existing setup and confirm a host-wide local reset. The password is dropped from TUI state after the setup request is accepted.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, open Manage Servers with `m`, select a server, press `2`, open Playit, and select Set up Playit. Enter account details and confirm the progress view advances to completion and displays reported addresses. Repeat and press Esc during progress to request cancellation. Reopen Playit setup to inspect the completed state; press `r` and confirm or cancel the host-wide reset prompt. No test command is part of this step.
+- **Batch:** P22.27 only.
+- **Commit:** `P22.27: add playit setup to tui`
+
+### P22.28 — Initiate and control servers from the TUI
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui.rs`; `crates/msc-agent/src/cli/tui/initiate.rs`; `crates/msc-agent/src/cli/tui/server_editor.rs`; `crates/msc-agent/src/routes/lifecycle.rs`; `crates/msc-agent/src/routes/networking.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Connect `s` in the selected-server workspace to Start, Stop, or the one-time Initiate view. Initiate accepts the Java EULA, follows the agent's first start operation and stopped state, offers Playit and Xbox Broadcast setup through the existing Services controls, lets either connection be deferred, then starts pass two and waits for its operation and stopped state before showing completion. Bedrock skips the EULA. A deferred Playit choice updates the active first-start coordinator, as Broadcast already does. If a stale first-start request becomes an ordinary launch because a world already exists, the TUI stops it and reports the recovery condition instead of sending a second uncontrolled Start. The agent remains the timing authority for readiness, helper timeouts (75 seconds for Playit and 60 for Broadcast), and the 10-minute second-pass safety cap; the TUI polls its state once a second and adds no competing timeout.
+- **Verify:** Run `cargo run -p msc-agent -- tui`. Select a new Java server, press `s`, accept the EULA with Space, and press Enter. Confirm pass one creates files and stops before the connection choices appear. Set up or defer each enabled connection, press `c`, and confirm pass two starts, checks the connections, stops, and only then shows completion. Check a new Bedrock server omits the EULA. After initiation, press `s` to start and again to stop a server, and confirm the sidebar follows its state. No test command is part of this step.
+- **Batch:** P22.28 only.
+- **Commit:** `P22.28: add tui initiate and server controls`
+
+### P22.29 — Connect the server sidebar and hidden initiation controls
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui.rs`; `crates/msc-agent/src/cli/tui/initiate.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Replace the Agents page's “Start soon” label with the selected server's Initiate, Start, or Stop action and bind `s` to it on both the Agents and server pages. Keep agent service start/stop on its own selectable action. Esc hides an unfinished initiation without dropping its in-session progress; the sidebar then offers `i` to resume and `d` to discard. Discard stops a running server before calling the agent's first-start discard route, which keeps generated world data. Continue polling a hidden flow only while its server is selected.
+- **Verify:** Run `cargo run -p msc-agent -- tui`. On Agents, select a fresh server and confirm the sidebar says Initiate; press `s` and confirm the EULA screen opens. Press Esc, confirm Resume and Discard appear on the sidebar, then press `i` and confirm the same initiation screen returns. Hide it again and press `d`; confirm the actions disappear and the existing world remains. For a server that has finished initiation, confirm the sidebar says Start when stopped and Stop when running, and `s` performs each action. No test command is part of this step.
+- **Batch:** P22.29 only.
+- **Commit:** `P22.29: connect server sidebar and hidden initiation`
+
+### P22.30 — Keep initiation attached during a transient agent status loss
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui.rs`; `crates/msc-agent/src/cli/tui/initiate.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Read the agent API even when the service manager briefly reports the service stopped. Keep the last selected server visible across a failed API read, mark the connection as reconnecting, and refuse ordinary server actions until the API responds. Let the initiation poll continue while its server remains selected, and open Playit or Xbox Broadcast setup from the initiation's own server record instead of a transiently empty screen snapshot. Host inspection during the reported failure found the launchd agent process still running and the server selected in saved configuration; the TUI had lost its read, not the server data.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, initiate a new server with Playit or Xbox Broadcast enabled, and press Enter on the enabled connection after pass one. Confirm its setup view opens. If the agent connection briefly drops, confirm the selected server name remains visible with a reconnecting state and the setup view remains reachable after reconnection. No test command is part of this step.
+- **Batch:** P22.30 only.
+- **Commit:** `P22.30: retain initiation context across agent status loss`
+
+### P22.31 — Reuse local CLI credentials during Playit setup
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/transport.rs`; `crates/msc-agent/src/cli/tui/server_editor.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Cache the OS-authorized local CLI credential in process memory for four minutes, below the agent's five-minute lifetime, instead of issuing a new credential for every TUI poll and API read. On an unauthorized response after an agent restart, renew once and retry the request. Show Playit submission errors inside the setup form so they are not hidden behind the sheet. This addresses the observed 128-live-credential cap that prevented the Playit request from being sent; no account password is cached by the transport.
+- **Verify:** After existing temporary credentials expire, run `cargo run -p msc-agent -- tui`, open Playit setup for an enabled server, enter the account details, and submit. Confirm the form advances to setup progress or shows a specific error inside the sheet instead of appearing stuck with the CLI credential-limit message in the background. Leave the TUI open for several minutes and confirm its agent connection remains usable. No test command is part of this step.
+- **Batch:** P22.31 only.
+- **Commit:** `P22.31: reuse cli credentials for tui polling`
+
+### P22.32 — Make the Xbox Broadcast sign-in URL clickable
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui.rs`; `crates/msc-agent/src/cli/tui/server_editor.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Render the fixed Microsoft device sign-in URL in the Broadcast setup sheet as an underlined OSC 8 terminal hyperlink. Supporting terminals can open it with their normal link click, including when the TUI runs over SSH; the visible URL remains available where hyperlinks are unsupported. Only the expected Microsoft URL receives terminal hyperlink control sequences, so a helper-provided string cannot inject terminal controls.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, open Xbox Broadcast sign-in, and click the underlined Microsoft URL using the terminal's link-click gesture. Confirm the Microsoft device sign-in page opens in the browser and the device code remains visible in the TUI. In a terminal without link support, confirm the URL is still readable. No test command is part of this step.
+- **Batch:** P22.32 only.
+- **Commit:** `P22.32: link xbox broadcast sign-in in tui`
+
+### P22.33 — Correct the Playit service heading
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui/server_editor.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Label the Playit service detail view “PLAYIT.GG” so its heading uses the service's proper name.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, open Manage Server → Services → Playit.gg, and confirm the heading reads “PLAYIT.GG”. No test command is part of this step.
+- **Batch:** P22.33 only.
+- **Commit:** `P22.33: correct playit service heading`
+
+### P22.34 — Finish initiation after connection setup
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui/initiate.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Match the renderer's automatic second pass once every enabled connection is configured or deferred. Refresh the completion sheet's connectivity data and show the available public address and Xbox Broadcast gamertag alongside the existing local and Playit addresses; omit rows for disabled or unavailable services.
+- **Verify:** Run `cargo run -p msc-agent -- tui` and initiate a server with Playit and Xbox Broadcast enabled. After both setup flows complete, confirm the second pass begins without an extra Continue key, stops, and displays the applicable local, public, Playit, and Broadcast details. Also verify servers with a service disabled omit that service's row. No test command is part of this step.
+- **Batch:** P22.34 only.
+- **Commit:** `P22.34: finish initiate connection summary`
+
+### P22.35 — Stop the second initiate pass when connections are ready
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui/initiate.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Start the configured Playit helper for pass two, then have the TUI check the server's ready status and enabled helper addresses/authentication. Request a server stop once the required connections are ready, matching the renderer's initiate flow so the completion sheet appears without waiting for the safety cap.
+- **Verify:** Run `cargo run -p msc-agent -- tui` and initiate a Java server with Playit and Xbox Broadcast enabled. Confirm pass two starts the required helper, then stops the server after the server and enabled connections report ready and shows the completion sheet. Also verify a disabled helper does not block the stop. No test command is part of this step.
+- **Batch:** P22.35 only.
+- **Commit:** `P22.35: stop initiate pass when ready`
+
+### P22.36 — Reuse saved Broadcast sign-in during Initiate
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui/initiate.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Treat host-saved Xbox Broadcast credentials as configured in Initiate, label them as host-configured, and prevent Enter from reopening helper setup when no sign-in is needed.
+- **Verify:** On a host with saved Broadcast credentials, open Initiate for a server with Broadcast enabled. Confirm the connection row says it is configured on this host, Enter does not open another setup view or request a code, and the flow continues to pass two. On a host without saved credentials, confirm setup remains available. No test command is part of this step.
+- **Batch:** P22.36 only.
+- **Commit:** `P22.36: reuse saved broadcast sign-in in initiate`
+
+### P22.37 — Align the initiate connection summary
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui/initiate.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Lay out available connection methods in aligned label and address columns. Identify local connections as same Wi-Fi, public and Playit as usable from other networks, and show the Xbox Broadcast gamertag in the same value column. Omit unavailable methods.
+- **Verify:** Run `cargo run -p msc-agent -- tui` and finish Initiate with local, Playit, public forwarding, and Xbox Broadcast available. Confirm method names align in the left column and addresses or gamertag align in the right column, with network-use hints; then check a server with fewer configured methods shows only applicable rows. No test command is part of this step.
+- **Batch:** P22.37 only.
+- **Commit:** `P22.37: align initiate connection summary`
+
+### P22.38 — Detect Broadcast sign-in saved by another server
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/routes/networking.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Make Broadcast status report host sign-in as available when its cache is still stored under another server directory. This matches the existing migration behavior that copies a prior server's cache into the host-wide and newly selected server paths before launch.
+- **Verify:** With a valid Broadcast cache under an existing server directory and no host-wide cache, open Initiate for a new server with Broadcast enabled. Confirm the status reports saved sign-in and Initiate treats it as configured without asking for another setup or device code. No test command is part of this step.
+- **Batch:** P22.38 only.
+- **Commit:** `P22.38: detect saved broadcast auth across servers`
+
+### P22.39 — Show and collapse the selected server console
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Fetch the active server's console tail with workspace refreshes, show recent server output in the console panel, and let `c` collapse or expand it while keeping the running/stopped state visible.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, select a server, start it, and confirm the console displays that server's live log lines. Press `c` to collapse and expand the feed, and confirm switching the active server shows its own console. No test command is part of this step.
+- **Batch:** P22.39 only.
+- **Commit:** `P22.39: show selected server console in tui`
+
+### P22.40 — Show live readings in performance chart headings
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui/performance.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Replace the descriptive hints in the TPS, CPU, and memory chart headings with the current reading, using the same units and formatting as the metric summary above.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, open Performance for a running server, and confirm each chart heading displays its current TPS, CPU percentage, or memory used and limit. Confirm missing metrics display an em dash and the memory scale remains visible on the graph. No test command is part of this step.
+- **Batch:** P22.40 only.
+- **Commit:** `P22.40: show live readings in performance chart headings`
+
+### P22.41 — Add host-wide settings to the TUI
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/Cargo.toml`; `crates/msc-agent/src/cli/tui.rs`; `crates/msc-agent/src/cli/tui/app_settings.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Open a General/Services overlay with Shift+S. General supports signed update checks and confirmed installation, host configuration reset, full host reset, and reviewed local uninstall. Services supports setting/clearing the agent's CurseForge API key and managing the shared Playit account, status, and saved addresses. Omit Preload tabs and defer Storage to the follow-up screenshots.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, press Shift+S, and confirm General and Services switch correctly. Check updates and confirm current/available/error states; on a staged release, confirm installation requires an explicit y confirmation. Set, replace, and clear a CurseForge key; set up Playit and confirm progress/status refresh, then clear it. Confirm both host reset modes require the exact `RESET AGENT` phrase and uninstall shows its preview and requires `UNINSTALL MSC 2`. No test command is part of this step.
+- **Batch:** P22.41 only.
+- **Commit:** `P22.41: add host-wide settings to tui`
+
+### P22.42 — Add Storage navigation and reviewed actions to the TUI
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui.rs`; `crates/msc-agent/src/cli/tui/app_settings.rs`; `crates/msc-agent/src/cli/tui/storage.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Add Settings section 3 with cached local computer inventory, explicit bounded scan and cancellation, paged inventory loading, category/server/group navigation, volume capacity and coverage details, local folder opening, and existing candidate/review/confirmation/result APIs for map cache, old downloads, obsolete builds, servers, worlds, and backups. The host-local TUI lists this computer only. Removal authority remains with existing services.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, press Shift+S then 3. Open This computer, refresh with r, navigate categories and Servers → server → section, inspect paths with Enter and open eligible local folders with o. Confirm protected candidates cannot be selected; inspect removal candidates using the displayed shortcuts, select with Space, review with Enter, and confirm only with the exact service phrase. Check cancellation with x and per-item cleanup outcomes. No tests were run.
+- **Batch:** P22.42 only.
+- **Commit:** `P22.42: add storage inventory and reviewed actions to tui`
+
+### P22.43 — Correct Storage selection and macOS scan errors
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui/app_settings.rs`; `crates/msc-infrastructure/src/source_tree.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Highlight the active Storage tab. Clear macOS errno before directory enumeration so a normal end of directory does not inherit an unrelated socket error and falsely mark inventory partial.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, open Shift+S → 3, confirm Storage is highlighted, press r to refresh and inspect coverage. Genuine unreadable sources remain reported. No tests run.
+- **Batch:** P22.43 only.
+- **Commit:** `P22.43: fix storage highlight and macos directory scan errors`
+
+### P22.44 — Fix Storage rescan and expose removal rows
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui/storage.rs`; `crates/msc-agent/src/cli/tui/app_settings.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Decode scan acceptance using its actual operationId response, retain the operation for polling, and display actionable review rows under Servers, Cache, and Agent. Correct Storage highlight position so the trailing character is not duplicated.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, open Shift+S → 3, press r and confirm scanning completes without a missing-state decode error. Open Servers and select Remove a server with Enter. Space selects eligible candidates; Enter opens the existing review and requires its exact confirmation. Esc cancels. Confirm Cache and Agent also show their applicable review rows. No tests run.
+- **Batch:** P22.44 only.
+- **Commit:** `P22.44: fix storage rescan and show removal actions`
+
+### P22.45 — Skip IPC endpoints during storage measurement
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-infrastructure/src/source_tree.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Identify Unix socket, pipe, and device entries without opening them during storage traversal. Skip those non-file endpoints so socket-open errors do not terminate the directory inventory. Keep archive validation and symlink protections unchanged. Remove the redundant macOS errno reset introduced in P22.43; the original reset already existed.
+- **Verify:** With the rebuilt background agent installed, open Storage and refresh. Confirm directories containing agent/WebKit IPC endpoints no longer produce socket-open error 102 and remaining ordinary files are measured. Genuine installation/capacity/permission coverage warnings remain visible. No tests run.
+- **Batch:** P22.45 only.
+- **Commit:** `P22.45: skip ipc endpoints during storage scans`
+
+### P22.46 — Correct storage discovery coverage and service capacity
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/routes/storage/inventory.rs`; `crates/msc-infrastructure/src/storage/capacity.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Replace the preliminary desktop-not-inspected sentinel after successful native discovery while retaining actual native findings and failures. Fall back to filesystem available blocks when macOS important-usage capacity is unavailable or zero in a background service. This remains a dated availability observation, not reclaimable space.
+- **Verify:** Install the prepared rebuilt app and Repair agent, then refresh TUI Storage. Confirm the redundant not-inspected warning is gone, filesystem capacity appears, and any actual source or discovery errors remain visible. No tests run.
+- **Batch:** P22.46 only.
+- **Commit:** `P22.46: correct storage coverage and capacity reporting`
+
+### P22.47 — Make Storage folder and removal controls explicit
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui/storage.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Label removal rows and shortcuts consistently, including Remove servers, Remove worlds, and Remove backups. Display candidate titles and empty-state feedback. Resolve server/group rows to their inventory directory for folder opening and report opener errors instead of discarding them. Keep server/world selection singular and require explicit candidate selection before review.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, open Storage → This computer → Servers, select a server and press o; confirm Finder opens its folder. Press t/w/b and confirm the matching Remove view appears, including a clear message for an empty backup list. Select an eligible candidate with Space and Enter to review; Esc cancels. No tests run.
+- **Batch:** P22.47 only.
+- **Commit:** `P22.47: clarify storage removal and repair folder controls`
+
+### P22.48 — Remove duplicate server removal rows
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui/storage.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Remove selectable Remove servers, Remove worlds, and Remove backups rows from Storage navigation. Retain their t/w/b shortcuts and footer labels.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, open Storage → This computer → Servers, confirm the three removal rows are absent and t/w/b still open their respective removal views. No tests run.
+- **Batch:** P22.48 only.
+- **Commit:** `P22.48: remove duplicate storage removal rows`
+
+### P22.49 — Allow installed component inspection to finish
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Give component and local add-on inventory requests a 30-second response budget instead of five seconds. A read-only request confirmed the agent returns the installed Paper/Geyser/Floodgate versions with the longer budget. Preserve previously loaded inventory on a failed refresh only for the same selected server and show a retry message. Keep the offline add-on query.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, select test 9 and open Components. Confirm Paper 26.3/build 229 and installed plugin rows appear. Switch servers and confirm another server's inventory is never reused. Shift+R retries failed reads. No tests run.
+- **Batch:** P22.49 only.
+- **Commit:** `P22.49: allow component inventory requests to finish`
+
+### P22.50 — Make removal confirmations typeable
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui/storage.rs`; `crates/msc-agent/src/cli/tui/app_settings.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Display middle-dot and bullet separators as keyboard hyphens in removal confirmations. Require the exact displayed phrase and submit the original preview-bound API phrase. Route number keys to confirmation input instead of switching Settings sections. Show feedback on an incomplete phrase.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, open a server removal review, and confirm the required phrase uses hyphens and accepts digits 1/2/3 without switching tabs. Type only part of the phrase and press Enter: removal must not submit. Esc cancels. Complete an intended removal only with the exact displayed phrase. No tests run.
+- **Batch:** P22.50 only.
+- **Commit:** `P22.50: make storage removal confirmations typeable`
+
+### P22.51 — Add Manage Servers transfer controls
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui.rs`; `crates/msc-agent/src/cli/tui/transfer.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Connect Manage Servers t to transfer import/export using the existing local CLI archive workflows. Support path entry, merge or replace-all import, required replacement backup path, and explicit confirmation. Existing archive validation, credential exclusion, and mutation permissions remain with the CLI/API. Confirm Shift+R reaches the reload path and add successful refresh feedback. Transfer command execution currently waits for the CLI to return.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, open Manage and press t. Export to a new archive path with e, finish editing with Enter, select Export and confirm y. Inspect the result. Import an intended transfer with i, choose merge or replace and provide a backup path for replace; confirm only when ready to modify the server set. Press Shift+R after closing to reload the server list. Confirm Shift+R refreshes the main workspace and reports successful completion. No tests run.
+- **Batch:** P22.51 only.
+- **Commit:** `P22.51: add manage servers transfer controls`
+
+### P22.52 — Correct Manage Servers transfer hint
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Replace the stale Transfer soon footer with Transfer. Confirm the existing t handler opens TransferUi.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, open Manage Servers, confirm the footer says t Transfer and press t to open the transfer sheet. No tests run.
+- **Batch:** P22.52 only.
+- **Commit:** `P22.52: correct manage servers transfer hint`
+
+### P22.53 — Separate transfer import and export views
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui/transfer.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Begin with Export/Import choices. Export shows only save destination and Export. Import shows existing archive path, merge/replace explanation, and backup destination only for Replace All. Include full-path examples. Keep focus fixed during text editing; navigation skips hidden fields. Retain explicit transfer confirmation.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, open Manage → t. Choose Export and confirm only export fields appear. Esc returns to choices. Choose Import, toggle Merge/Replace, confirm backup path appears only for Replace and navigation skips hidden fields. Type a path and confirm arrow keys cannot switch fields while editing. No tests run.
+- **Batch:** P22.53 only.
+- **Commit:** `P22.53: separate import and export transfer views`
+
+### P22.54 — Keep navigation responsive during snapshot refresh
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Run automatic snapshot reload and Shift+R reload in one bounded background task while continuing keyboard handling and drawing the last snapshot. Do not queue overlapping reloads. Guard publication with selected server identity and a generation advanced by explicit refreshes after mutations. Abort the task when the TUI exits. Initial loading, explicit mutation refreshes and sheet-specific requests retain their existing behavior.
+- **Verify:** Run `cargo run -p msc-agent -- tui`. While the automatic refresh is inspecting components, switch Players/Overview/Performance and open/close Manage Servers; confirm keypresses respond without waiting for inspection. Press Shift+R and continue navigation while Refreshing is shown. Switch selected servers during a refresh and confirm late results never restore the previous server. No tests run.
+- **Batch:** P22.54 only.
+- **Commit:** `P22.54: refresh tui snapshots without blocking navigation`
+
+### P22.55 — Show the desktop chat feed in Overview
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui.rs`; `crates/msc-agent/src/cli/tui/chat.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Review desktop HomeSection, ChatCard and chatFeed parsing and mirror their console-tail source (200 lines), prefix removal, unsigned Java chat, advancement/challenge/goal, Java join/leave and Bedrock connection events. Render the latest three messages in chronological order with chat/event/advancement colors and meaningful empty/unavailable/stopped states. Ordinary console lines stay out of chat; Bedrock has connection events only. Replace both manual refresh pending messages with Refreshing…. No separate chat endpoint is introduced.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, open Overview for a running Java server, send an in-game chat message and trigger a join/leave or advancement; confirm matching desktop feed content after refresh. Confirm ordinary logs do not appear, switching server does not retain previous chat, Bedrock explains connection-only coverage, and stopped/empty states give a useful hint. Press Shift+R during an automatic refresh and confirm Refreshing… until completion. No tests run.
+- **Batch:** P22.55 only.
+- **Commit:** `P22.55: show selected server chat in overview`
+
+### P22.56 — Cover console contents and edit server notes
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui.rs`; `crates/msc-agent/src/cli/tui/notes.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Clear the expanded console rectangle before drawing so underlying Notes and other content cannot bleed through. Add Overview n to edit the selected server's notes, with multiline entry, Ctrl+S/F2 save via the existing server-ID-bound notes API, Esc cancel, and visible save errors. Invalidate pending snapshot publication during editing; update the saved server record locally. Show the first note line on Overview without emitting embedded newlines into its layout.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, expand an empty console with c and confirm Notes is covered. Collapse, press n on Overview, enter multiline notes and save with Ctrl+S or F2. Reopen notes and confirm persisted content; Esc cancels changes. Switch servers and confirm notes remain separate. No tests run.
+- **Batch:** P22.56 only.
+- **Commit:** `P22.56: cover expanded console and edit server notes`
+
+### P22.57 — Bring Handbook and Router Guide into the TUI
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui.rs`; `crates/msc-agent/src/cli/tui/guides.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Review desktop HelpSection, HandbookBrowser, RouterGuidePanel, RouterGuideReader, RouterGuideTroubleshooting, catalog ordering, markdown behavior and help DTOs. Replace the ? placeholder with a two-pane guide overlay containing Handbook and Router Guide only. Read the same API catalogs and article/resolved-router content. Handbook includes desktop reading order, persisted TUI favorites, title search, related/internal-help links, history, previous/next chapters, structured prose/checklists/tables and scrolling. Router supports catalog/category browsing, generic fallback, server-side search/fallback results, runtime-resolved sections and unavailable-value warnings, intro/notes toggles, step selection/completion/all-reset, symptom selection, real analysis with causes/actions/escalation and suggested-guide navigation. Local completion state stays in this guide session. Keep Help out of other modal text inputs. Long text wraps within the reader.
+- **Verify:** Run `cargo run -p msc-agent -- tui` and press ?. Browse Handbook, use Tab to focus the reader, scroll with arrows/PgUp/PgDn, search with / then Enter, favorite with f, open related topics with l, navigate chapters with brackets and history with b. Select 2 for Router Guide; browse/search and read a generic or named guide with a selected server. Check actual runtime values and missing-value warnings. Use j/k and Space for steps, x all/reset, i/n intro/notes, t for symptoms, Space to select, a to analyze, g to open the suggested guide, r to reset symptoms, and Esc to return. Confirm no onboarding view exists. No test command run; live navigation verification remains with Cameron.
+- **Batch:** P22.57 only.
+- **Commit:** `P22.57: add handbook and interactive router guides to tui`
+
+### P22.58 — Space Components sections and expand long add-on lists
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui/components.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Add blank space between Server, Mods/Plugins, and Crossplay headings and rows. Limit the summary to the first ten add-ons; only when more exist, add See all with the total. Open a separate scrollable full add-on view with existing component actions and Esc back to summary. Preserve all original add-on indices for mutations.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, open Components for a server with a few plugins and confirm spacing. For a server with 11 or more add-ons, confirm only the first ten are in summary, See all appears, Enter opens the full scrollable list, actions target the selected add-on, and Esc returns to summary. No tests run.
+- **Batch:** P22.58 only.
+- **Commit:** `P22.58: space component sections and expand addon lists`
+
+### P22.59 — Add a console command palette
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui.rs`; `crates/msc-agent/src/cli/tui/palette.rs`; `crates/msc-agent/src/cli/tui/command_catalog.json`; `docs/msc2/rolling-plan.md`.
+- **What:** Review desktop CommandPaletteSheet and console model registry. Open an opaque palette with p while the console is expanded. Snapshot the desktop command definitions with their argument slots, categories and edition flags. Support search, category filtering, argument entry, keyword/player cycling, preview and explicit send through the existing command API. Offer capability-supported same-day time presets separately from numeric absolute time. Bind ordinary sends to the original server ID and check current selection before dispatch. Surface API errors and retain all backend safety checks. The TUI uses manual argument entry for gamerules rather than the desktop's separate catalog picker.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, expand console with c and press p. Search/filter commands, select a command and enter arguments (Right cycles suggestions). Confirm preview before Enter sends and Esc cancels. Confirm Java/Bedrock filtering, online-player suggestions, advertised same-day shortcuts and stopped-server errors. Change the active server before sending and confirm refusal. No tests run; no gameplay command executed by the agent.
+- **Batch:** P22.59 only.
+- **Commit:** `P22.59: add console command palette to tui`
+
+### P22.60 — Add sidebar connection and directory shortcuts
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui.rs`; `crates/msc-agent/src/cli/tui/initiate.rs`; `crates/msc-agent/src/cli/tui/storage.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Add sidebar h How to connect and d Directory for the selected server. Reuse the initiation completion connection layout in a read-only summary with separate heading and current enabled-service lookups, without starting any initiation action or replacing a paused flow. Reuse folder-opening handling. Move paused-initiation discard to Shift+D to avoid the directory shortcut conflict. Recommend q as a future Quick Commands sheet scoped to the workspace; do not implement that unchosen flow.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, select a server and press h; confirm applicable local/public/Playit/broadcast connection rows and Enter/Esc close without starting/stopping anything. Press d and confirm the correct directory opens. With a paused initiation, confirm d still opens Directory and Shift+D retains the existing discard behavior. No tests run.
+- **Batch:** P22.60 only.
+- **Commit:** `P22.60: add sidebar connection and directory shortcuts`
+
+### P22.61 — Add sidebar Quick Commands
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui.rs`; `crates/msc-agent/src/cli/tui/quick.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Review desktop QuickCommandsSection and implement workspace q with same-day Dawn/Dusk/Night capability checks, weather presets, active-world difficulty/default gamemode, Enforce Gamemode, Save All, and Java-only Reload. Load saved world/profile values, reuse existing profile/settings/command APIs and API-provided safety confirmations, and check original server selection before dispatch. Bedrock Save All uses save hold then save resume. Commands require running state except Enforce Gamemode; all actions have explicit review. Keep q Quit on the agent home screen and honor existing tab text-input handlers first.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, select a server and press q. Navigate with arrows, change settings with Left/Right, Enter reviews and y applies; Esc cancels. Confirm saved profile values load, stopped-server actions fail clearly, advertised same-day presets are enforced, Java Reload is absent on Bedrock, and safety-sensitive changes show the API acknowledgement prompt. Verify q remains available as text in an active settings input. No tests or gameplay commands run.
+- **Batch:** P22.61 only.
+- **Commit:** `P22.61: add sidebar quick commands sheet`
+
+### P22.62 — Reorder agent panels and space sidebar shortcuts
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Move Actions to the upper-left panel and Current Agent to the upper-right panel. Keep bottom panels in place. Space server-workspace shortcuts at two-row intervals, including conditional Resume/Discard entries.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, open Agents and confirm Actions is left and Current Agent right. Select a server and confirm Start, Manage, Agents, How to connect, Directory and Quick Commands are equally spaced; check paused-initiation Resume/Discard follow the same spacing. No tests run.
+- **Batch:** P22.62 only.
+- **Commit:** `P22.62: reorder agent panels and space sidebar actions`
+
+### P22.63 — Activate a highlighted server from Manage
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Add Manage Servers a Make active using the existing server-selection API. Keep the sheet open, refresh the selected server data, and preserve API selection restrictions. Enter retains its editor behavior with an explicit Edit label.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, open Manage, highlight another server and press a. Confirm its active marker and selected-server label update without opening the editor. Confirm Enter still opens the editor and rejected activation reports the API reason. No tests run.
+- **Batch:** P22.63 only.
+- **Commit:** `P22.63: activate highlighted server from manage sheet`
+
+### P22.64 — Exit the TUI after an accepted host reset
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui/app_settings.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Signal the existing TUI exit path after the agent accepts either host reset mode. Failed or rejected reset requests retain the sheet and error. Closing the TUI does not claim reset completion; deletion remains owned by the agent operation.
+- **Verify:** Run `cargo run -p msc-agent -- tui`. During the next intentionally requested host reset, confirm an accepted request closes the TUI and restores the terminal; a rejected request stays visible with its error. Do not reset data merely to verify this change. No reset or tests run by the implementing agent.
+- **Batch:** P22.64 only.
+- **Commit:** `P22.64: exit tui after host reset is accepted`
+
+### P22.65 — Treat refresh without a selected server as success
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Only report a failed component refresh when a server is selected and the agent connection is valid. An agent with no selected server intentionally skips component reads and now reports a successful TUI refresh. Retain same-server cached inventory only for applicable selected-server reads.
+- **Verify:** Run `cargo run -p msc-agent -- tui` on an empty agent, press Shift+R and confirm TUI refreshed without a component warning. Select a server when available and confirm genuine component read failures retain the existing warning. No reset, server creation, or tests run.
+- **Batch:** P22.65 only.
+- **Commit:** `P22.65: handle empty agent refresh without inventory warning`
+
+### P22.66 — Clarify setup shortcut and creation progress
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui.rs`, `crates/msc-agent/src/cli/tui/create.rs`, `docs/msc2/rolling-plan.md`.
+- **What:** Use x for Discard setup in both sidebar layouts and the resume hint, leaving d for Directory. Start creation with “Creating server” and clear the progress area before each update so shorter messages do not retain old text.
+- **Verify:** `cargo run -p msc-agent -- tui` — check paused setup shows x and d still opens Directory; check creation progress has no trailing characters.
+- **Batch:** P22.66 only.
+- **Commit:** `P22.66: clarify discard shortcut and creation progress`
+
+### P22.67 — Search and clear expanded console output
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui.rs`, `docs/msc2/rolling-plan.md`.
+- **What:** Expanded console / opens live case-insensitive text filtering with match count; Enter applies, / reopens editing, Esc clears while editing. l clears loaded output locally, preserving log files and allowing new output. Search and clear state reset on server changes. Console header advertises both shortcuts. Search covers the loaded 200-line tail.
+- **Verify:** `cargo run -p msc-agent -- tui` — expand with c, type / and a log phrase, press Enter, reopen with / and Esc to clear; press l and confirm new server output still appears.
+- **Batch:** P22.67 only.
+- **Commit:** `P22.67: add console search and clear shortcuts`
+
+### P22.68 — Type console commands with double slash
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui.rs`, `docs/msc2/rolling-plan.md`.
+- **What:** / begins a new console search; a second slash before search text switches to command entry. Enter sends through the existing command API with expected server identity; Esc cancels. Failed sends preserve input. Header labels // Command alongside / Search.
+- **Verify:** `cargo run -p msc-agent -- tui` — expand console, type //list and Enter with a running server; check / still searches and Esc cancels command input.
+- **Batch:** P22.68 only.
+- **Commit:** `P22.68: add double slash console command entry`
+
+### P22.69 — Distribute server tabs across terminal width
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui.rs`, `docs/msc2/rolling-plan.md`.
+- **What:** Divide the main panel into seven equal slots and center each numbered tab in its slot. Recalculate on every draw so terminal resizing keeps the row evenly spaced. Retain compact labels on narrow terminals.
+- **Verify:** `cargo run -p msc-agent -- tui` — open a server and resize the terminal; tabs 1–7 should remain evenly distributed across the main panel.
+- **Batch:** P22.69 only.
+- **Commit:** `P22.69: space server tabs across terminal width`
+
+### P22.70 — Review and clean Rust workspace build warnings
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** Agent auth, TUI and terrain modules; CLI service and provisioning test harnesses; `docs/msc2/build-warning-review.md`; `docs/msc2/archive/bedrock-direct-tiles.rs.txt`; `docs/msc2/rolling-plan.md`.
+- **What:** Trace all 24 agent compiler warnings and 11 production Clippy warnings. Archive the disconnected direct Bedrock tile backend and obsolete test while preserving the active saved-snapshot/conversion/shared-renderer path. Remove unused auth/query/helper code, narrow renderer method visibility, return converter status directly, and simplify flagged TUI code without changing its layout or controls. Fix stale test harness compilation and remove an unused fake transport. The review document records evidence, scope and cross-platform/runtime limits. No new tests, warning suppression, release gates or background-agent replacement.
+- **Verify:** `cargo build -p msc-agent` — should finish without warnings; `cargo check --workspace --all-targets` compiles test/example targets without running them; `cargo clippy --workspace --bins --lib -- -D warnings` checks production Rust. Owner can open the TUI and a saved Bedrock map for behavior verification.
+- **Batch:** P22.70 only.
+- **Commit:** `P22.70: remove obsolete code and clean workspace build warnings`
+
+### P22.71 — Archive the accepted TUI implementation record
+
+- **Status:** Documentation cleanup committed; Cameron accepted the current TUI on 2026-10-30.
+- **Files:** `docs/msc2/rolling-plan.md`; `docs/msc2/rolling-plan-archive.md`.
+- **What:** Move P22.1–P22.70 from the active rolling plan into the archive, retain their original verification instructions and commit subjects, and summarize remaining release and owner-testing work in the rolling plan. TUI acceptance does not close unrelated platform and runtime checks.
+- **Verify:** Confirm `rg -c '^### P22\.' docs/msc2/rolling-plan-archive.md` reports 71, the rolling plan has no P22 records, and its open-work summary links to the archived details.
+- **Batch:** P22.71 only.
+- **Commit:** `P22.71: archive accepted tui phase`
+
+## Archived owner-testing records — 0.1.32
+
+At Cameron's request on 2026-10-30, the following owner-testing findings and associated Phase 16 steps were moved from the active rolling plan. Their original investigation notes, retests, status and verification instructions are preserved below. Archiving is organizational and does not mark unresolved work as fixed or verified. The active plan keeps a compact status summary.
+
+## macOS owner testing — 0.1.32
+
+**Started:** October 21, 2026
+**Artifact:** `/Users/camerontemple/Downloads/msc2-0.1.32-macos-x86_64.dmg`
+**State:** In progress. Cameron is testing a clean install after uninstalling MSC 2 and clearing its remaining app data.
+
+### Finding 5 — Xbox Broadcast does not explain where its JAR goes or what “shared” means
+
+**What Cameron asked/experienced:** On the Xbox Broadcast page, the “Broadcast Helper” section says the tool is downloaded once and shared across all servers, and offers a **Download Now** button. It does not say where the file is stored, who publishes it, or whether “shared” means one copy is used by every server or each server gets its own JAR. Cameron wants to know what happens in a setup with three Java servers and one Bedrock server, all using Xbox Broadcast, and where the downloaded JAR comes from.
+
+**Investigation:** MSC downloads the `MCXboxBroadcastStandalone.jar` asset from the latest release published by the [MCXboxBroadcast/Broadcaster project](https://github.com/MCXboxBroadcast/Broadcaster). MSC resolves the latest release through GitHub’s release API and verifies the asset using the upstream SHA-256 digest before caching it. The shared file lives below the agent data directory at `helpers/xbox-broadcast/<release tag>/MCXboxBroadcastStandalone.jar`. On macOS, the default agent data directory is `~/Library/Application Support/MSC2`; an installed agent can override this through `MSC2_DATA_DIR`, so the actual path may differ on a configured install.
+
+The JAR is stored in the shared agent cache, not copied into each server directory. If a user skips **Download Now** and later enables Xbox Broadcast, MSC acquires the JAR as part of starting that server’s helper and puts it in the same shared cache; the server directory gets its `.msc2-broadcast` working/configuration folder, not another JAR. In Cameron’s example, all four server processes launch the cached JAR path. One implementation detail needs attention: the acquisition routine currently fetches the latest release asset on every acquisition, even when that version is already in the cache, then replaces the same cached path. So there is only one cached copy per release version, but the current code does not yet guarantee a one-time network download. **That means the setup download’s practical value today is only to confirm that the JAR can be fetched and verified early; it does not save the user a download or wait when they first start Xbox Broadcast, because startup fetches the asset again.** The page’s “downloaded once” sentence describes the shared storage model, but is too strong about actual download frequency and leaves the location unstated.
+
+**Cameron’s corrected test sequence and filesystem check:** Cameron confirms he *did* select **Download Now** during first-time setup and saw the verified-download message, then created the Paper server with Xbox Broadcast enabled. The downloaded file is currently at `/Users/camerontemple/Library/Application Support/MSC 2/helpers/xbox-broadcast/159/MCXboxBroadcastStandalone.jar`. Paper has a per-server `.msc2-broadcast/config.yml`, but no copy of `MCXboxBroadcastStandalone.jar` in its server directory. When MSC starts the broadcast helper for Paper, it performs another acquisition and launches the JAR from the shared cache path; it does not move the setup download into Paper’s folder. The acquisition currently fetches the release asset again and replaces the file at that same versioned cache path.
+
+**Cameron’s revised experience and desired behavior (2026-10-21):** Downloading Xbox Broadcast during First-time Setup gave Cameron a verified JAR, but creating his Paper server still downloaded the helper again. That makes the setup download feel disconnected from the server that later uses it. He wants one current Xbox Broadcast JAR managed by each MSC agent, whether the user downloads it during initial setup, while creating a server, or much later. Every server with Xbox Broadcast enabled should launch that same agent-owned JAR. Updating it from one server should update the agent’s JAR for every server. After a user signs in to Xbox Broadcast once on that agent, enabling it for another server should use the same Microsoft sign-in without asking for a new device code. A server created without Xbox Broadcast should have no Xbox Broadcast entry in its Components tab; enabling it later should make that entry appear. Cameron clarified that **the sign-in is shared**, not the entire server target configuration.
+
+**Additional code investigation:** The current download and startup paths both use the agent’s versioned helper cache, but startup calls acquisition again; the acquisition code fetches the latest release and asset even when that version is cached. A server’s broadcaster launches from its own `.msc2-broadcast` working folder and writes a `config.yml` with that server’s target host, port, and display name. MSC already stores the alternate Microsoft account identity and password at agent scope, but the actual standalone helper runs in each server’s working folder; its sign-in state therefore does not automatically follow another server. MSC also has a per-server auth-token secret key. The Components tab currently renders an Xbox Broadcast row for eligible Java and Bedrock servers even when that server has not enabled it. The [upstream standalone instructions](https://github.com/MCXboxBroadcast/Broadcaster/blob/master/README.md) likewise place the target address in `config.yml` and launch the JAR from a working directory. Shared sign-in needs to account for the helper’s own cached authentication files; merely sharing the JAR or MSC’s displayed account name would not accomplish it.
+
+**Updated user outcome required:**
+
+1. The agent has one current, checksum-verified Xbox Broadcast JAR. All download entry points use that agent-owned installation. A valid installed JAR is reused on later starts without another asset download. An explicit update from any server replaces the agent’s current JAR safely, and every server then reports the same installed version. Temporary staging during a verified update is acceptable; failed updates must leave the working JAR usable. Account for running helper processes and Windows file locking before replacing a JAR they use.
+2. Sign-in belongs to the agent. The first enabled server can complete the Microsoft device-code flow; subsequent enabled servers on that agent reuse the authenticated account. Keep each server’s target host, port, display name, enabled setting, and running broadcast process separate so changing one server does not redirect another. Determine how the upstream helper reads and refreshes its auth cache, then migrate existing per-server sign-ins without exposing tokens or silently forcing a new login. Verify shared sign-in when multiple enabled servers run at the same time before promising that case.
+3. Show the Xbox Broadcast component only for a server that has Xbox Broadcast enabled, on eligible Java and Bedrock servers. The server creation and later server settings controls must still let someone enable it. Once enabled, the Components row reflects the one agent-owned JAR and offers an agent-wide download or update action; disabling the feature removes the row for that server.
+4. Explain in setup that the JAR comes from the MCXboxBroadcast project, is stored with the agent, and is used by every enabled server. Explain that skipping the early download simply defers installation until the feature is enabled or started later. State clearly that Microsoft sign-in is shared on this agent while each server advertises its own destination.
+
+**Implementation order:** First establish the agent-owned JAR and safe reuse/update path. Then move helper authentication to agent scope with migration from existing server folders while preserving per-server targets and processes. Finally, align setup, server creation, settings, and Components UI with the shared state. Cameron will verify both a clean setup and an existing signed-in installation, including a server enabled later and more than one running broadcaster. No release or test suite run is authorized by this design record.
+
+**Shared-JAR implementation work (2026-10-21):** First-time Setup and the explicit download action still fetch and verify the current upstream JAR, but now record which release is current for the agent. Starting Xbox Broadcast reuses that verified cache entry without contacting GitHub again. Existing 0.1.32 caches have no selection record, so the agent discovers the most recent valid cached release rather than requiring a fresh download. The JAR status endpoint reports the selected, checksum-verified release. An explicit download updates that agent selection for all servers; it refuses the update while a broadcaster is starting or running, avoiding replacement of an in-use JAR, especially on Windows. A failed download leaves the previous selection in place. The agent still stores JARs in its shared helper cache rather than in server folders. Older cached release directories may remain on disk, but only one release is selected for starts. Agent-wide sign-in, existing-sign-in migration, and conditional Components visibility remain separate work under this finding.
+
+The focused new test protects the concrete 0.1.32-to-next-build case Cameron encountered: after a setup download, starting while offline must reuse the verified file; the same must work for a legacy cache without a selection record, and damaged bytes must be rejected. It uses an in-memory filesystem and transport with no network or sleeps, and should run in milliseconds. It was added but not run, in keeping with the test policy.
+
+**P16.101 — Define shared Xbox Broadcast behavior**
+
+- **Status:** Design recorded; awaiting owner review before implementation.
+- **Files:** `docs/msc2/rolling-plan.md`.
+- **What:** Record the clarified agent-owned JAR and sign-in behavior, per-server targets and enablement, Components visibility, migration needs, and safe update requirements for Finding 5.
+- **Verify:** Run `sed -n '99,145p' docs/msc2/rolling-plan.md` and review Finding 5 against the intended Xbox Broadcast experience.
+- **Batch:** P16.101 only.
+
+### Finding 9 — The Add Server success page is blank after creating a Paper server
+
+**What Cameron experienced:** After creating his first Paper server, the Add Server wizard reaches its final **Confirm** step and shows a **Done** button, but the large page body is empty. Cameron expected the page to say that the server was created and explain what to do next. With only the progress row and **Done** visible, the result is unclear and the user has no visible confirmation or next-step guidance.
+
+**Investigation:** The success state is present in `ConfirmStep.svelte`: when `createSucceeded` is true it should show “<server name> created,” followed by instructions based on the server’s world and software settings. `AddServerWizard.svelte` sets that state after its create operation succeeds, passes it to the confirmation component, and changes the footer action to **Done**. The screenshot shows the success-state footer but none of the expected body, so the visible behavior does not match the component’s intended success branch. The screenshot confirms the rendering defect; it does not establish why the success content failed to appear.
+
+**User outcome required:** After successful creation, show a clear server-created confirmation and relevant next steps in the page body, with the server’s name visible. Investigate why that success content is absent in the tested build while the **Done** button is present, then verify the final page for Paper and other creation paths.
+
+### Finding 10 — Playit setup claims an agent but stops before creating tunnels
+
+**What Cameron experienced:** While connecting Playit for the first time, MSC said it could not start the Playit agent because the helper exited with code 1. Playit had already created an agent, but no tunnels appeared. The setup screen offered another sign-in attempt, which makes it look as though the account setup may have partly worked while leaving the server without a usable Java or Bedrock address.
+
+**Investigation:** The installed MSC agent confirms that a Playit agent ID and key were saved, while the helper is stopped and both tunnel addresses are empty. In `PlayitAccountSetup::run_with_tunnels`, MSC first claims the cloud agent and saves its ID/key, then starts `playitd` and waits for that helper to confirm it connected to the same agent. MSC only lists or creates tunnels after that connection succeeds. So the observed “agent, but no tunnels” state follows the current order: the helper failed before tunnel provisioning began.
+
+The installed macOS helper is the expected universal x86_64/arm64 binary, and its SHA-256 matches MSC’s pinned release digest. Running its help screen confirms it accepts both launch options MSC supplies (`--secret-path` and `--socket-path`), so the evidence does not point to a corrupt download or unsupported command-line arguments. I could not recover the helper’s output from this failed attempt. The setup error is built from the process exit status alone, even though the helper manager captures redacted output; the visible “code 1” does not identify whether Playit rejected the saved key, hit an account limit, or encountered another startup problem. The app’s current diagnostic endpoint also had no retained Playit lines for this attempt.
+
+**Retest result:** Cameron deleted the failed agent from his Playit account and retried setup; it then worked. This confirms the flow can complete after removing that agent, but it does not establish why the first helper exited or whether deleting the agent itself fixed the underlying condition. The failure has not been reproduced, so treat the cause as unknown rather than a confirmed code defect.
+
+**Follow-up if it recurs:** Preserve the user-facing error’s useful, redacted helper output so the actual startup reason can be identified. Do not report tunnel provisioning as the cause until the helper connection succeeds. No code change is currently justified by this one non-reproducible failure.
+
+### Finding 15 — A new Bedrock world map has large holes despite a complete cache count
+
+**What Cameron experienced:** While playing in a newly created Bedrock world, Cameron opened its 3D map and saw separated columns of trees and terrain with large empty gaps and sheer vertical walls between them. Some gaps are close to his live player marker even though he is standing on normal, rendered ground in Minecraft. The view did not visibly fill in as he waited. Clicking **Refresh terrain** changed the map, but it still looked patchy. **Pre-render map** reported “12 / 12 saved tiles cached” and “All saved terrain tiles are cached,” which made the missing ground especially confusing. On a newly created Paper server, joining the world produced a much more complete nearby map without this obvious pattern. Cameron expects Bedrock’s saved terrain around a player to appear with comparable coverage and responsiveness, or for MSC to explain accurately why it cannot yet show that terrain.
+
+**Investigation (2026-10-21):** The Bedrock map reads a consistent *saved snapshot*, not the live terrain that the game client is drawing. The agent takes a Bedrock save hold/query/copy/resume snapshot when preparing the map, converts the saved LevelDB chunks into private Anvil region files, and keeps using that prepared generation until **Refresh terrain** captures another snapshot. The viewer polls for changes to the prepared map, but that polling does not capture a newer Bedrock save by itself. The pre-render count comes from the prepared renderer manifest's tile progress: it says all tiles *listed in that saved-terrain manifest* are cached, not that all terrain visible in Minecraft is present or that every saved chunk was converted. The first screenshot showed 12/12 tiles before the later, wider view.
+
+The current private converted cache was inspected read-only. Its five Overworld region files contain 365 nonempty chunk positions in a sparse pattern, with missing positions among populated ones near Cameron's reported player location (approximately X -217, Z 120). Thus the conspicuous gaps are already present in the converted terrain input; waiting for those same tiles to draw will not fill them. The agent log shows initial conversion of four saved regions and later refreshes that rebuilt changed regions, so refresh is seeing changing saved input. This establishes that the count is misleading for coverage and that no automatic snapshot update is occurring. It does **not** yet establish whether the missing chunks are absent from the captured Bedrock LevelDB data or whether the conversion/indexing path omits saved chunks. The Paper comparison is Cameron's observed difference, not proof that Java captures live terrain automatically.
+
+**User outcome required:** Compare chunk positions in a fresh, consistent Bedrock snapshot with the converted region files at the same location, particularly beside the player. If chunks are in the snapshot but not the converted output, repair conversion or indexing. If they are not in the snapshot, investigate why the Bedrock save boundary yields sparse terrain while the game shows ground, and improve snapshot freshness or the map's explanation accordingly. Make the map visibly distinguish “all known tiles cached” from “nearby saved terrain complete”; do not claim the latter from the pre-render count. Verify that newly explored Bedrock ground appears within a reasonable, stated interval or after an explicit refresh, and compare that behavior with Java on the same build. Preserve the source world and inspect snapshots read-only during diagnosis.
+
+**P16.97 — Record the Bedrock map coverage finding**
+
+- **Status:** DONE — investigation recorded; cause and fix remain open.
+- **Files:** `docs/msc2/rolling-plan.md`.
+- **What:** Describe the owner-visible gaps, the limited meaning of the 12/12 cache count, the sparse converted output observed locally, and the remaining source-versus-conversion question.
+- **Verify:** In the current Bedrock world, compare the in-game ground near the player with the 3D map before and after **Refresh terrain**; the gap remains open until the map reliably covers saved nearby ground and its cache status accurately describes that coverage.
+- **Batch:** P16.97 only.
+
+
+### P16.130 — Archive implemented owner-testing work
+
+**Status:** DONE — documentation cleanup recorded; owner review pending.
+**Files:** `docs/msc2/rolling-plan.md`; `docs/msc2/rolling-plan-archive.md`.
+**What:** Mark implemented steps DONE, archive their full findings and release records, and retain open findings in the rolling plan.
+**Verify:** Run `rg -n "^### Finding|^### P16\.130" docs/msc2/rolling-plan.md` and confirm only Findings 5, 9, 10, and 15 remain, alongside this cleanup step. Check the archive for Findings 1–4, 6–8, 11–14, and 16–25 and their original Verify lines.
+**Batch:** P16.130 only.
+**Commit:** `P16.130: archive implemented owner-testing work`
+
+### Finding 26 — Initiate tries to start Paper while it is already running
+
+**What Cameron experienced:** On the Intel Mac, initiating a Paper server with Geyser, Floodgate, and Xbox Broadcast repeatedly ends with `illegal lifecycle transition: running -> starting`. Restarting the agent and trying three times did not clear it. The console shows Paper reached `Done` and Geyser started its UDP listener, so the diagnosis incorrectly says the server could not start. The JNA hardware-report warnings and Geyser's NetherNet warning are separate from this lifecycle error.
+
+**Investigation:** The agent enters its coordinated first-start flow only while no world has been generated and the first-start popup has not been completed. An earlier attempt can leave a generated world while the popup remains incomplete. On the next attempt the agent treats Paper's start as ordinary and marks the operation successful at `Ready`, while the process remains running. The desktop sheet assumes every successful first pass stopped the process, moves to connection setup, then sends a second Start. The agent correctly rejects that transition from Running to Starting. This is independent of port forwarding; Xbox Broadcast may still need a reachable Bedrock target for outside players.
+
+**P16.131 — Stop an ordinary first pass before connection setup**
+
+- **Status:** Fix prepared; unsigned Intel candidate packaged; owner verification pending.
+- **Files:** `clients/desktop-web/src/lib/sections/server-editor/FirstStartSheet.svelte`; `docs/msc2/rolling-plan.md`.
+- **What:** When the agent's first Start succeeds without a coordinated first-pass completion marker, stop that running process and confirm it is stopped before connection setup and the second Start. Preserve the existing coordinated first-start path.
+- **Verify:** Install `target/release-artifacts/MSC-2-intel-initiate-candidate.dmg` on the Intel Mac, repair the agent, then initiate the same Paper server whose world folder already exists. Confirm the first pass stops before the connection stage, the second pass does not report `running -> starting`, and the sheet reaches completion or reports a specific connection failure. Check the server is stopped at completion.
+- **Batch:** P16.131 only.
+- **Commit:** `P16.131: stop ordinary first pass before connection setup`
+
+**Retest (2026-10-23):** Cameron installed the P16.131 Intel candidate and reproduced initiation failure on a brand new Paper server. The message changed to `illegal lifecycle transition: stopping -> stopping`; the server had begun loading Floodgate and Geyser. This disproves the earlier explanation as a complete diagnosis. The last 400 lines of `agent.log` contain map-renderer reuse and service startup messages but no lifecycle request sequence for the attempt. Code inspection identifies a separate duplicate-Stop path: first-start can request an automatic stop, while the desktop can request Stop before the first process exits. The Java stop route drains process events, then unconditionally calls `request_stop`; that method rejects a second transition to Stopping. The Bedrock stop path already treats Stopping as an in-progress success.
+
+**P16.132 — Accept an in-progress Java server stop**
+
+- **Status:** Fix prepared; unsigned Intel candidate packaged; owner verification pending.
+- **Files:** `crates/msc-agent/src/routes/lifecycle.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Make the Java stop route accept a process that is already Stopping or Stopped after draining pending events. Keep the original graceful stop for Starting or Running, and let the first-start coordinator finish its existing operation. Add one assertion to the existing lifecycle route test for the repeated-stop case; it uses the same fake process and adds no timing or network dependency, with negligible added runtime. Do not run the test without owner instruction.
+- **Verify:** Install `target/release-artifacts/MSC-2-intel-initiate-stop-candidate.dmg` on the other Mac, repair the agent, and initiate the Paper server again. Confirm the first run stops, the connection stage opens, and no `stopping -> stopping` or `running -> starting` error appears. Complete or defer Broadcast and confirm the second run stops with the setup sheet complete.
+- **Batch:** P16.132 only.
+- **Commit:** `P16.132: accept an in-progress java stop`
+
+**P16.133 — Reuse Xbox Broadcast sign-in across servers on one agent**
+
+- **Status:** Implementation prepared; unsigned Intel candidate packaged; owner verification pending.
+- **Files:** `crates/msc-agent/src/routes/networking.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** On the first Broadcast start after upgrading, copy a single existing server sign-in into agent-owned storage, then seed each later server's standalone helper from it. Keep each server's target configuration and non-auth cache separate. Capture refreshed sign-in data while a helper runs. Clear the host and server copies when credentials are cleared. If multiple existing sign-in files differ, preserve them and report the conflict instead of selecting an account silently. The shared JAR acquisition path remains independent of when setup first downloaded it. Concurrent standalone processes may refresh the same Microsoft account independently; this build does not establish a single refresh owner.
+- **Verify:** Install `target/release-artifacts/MSC-2-intel-broadcast-auth-candidate.dmg`, repair the agent, start Broadcast on the existing signed-in server, then initiate the second Broadcast-enabled server. Run `test -s "$HOME/Library/Application Support/MSC 2/helpers/xbox-broadcast/auth/cache.json"` on that Mac; it should exit successfully. Confirm the second server starts without another Microsoft device code and its target still points to itself. On a host that skipped the setup download, enabling Broadcast later should acquire the shared JAR before sign-in. Keep the original server's `.msc2-broadcast/cache` during this check.
+- **Batch:** P16.133 only.
+- **Commit:** `P16.133: reuse xbox broadcast sign-in across servers`
+
+**Retest (2026-10-23):** Cameron installed the P16.133 candidate on the Intel Mac. Starting Broadcast for Test 2 reported that several existing sign-ins differ. This is a false conflict when the same Xbox account has separate refreshed token files: P16.133 compared entire cache files rather than account identity. No existing cache was deleted.
+
+**P16.134 — Recognize the same Xbox account across refreshed caches**
+
+- **Status:** Implementation prepared; unsigned Intel candidate packaged; owner verification pending.
+- **Files:** `crates/msc-agent/src/routes/networking.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Read the stable `xboxUserProfile.id` saved by the broadcaster's MinecraftAuth library. During upgrade migration, accept multiple cache files for that account even when their tokens differ, and promote the newest file to agent storage. Keep rejecting a genuine account conflict or caches without enough identity evidence. Preserve every original per-server file.
+- **Verify:** Install `target/release-artifacts/MSC-2-intel-broadcast-auth-migration-candidate.dmg`, repair the agent, then start Broadcast on Test 2. Confirm the differing-sign-ins error is gone and no Microsoft device code is requested. Run `test -s "$HOME/Library/Application Support/MSC 2/helpers/xbox-broadcast/auth/cache.json"` to confirm the host copy exists.
+- **Batch:** P16.134 only.
+- **Commit:** `P16.134: recognize matching xbox broadcast accounts`
+
+**Owner check (2026-10-23):** Cameron reported that the P16.134 Intel candidate reused the Xbox Broadcast sign-in successfully on Test 2.
+
+**P16.135 — Give each world pack and datapack its own action card**
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `clients/desktop-web/src/lib/sections/worlds/WorldsSection.svelte`; `docs/msc2/rolling-plan.md`.
+- **What:** Render each Bedrock world pack and Java datapack in its own card. Make the whole row open an action menu, put a chevron at the far end, and offer Enable/Disable and Delete for both editions. Keep Java's View action and the existing delete confirmation. Preserve the Bedrock pack summary and Required control above the cards.
+- **Verify:** Open a Bedrock world with no packs and confirm the count, Browse Packs control, and empty state share one card. Open a Bedrock world with packs and a Java world with datapacks; confirm each pack has its own clickable card and trailing arrow. Open each menu and confirm Enable/Disable and Delete are present. Run `cd clients/desktop-web && npm run check`.
+- **Batch:** P16.135 only.
+- **Commit:** `P16.135: show world packs as action cards`
+
+**P16.136 — Discard hidden first-start progress**
+
+- **Status:** Implementation prepared; owner verification pending.
+- **Files:** `clients/desktop-web/src/App.svelte`; `clients/desktop-web/src/lib/components/ApplicationShell.svelte`; `clients/desktop-web/src/lib/components/shell/ControlSidebar.svelte`; `clients/desktop-web/src/lib/sections/server-editor/model.ts`; `crates/msc-agent/src/main.rs`; `crates/msc-agent/src/routes/lifecycle.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Add a **Discard setup** action beside **Resume setup**. It stops the server when needed, clears the matching agent-owned first-start coordinator and networking helpers, and drops the desktop's saved sheet state. Keep generated world data. A later start cannot continue the discarded coordinator; if no world exists, Initiate opens a new sheet from its first screen.
+- **Verify:** Hide first-start setup on a server that has completed pass one, choose **Discard setup**, and confirm the server stops, the Resume setup notice disappears, the existing world remains, and the sidebar shows Start. Click Start and confirm it performs an ordinary start. On a server with no world yet, confirm discarding leaves Initiate available and reopening it starts at the EULA screen. Do not run tests without a specific owner request.
+- **Batch:** P16.136 only.
+- **Commit:** `P16.136: discard hidden first-start progress`
+
+
+### P22.72 — Archive detailed owner-testing findings
+
+- **Status:** Documentation cleanup committed; archived items retain their recorded open or pending states.
+- **Files:** `docs/msc2/rolling-plan.md`; `docs/msc2/rolling-plan-archive.md`.
+- **What:** Move Findings 5, 9, 10, 15 and 26, plus P16.97, P16.101, and P16.130–P16.136, into the archive with all investigation notes, retests and verification instructions. Keep their unresolved status visible in the rolling plan's concise work table and link each row to the archived detail. Archiving does not claim the underlying work is complete.
+- **Verify:** Confirm the rolling plan contains no detailed Finding/P16.97/P16.101/P16.130–P16.136 records, the archive retains them, and `git diff --check` passes.
+- **Batch:** P22.72 only.
+- **Commit:** `P22.72: archive detailed owner testing findings`
+
+
+### P22.73 — Reconcile the phase map and open-work summary
+
+- **Status:** Documentation cleanup committed; phase dispositions summarized without claiming archived work passed its gate.
+- **Files:** `docs/msc2/rolling-plan.md`; `docs/msc2/rolling-plan-archive.md`.
+- **What:** Restore a concise phase table at the top of the rolling plan, distinguish completed/archived implementation from open physical acceptance, and rewrite the open-work summary with current evidence, actionable next steps, and the non-actionable Playit watch item. Record that the v0.1.18 Phase 16 packet is historical now that v0.1.38 is published.
+- **Verify:** Review the phase table and open-work rows against `msc2-port-plan.md`, the Phase 16 acceptance packet, and archived owner findings; `git diff --check`.
+- **Batch:** P22.73 only.
+- **Commit:** `P22.73: restore phase map and clarify open work`
+
+
+### P22.74 — Resolve the active work summary
+
+- **Status:** Documentation updated from Cameron's confirmation that all previously listed work is finished (2026-10-30).
+- **Files:** `docs/msc2/rolling-plan.md`; `docs/msc2/rolling-plan-archive.md`.
+- **What:** Replace the open-work table with a no-active-work status, update the phase map for owner-confirmed follow-ups, and clarify that archived pending labels preserve historical state rather than current work. Keep the old Phase 16 acceptance packet as historical evidence; this update does not rewrite its recorded artifact observations.
+- **Verify:** Confirm the rolling plan has no open-work table or active follow-up rows and says no active work; `git diff --check`.
+- **Batch:** P22.74 only.
+- **Commit:** `P22.74: resolve active work summary`
+
+
+### P22.75 — Update repository documentation for the accepted TUI
+
+- **Status:** Documentation updated; owner verification pending.
+- **Files:** `README.md`; `AGENTS.md`; `CLAUDE.md`; `docs/msc2/MSC2-VISION.md`; `docs/msc2/msc2-product.md`; `docs/msc2/msc2-engineering.md`; `docs/msc2/msc2-port-plan.md`; `docs/msc2/tui-retirement-audit.md`; `docs/msc2/local-agent-auth-bootstrap.md`; `docs/msc2/rolling-plan-archive.md`.
+- **What:** Describe the accepted host-local TUI in current product, engineering, and repository guidance; explain how to run it from source and clarify the published v0.1.38 release predates it. Record its supported host/SSH boundary, Handbook and Router Guide availability, and the capability matrix's lack of per-operation TUI column. Mark the D-034 retirement audit as superseded while preserving its historical evidence. Move the local agent authentication bootstrap incident report from the repository-root `toughproblems/` directory into `docs/msc2/` and repair its historical links.
+- **Verify:** Review README setup wording against release v0.1.38 and `cargo run -p msc-agent -- tui`; confirm current docs no longer describe the TUI as planned or retired, historical decision records remain intact, `AGENTS.md` and `CLAUDE.md` match, and `git diff --check` passes. No tests run.
+- **Batch:** P22.75 only.
+- **Commit:** `P22.75: document accepted tui support`
+
+## Phase 23 — Completed presentation and indicator planning steps
+
+Archived on 2026-10-31 at Cameron's request. These records retain their original statuses, including design feedback and implementation notes; archiving does not close verification for the later implementation steps. Deferred and pending work remains in the rolling plan.
+
+#### P23.1 — Correct stale public documentation claims
+**Status:** done; Cameron waived verification for the presentation polish steps
+**Files:** `README.md`, `CONTRIBUTING.md`, `docs/msc2/rolling-plan.md`
+**What:** Align the map availability statement with the published v0.1.38 release and remove the contributing guide's claim that pull requests run an active CI workflow.
+**Verify:** `rg -n 'saved-terrain maps are included|Saved-terrain maps are included|Pull requests do not currently run|v0.1.18 release|CI workflow describes' README.md CONTRIBUTING.md`
+**Batch:** solo
+**Commit:** `P23.1: correct stale public documentation claims`
+
+#### P23.2 — Shorten and structure the README
+**Status:** done; verification waived by Cameron
+**Files:** `README.md`, `docs/msc2/rolling-plan.md`
+**What:** Keep the first-use path and current capabilities easy to scan; move historical release detail behind existing release-note links without losing important support limits. Removed the older release-by-release narrative while retaining the current platform, security, update, and macOS repair guidance.
+**Verify:** `git diff HEAD^ HEAD -- README.md`
+**Batch:** solo
+**Commit:** `P23.2: shorten README release history`
+
+#### P23.4 — Clarify published versus source-only features
+**Status:** done; verification waived by Cameron
+**Files:** `README.md`, `docs/msc2/rolling-plan.md`
+**What:** Group current-release availability notes so readers can tell what the download contains and what requires a source build. Put the published/source distinction beside installation and remove scattered version notes from feature descriptions.
+**Verify:** `rg -n 'published|source|release|TUI' README.md`
+**Batch:** solo
+**Commit:** `P23.4: clarify download and source feature availability`
+
+#### P23.5 — Improve the contributor entry point
+**Status:** done; verification waived by Cameron
+**Files:** `CONTRIBUTING.md`, `docs/msc2/rolling-plan.md`
+**What:** Add a concise repo map and launch instructions for the desktop app and agent, checked against the actual project scripts and Tauri configuration.
+**Verify:** `git diff HEAD^ HEAD -- CONTRIBUTING.md`
+**Batch:** solo
+**Commit:** `P23.5: improve contributor entry point`
+
+#### P23.6 — Clarify the host and control-device introduction
+**Status:** done; verification waived by Cameron
+**Files:** `README.md`, `docs/msc2/rolling-plan.md`
+**What:** Address readers who are new to MSC 2 in the host and control-device explanation.
+**Verify:** `rg -n 'If you are new to MSC 2' README.md`
+**Batch:** solo
+**Commit:** `P23.6: clarify the host and control-device introduction`
+
+#### P23.7 — Preview the agent status symbol
+**Status:** done; awaiting Cameron's design feedback
+**Files:** `docs/msc2/agent-indicator-preview.html`, `docs/msc2/rolling-plan.md`
+**What:** Show the proposed helmet symbol in running, stopped, and unavailable states at real system-bar size, with a sample status menu. This is a design preview, not an installed indicator.
+**Verify:** Open `docs/msc2/agent-indicator-preview.html` in a browser.
+**Batch:** solo
+**Commit:** `P23.7: preview the agent status symbol`
+
+#### P23.8 — Correct the helmet silhouette preview
+**Status:** done; awaiting Cameron's design feedback
+**Files:** `docs/msc2/agent-indicator-preview.html`, `docs/msc2/rolling-plan.md`
+**What:** Replace the ring-shaped draft with a Minecraft-style helmet silhouette based on Cameron's reference image: broad crown, face opening, and two separate lower sides.
+**Verify:** Refresh `docs/msc2/agent-indicator-preview.html` in a browser.
+**Batch:** solo
+**Commit:** `P23.8: correct the helmet indicator silhouette`
+
+#### P23.9 — Show the indicator only while the agent runs
+**Status:** done; verification waived by Cameron
+**Files:** `docs/msc2/agent-indicator-preview.html`, `docs/msc2/rolling-plan.md`
+**What:** Remove stopped and unavailable symbol variants from the preview. Show an empty system-bar position when the agent is stopped or its status cannot be confirmed.
+**Verify:** Refresh `docs/msc2/agent-indicator-preview.html` in a browser.
+**Batch:** solo
+**Commit:** `P23.9: show the indicator only while the agent runs`
+
+#### P23.10 — Plan the agent running indicator
+**Status:** done; implementation pending
+**Files:** `docs/msc2/rolling-plan.md`
+**What:** Record the agent-owned status channel, separate user-session indicator, and per-platform startup and packaging work as bounded steps.
+**Verify:** `sed -n '/### Agent running indicator/,/Phase 22 disposition/p' docs/msc2/rolling-plan.md`
+**Batch:** solo
+**Commit:** `P23.10: plan the agent running indicator`

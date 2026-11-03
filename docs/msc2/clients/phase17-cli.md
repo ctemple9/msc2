@@ -345,4 +345,4 @@ its selected local or remote agent.
 | POST `/v1/host/storage/preview` | `msc storage preview` | admin | host |
 | POST `/v1/host/storage/cleanup` | `msc storage cleanup --preview-token <TOKEN>` | admin | host |
 
-Java selection amendment (D-043, 2026-11-03): `msc java get --server <id>` and `msc java set <path> --server <id>` target that server explicitly; omit `--server` to read/change the host fallback. An empty server path restores inheritance.
+Java selection amendment (D-044, 2026-11-03): `msc java get --server <id>` and `msc java set <path> --server <id>` target that server explicitly; omit `--server` to read/change the host fallback. An empty server path restores inheritance.

@@ -36,7 +36,6 @@
   import Sheet from '../../components/base/Sheet.svelte';
   import Button from '../../components/base/Button.svelte';
   import Card from '../../components/base/Card.svelte';
-  import Toggle from '../../components/base/Toggle.svelte';
   import Badge from '../../components/base/Badge.svelte';
   import StatusDot from '../../components/base/StatusDot.svelte';
   import EmptyState from '../../components/base/EmptyState.svelte';
@@ -46,8 +45,10 @@
   import PluginBrowserSheet from './PluginBrowserSheet.svelte';
   import PlayitSetupSheet from '../server-editor/PlayitSetupSheet.svelte';
   import ProjectDetailSheet from './ProjectDetailSheet.svelte';
+  import { pickUploadSource, type UploadSource } from '../shared/upload-source';
+  import StagedUploadSheet from './StagedUploadSheet.svelte';
   import { getPlatform } from '../../platform';
-  import type { ComponentState, Schema, ScreenProps } from '../shared/types';
+  import type { ComponentState, Schema, ScreenApi, ScreenProps } from '../shared/types';
   import { call, mutate } from '../shared/types';
   import {
     addOnKind,
@@ -61,11 +62,10 @@
     addonFilename,
     addonState,
     filterAddons,
-    demoBroadcastAutostart,
     demoBroadcastStatus,
     demoJarStatus,
     flavorDisplayName,
-    healthPath,
+    statusPath,
     pollOperation,
     serversPath,
     supportsCrossplay,
@@ -88,15 +88,8 @@
   let packManaged = false;
   let checkAddonUpdates = false;
   let servers: Schema['ServerDTO'][] = [];
-  let health: Schema['HealthResponseDTO'] = {
-    cards: [],
-    overallSeverity: 'gray',
-    serverName: '',
-    serverRunning: false,
-    serverType: '',
-  };
+  let runStatus: Schema['RemoteAPIStatus'] = { running: false };
   let broadcastStatus: Schema['BroadcastStatusDTO'] = demoBroadcastStatus;
-  let broadcastAutostart: Schema['BroadcastAutoStartDTO'] = demoBroadcastAutostart;
   let jarStatus: Schema['BroadcastJarStatusDTO'] = demoJarStatus;
   let playit: Schema['PlayitStatusResponseDTO'] | undefined;
   let coreLoaded = false;
@@ -108,7 +101,8 @@
   $: kind = addOnKind(activeServer?.javaFlavor);
   $: isModded = kind === 'mod';
   $: crossplayEligible = supportsCrossplay(activeServer);
-  $: serverRunning = health.serverRunning;
+  $: broadcastEnabled = activeServer?.xboxBroadcastEnabled === true;
+  $: serverRunning = runStatus.running;
   $: primaryComponent = components.components.find(
     (component) => component.name === (isBedrock ? 'bedrock' : activeServer?.javaFlavor),
   );
@@ -158,6 +152,9 @@
   let showVersionPicker = false;
   let showBrowser = false;
   let componentActionMenu: { x: number; y: number } | undefined;
+  let serverCardMenu: { x: number; y: number } | undefined;
+  let broadcastMenu: { x: number; y: number } | undefined;
+  let changingBroadcast = false;
 
   function flash(message: string): void {
     notice = message;
@@ -217,18 +214,17 @@
   async function loadServers(): Promise<void> {
     servers = await call(api, servers, serversPath);
   }
-  async function loadHealth(): Promise<void> {
-    health = await call(api, health, healthPath);
+  async function loadStatus(): Promise<void> {
+    runStatus = await call(api, runStatus, statusPath);
   }
   async function loadBroadcast(): Promise<void> {
-    // Always fetched (cheap: three small GETs) rather than gated on
+    // Always fetched (cheap: two small GETs) rather than gated on
     // crossplayEligible/isBedrock -- those are reactive values derived from
     // `servers`, which this same loadAll() pass may not have flushed yet.
     // The template's own {#if crossplayEligible}/{#if isBedrock} blocks
     // decide whether this data ever renders.
-    [broadcastStatus, broadcastAutostart, jarStatus] = await Promise.all([
+    [broadcastStatus, jarStatus] = await Promise.all([
       call(api, broadcastStatus, broadcastPaths.status),
-      call(api, broadcastAutostart, broadcastPaths.autostart),
       call(api, jarStatus, broadcastPaths.jarStatus),
     ]);
   }
@@ -236,7 +232,7 @@
     if (loadingAll) return;
     loadingAll = true;
     try {
-      await Promise.all([loadComponents(), loadServers(), loadHealth(), loadBroadcast()]);
+      await Promise.all([loadComponents(), loadServers(), loadStatus(), loadBroadcast()]);
       checkVoiceTunnelPrompt();
       coreLoaded = true;
       void loadPlayit();
@@ -381,6 +377,22 @@
     addonMenu = { addon, x: event.clientX, y: event.clientY };
   }
 
+  function openServerCardMenu(event: MouseEvent): void {
+    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    serverCardMenu = {
+      x: event.detail === 0 ? rect.left : event.clientX,
+      y: event.detail === 0 ? rect.bottom : event.clientY,
+    };
+  }
+
+  function openBroadcastMenu(event: MouseEvent): void {
+    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    broadcastMenu = {
+      x: event.detail === 0 ? rect.left : event.clientX,
+      y: event.detail === 0 ? rect.bottom : event.clientY,
+    };
+  }
+
   function managedHelper(addon: Schema['AddonItemDTO']): 'geyser' | 'floodgate' | undefined {
     if (kind !== 'plugin') return undefined;
     const stem = addon.jarStem.toLowerCase();
@@ -414,26 +426,38 @@
     };
   }
 
+  let pendingAddonSource: UploadSource | undefined;
   async function addLocalAddon(): Promise<void> {
-    if (!api?.upload) return;
-    const picked = await (
-      await getPlatform()
-    ).pickFile({
-      label: `Choose a ${isModded ? 'mod' : 'plugin'} JAR`,
-      extensions: ['jar'],
-    });
-    if (!picked) return;
     try {
-      const staged = await api.upload('addon-local-file', picked.bytes);
-      const result = await mutate<Schema['CatalogInstallResultDTO']>(api, addonPaths.install, {
-        stagedUploadId: staged.stagedUploadId,
-      });
-      if (result.operationId) await pollOperation(api, result.operationId);
-      flash(result.message);
-      await loadAddons();
+      pendingAddonSource =
+        (await pickUploadSource(
+          api,
+          'addon-local-file',
+          { label: `Choose a ${isModded ? 'mod' : 'plugin'} JAR`, extensions: ['jar'] },
+          {},
+          () => mounted,
+        )) ?? undefined;
     } catch (error) {
-      flash(error instanceof Error ? error.message : 'Failed to add that file.');
+      flash(error instanceof Error ? error.message : 'Could not select the file.');
     }
+  }
+  async function installLocalAddon(
+    upload: Schema['StagedUploadCompleteResultDTO'],
+    scoped: ScreenApi,
+    report: (line: string) => void,
+  ): Promise<void> {
+    const result = await mutate<Schema['CatalogInstallResultDTO']>(scoped, addonPaths.install, {
+      stagedUploadId: upload.stagedUploadId,
+    });
+    if (result.operationId) {
+      const operation = await pollOperation(scoped, result.operationId, (tick) =>
+        report(tick.statusLine ?? 'Installing add-on…'),
+      );
+      if (operation?.state !== 'succeeded')
+        throw new Error(operation?.error?.message ?? 'Add-on installation did not complete.');
+    }
+    flash(result.message);
+    await loadAddons();
   }
 
   function onVersionChanged(): void {
@@ -441,15 +465,28 @@
     void Promise.all([loadComponents(), loadServers()]);
   }
 
-  async function toggleAutostart(): Promise<void> {
+  async function toggleBroadcastEnabled(): Promise<void> {
+    if (!activeServer || changingBroadcast) return;
+    const targetServerId = activeServer.id;
+    const enabled = !broadcastEnabled;
+    changingBroadcast = true;
     try {
-      broadcastAutostart = await mutate<Schema['BroadcastAutoStartDTO']>(
+      const result = await mutate<Schema['ServerXboxBroadcastResultDTO']>(
         api,
-        broadcastPaths.autostart,
-        { enabled: !broadcastAutostart.enabled },
+        '/v1/servers/xbox-broadcast',
+        { serverId: targetServerId, enabled },
       );
+      servers = servers.map((server) =>
+        server.id === targetServerId ? { ...server, xboxBroadcastEnabled: enabled } : server,
+      );
+      flash(result.message);
+      await loadBroadcast();
     } catch (error) {
-      flash(error instanceof Error ? error.message : 'Failed to change the broadcast setting.');
+      flash(
+        error instanceof Error ? error.message : 'Failed to change Xbox Broadcast for this server.',
+      );
+    } finally {
+      changingBroadcast = false;
     }
   }
 
@@ -493,6 +530,8 @@
   let mounted = false;
   $: if (serverId && serverId !== loadedForServerId) {
     loadedForServerId = serverId;
+    serverCardMenu = undefined;
+    broadcastMenu = undefined;
     coreLoaded = false;
     addonsLoaded = false;
     void loadAll();
@@ -564,32 +603,43 @@
       <section class="zone">
         <p class="msc2-type-overline">Bedrock Server</p>
         <Card padding="0">
-          <div class="row">
+          <button
+            type="button"
+            class="row server-card-row"
+            class:selected={serverCardMenu !== undefined}
+            aria-label="Actions for Bedrock Dedicated Server"
+            aria-haspopup="menu"
+            aria-expanded={serverCardMenu !== undefined}
+            onclick={openServerCardMenu}
+          >
             <div class="info">
-              <span class="name">Bedrock Dedicated Server</span>
+              <div class="title-row">
+                <span class="name">Bedrock Dedicated Server</span>
+                <span class="row-affordance"><Icon name="chevron" size={10} /></span>
+              </div>
               <span class="subtitle">{primaryComponent?.installedLabel ?? 'Not installed'}</span>
             </div>
-            <Button
-              size="sm"
-              variant="secondary"
-              disabled={serverRunning}
-              title={serverRunning ? 'Stop the server before changing its version' : undefined}
-              onclick={() => (showVersionPicker = true)}
-            >
-              Change Version
-            </Button>
-          </div>
+          </button>
         </Card>
       </section>
     {:else}
       <section class="zone">
         <p class="msc2-type-overline">Server</p>
         <Card padding="0">
-          <div class="row">
+          <button
+            type="button"
+            class="row server-card-row"
+            class:selected={serverCardMenu !== undefined}
+            aria-label={`Actions for ${flavorDisplayName(activeServer?.javaFlavor)} server`}
+            aria-haspopup="menu"
+            aria-expanded={serverCardMenu !== undefined}
+            onclick={openServerCardMenu}
+          >
             <div class="info">
               <div class="title-row">
                 <span class="name">{flavorDisplayName(activeServer?.javaFlavor)}</span>
                 <Badge variant="category">{isModded ? 'Loader' : 'Server JAR'}</Badge>
+                <span class="row-affordance"><Icon name="chevron" size={10} /></span>
               </div>
               <span class="subtitle" class:error={!primaryComponent}>
                 {primaryComponent?.installedLabel ?? 'Not installed'}
@@ -601,16 +651,7 @@
                 label={componentStatusLabel(primaryComponent)}
               />
             {/if}
-            <Button
-              size="sm"
-              variant="secondary"
-              disabled={serverRunning}
-              title={serverRunning ? 'Stop the server before changing its version' : undefined}
-              onclick={() => (showVersionPicker = true)}
-            >
-              Change Version
-            </Button>
-          </div>
+          </button>
         </Card>
       </section>
 
@@ -745,16 +786,20 @@
         <section class="zone">
           <p class="msc2-type-overline">Crossplay</p>
           <Card padding="0">
-            <div class="row">
-              <Toggle
-                checked={broadcastAutostart.enabled}
-                label="Enable MCXboxBroadcast"
-                onchange={() => void toggleAutostart()}
-              />
+            <button
+              type="button"
+              class="row server-card-row"
+              class:selected={broadcastMenu !== undefined}
+              aria-label="Actions for MCXboxBroadcast"
+              aria-haspopup="menu"
+              aria-expanded={broadcastMenu !== undefined}
+              onclick={openBroadcastMenu}
+            >
               <div class="info">
                 <div class="title-row">
                   <span class="name">MCXboxBroadcast</span>
                   <Badge variant="category">Broadcast</Badge>
+                  <span class="row-affordance"><Icon name="chevron" size={10} /></span>
                 </div>
                 <span class="subtitle"
                   >{jarStatus.version
@@ -763,15 +808,7 @@
                 >
               </div>
               <span class="status-label">{jarStatus.installed ? 'Installed' : 'Missing'}</span>
-              <Button
-                size="sm"
-                variant="secondary"
-                disabled={downloadingBroadcastJar || jarStatus.downloading}
-                onclick={() => void downloadBroadcastJar()}
-              >
-                {downloadingBroadcastJar || jarStatus.downloading ? 'Downloading…' : 'Download'}
-              </Button>
-            </div>
+            </button>
           </Card>
         </section>
       {/if}
@@ -781,11 +818,20 @@
       <section class="zone">
         <p class="msc2-type-overline">Crossplay</p>
         <Card padding="0">
-          <div class="row">
+          <button
+            type="button"
+            class="row server-card-row"
+            class:selected={broadcastMenu !== undefined}
+            aria-label="Actions for MCXboxBroadcast"
+            aria-haspopup="menu"
+            aria-expanded={broadcastMenu !== undefined}
+            onclick={openBroadcastMenu}
+          >
             <div class="info">
               <div class="title-row">
                 <span class="name">MCXboxBroadcast</span>
                 <Badge variant="category">Broadcast</Badge>
+                <span class="row-affordance"><Icon name="chevron" size={10} /></span>
               </div>
               <span class="subtitle"
                 >{jarStatus.version
@@ -797,15 +843,7 @@
               tone={broadcastStatus.bedrockBroadcastRunning ? 'ok' : 'error'}
               label={broadcastStatus.bedrockBroadcastRunning ? 'Running' : 'Stopped'}
             />
-            <Button
-              size="sm"
-              variant="secondary"
-              disabled={downloadingBroadcastJar || jarStatus.downloading}
-              onclick={() => void downloadBroadcastJar()}
-            >
-              {downloadingBroadcastJar || jarStatus.downloading ? 'Downloading…' : 'Download JAR'}
-            </Button>
-          </div>
+          </button>
         </Card>
       </section>
     {/if}
@@ -836,6 +874,46 @@
         label: 'Disable update checks',
         disabled: !checkAddonUpdates,
         onSelect: () => void toggleAddonUpdateChecks(false),
+      },
+    ]}
+  />
+{/if}
+
+{#if serverCardMenu}
+  <Menu
+    x={serverCardMenu.x}
+    y={serverCardMenu.y}
+    onClose={() => (serverCardMenu = undefined)}
+    items={[
+      {
+        label: 'Change Version',
+        disabled: serverRunning,
+        onSelect: () => (showVersionPicker = true),
+      },
+    ]}
+  />
+{/if}
+
+{#if broadcastMenu}
+  <Menu
+    x={broadcastMenu.x}
+    y={broadcastMenu.y}
+    onClose={() => (broadcastMenu = undefined)}
+    items={[
+      {
+        label: broadcastEnabled ? 'Disable' : 'Enable',
+        disabled: changingBroadcast,
+        onSelect: () => void toggleBroadcastEnabled(),
+      },
+      {
+        label:
+          downloadingBroadcastJar || jarStatus.downloading
+            ? 'Downloading…'
+            : jarStatus.installed
+              ? 'Download latest JAR'
+              : 'Download JAR',
+        disabled: downloadingBroadcastJar || jarStatus.downloading,
+        onSelect: () => void downloadBroadcastJar(),
       },
     ]}
   />
@@ -952,6 +1030,17 @@
   />
 {/if}
 
+{#if pendingAddonSource}
+  <StagedUploadSheet
+    {api}
+    purpose="addon-local-file"
+    source={pendingAddonSource}
+    completionStage="installing"
+    onComplete={installLocalAddon}
+    onClose={() => (pendingAddonSource = undefined)}
+  />
+{/if}
+
 <style>
   .components {
     display: flex;
@@ -1020,6 +1109,27 @@
     align-items: center;
     gap: 12px;
     padding: 12px 14px;
+  }
+  .server-card-row {
+    width: 100%;
+    border: 0;
+    border-radius: var(--msc2-radius-2);
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+  .server-card-row:hover {
+    background: rgba(255, 255, 255, 0.04);
+  }
+  .server-card-row:focus-visible {
+    outline: 2px solid var(--msc2-selection);
+    outline-offset: -2px;
+  }
+  .server-card-row.selected {
+    background: rgba(59, 130, 246, 0.06);
+    box-shadow: inset 0 0 0 1.5px var(--msc2-selection);
   }
   .addon-heading {
     display: flex;

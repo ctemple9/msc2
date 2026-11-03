@@ -20,6 +20,7 @@ pub mod geyser;
 pub mod helper_acquisition;
 pub mod helper_process;
 pub mod jar_provider;
+pub mod java_jar_metadata;
 pub mod java_nbt;
 pub mod java_runtime_detection;
 pub mod java_runtime_install;
@@ -42,3 +43,14 @@ pub mod world_store;
 pub mod xbox_broadcast;
 
 pub mod gamerule_catalog;
+
+pub mod conversion_resources;
+
+#[cfg(unix)]
+pub mod local_source;
+
+pub mod source_tree;
+
+pub mod storage;
+
+pub mod managed_builds;

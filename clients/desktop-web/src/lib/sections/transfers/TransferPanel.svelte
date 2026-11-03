@@ -1,9 +1,14 @@
 <script lang="ts">
+  import { onDestroy } from 'svelte';
   import ActionButton from '../../components/ActionButton.svelte';
-  import { getPlatform, type PickedFile } from '../../platform';
-  import type { ScreenApi } from '../shared/types';
+  import type { Schema, ScreenApi } from '../shared/types';
   import { bytesLabel, errorMessage } from '../shared/types';
-
+  import { pickUploadSource, type UploadSource } from '../shared/upload-source';
+  import StagedUploadSheet from '../components/StagedUploadSheet.svelte';
+  let disposed = false;
+  onDestroy(() => {
+    disposed = true;
+  });
   export let api: ScreenApi | undefined = undefined;
   export let purpose:
     | 'world-import'
@@ -12,42 +17,32 @@
     | 'addon-local-file'
     | 'curseforge-manual-file' = 'world-import';
   export let label = 'Stage a file';
-  export let onComplete: ((id: string) => void) | undefined = undefined;
-
-  let file: PickedFile | undefined;
-  let progress = 0;
+  export let onComplete: ((id: string, scoped?: ScreenApi) => void | Promise<void>) | undefined =
+    undefined;
+  let source: UploadSource | undefined;
   let message = '';
-
-  async function stage(): Promise<void> {
-    if (!file || !api?.upload) {
-      message = 'Choose a file while connected to an agent.';
-      return;
-    }
+  async function chooseFile(): Promise<void> {
     try {
-      progress = 20;
-      const result = await api.upload(purpose, file.bytes);
-      progress = 100;
-      message = `${file.name} staged (${bytesLabel(result.receivedBytes)}).`;
-      onComplete?.(result.stagedUploadId);
+      source = (await pickUploadSource(api, purpose, { label }, {}, () => !disposed)) ?? undefined;
     } catch (error) {
-      progress = 0;
       message = errorMessage(error);
     }
   }
-
-  async function chooseFile(): Promise<void> {
-    file = (await (await getPlatform()).pickFile({ label })) ?? undefined;
+  async function finish(upload: Schema['StagedUploadCompleteResultDTO']): Promise<void> {
+    message = `${source?.name} verified (${bytesLabel(upload.receivedBytes)}). Inspection and import are separate.`;
+    await onComplete?.(upload.stagedUploadId, source?.uploadApi);
   }
 </script>
 
 <div class="inline-form transfer-panel">
-  <div class="field">
-    <label>{label}</label>
-    <ActionButton label="Choose file" onclick={() => void chooseFile()}>Choose file</ActionButton>
-  </div>
-  <ActionButton label="Stage file" onclick={stage}>Stage</ActionButton>
-  {#if progress}<div class="progress-bar" aria-label="Upload progress">
-      <span style={`width: ${progress}%`}></span>
-    </div>{/if}
+  <p>{label}</p>
+  <ActionButton label="Choose file" onclick={chooseFile}>Choose file</ActionButton>
   {#if message}<small class="field-help" role="status">{message}</small>{/if}
 </div>
+{#if source}<StagedUploadSheet
+    {api}
+    {purpose}
+    {source}
+    onComplete={finish}
+    onClose={() => (source = undefined)}
+  />{/if}

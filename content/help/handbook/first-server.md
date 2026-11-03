@@ -3,40 +3,32 @@ id: handbook.first-server
 kind: handbook
 title: Your First Java Server
 category: getting-started
-subtitle: "A step-by-step checklist from zero to friends connecting on Java Edition."
-relatedIds: [handbook.paper, handbook.eula-online-mode, handbook.port-forwarding-duckdns]
-source: {path: "MSCmacOS/MSCmacOS Swift/ServerHandbookTopics.swift", symbol: firstServerContent}
+subtitle: "Create, start, and manage a standard Java server in MSC 2."
+relatedIds: [handbook.paper, handbook.plugins-crossplay, handbook.playit, handbook.worlds-backups]
 ---
 
-### Callout: tip
+This guide starts after MSC 2 is installed and First-time Setup is finished. It also works if you skipped the tour or are returning to server creation later. You can leave this page open and work through the phases in the app.
 
-You don't need to memorize this. Bookmark it and work through it step by step. You can always come back to other topics in this guide for deeper explanations of any step.
+### Checklist: Phase 1 — Open the server creator
 
-### Checklist: Phase 1 — Initial Setup
+1. **Open Manage Servers** — In the left sidebar, click the server drop-down, then **Manage…**. In Manage Servers, click **Add Server…** and choose **Start Fresh**. This starts the six-step creator; you do not need to make folders or download a server JAR yourself.
+2. **Choose Java and name the server** — On **Configure**, choose **Java** and enter a name you will recognize in the server list. Under Server Software, choose **Standard**.
+3. **Choose the server software** — Pick [Paper](help:handbook.paper), [Purpur](help:handbook.purpur), or [Vanilla](help:handbook.vanilla). Paper is a practical first choice if you want plugins. The linked pages explain what each flavor changes. Choose the Minecraft version under **Source**; the latest version is offered by default.
+4. **Choose who can join** — For Paper or Purpur, **Enable Bedrock Cross-play** adds [Geyser and Floodgate](help:handbook.plugins-crossplay) so Bedrock players can join. Vanilla has no plugin support, so this option is unavailable. If you want your Bedrock friends to see the server in their Xbox Friends tab, you can also enable [Xbox Broadcast](help:handbook.xbox-broadcast). Both are optional.
 
-1. **Install Java** — Download Temurin 21 from adoptium.net. This is the Java runtime the server needs. After installing, verify it in Preferences → Check for Java.
-2. **Run the Setup Wizard** — On first launch, the Setup Wizard appears. Choose a Servers Root folder (~/MinecraftServers is fine) and confirm your Java path.
-3. **Add a new server** — Click Manage Servers → Create New Server. Choose Standard → Paper and give it a name. MSC downloads the server JAR directly into that server's folder.
-4. **(Optional) Enable Bedrock Cross-play** — Turn on Bedrock Cross-play while creating the server. MSC installs Geyser and Floodgate into that server's `plugins/` folder.
+### Checklist: Phase 2 — Choose Java and connection
 
-### Checklist: Phase 2 — Create Your Server
+5. **Select Java for this server** — When you continue from Configure, MSC checks which Java runtime the selected Minecraft version needs. If a suitable runtime is already installed, select the recommended one. If not, use **Install Java…** in the chooser and let MSC install the version it recommends. You do not need to guess a Java version before reaching this step.
+6. **Choose how friends connect** — On **Network**, choose [Port Forwarding](help:handbook.port-forwarding-duckdns) if you will configure your router, or [Tunnel (playit.gg)](help:handbook.playit) if you want MSC to arrange a public address without router changes. Review the Java TCP port and, if cross-play is on, the separate Bedrock/Geyser UDP port. MSC shows the relevant addresses once the connection is ready.
 
-5. **Set server resources** — Choose RAM (2 GB min / 4 GB max is a good start) and review the other server options.
-6. **Accept the EULA** — Go to the Details tab for your server and click Accept EULA. The server can't start until this is done.
-7. **Configure basic settings** — In the Settings tab, set your MOTD (the message players see in the server list), max players, difficulty, and gamemode. Leave Online Mode ON.
+### Checklist: Phase 3 — World and add-ons
 
-### Checklist: Phase 3 — Go Online
+7. **Set up the world** — On **World**, keep **New World** for a new server or choose the backup ZIP option if you have one. Give the world a name and review its seed, difficulty, game mode, and other offered settings. You can adjust world settings later in the Worlds tab; see [Worlds & Backups](help:handbook.worlds-backups).
+8. **Add plugins if you want them** — On **Add-ons**, browse for compatible plugins or add a local JAR. You can skip this and use the Components tab later. If you enabled cross-play, MSC handles Geyser and Floodgate; you do not need to add them manually.
+9. **Review and create** — On **Confirm**, check the server type, version, ports, world, and optional features, then click **Create Server**. MSC creates the server and downloads its software. When creation finishes, select the new server in the sidebar if it is not already selected.
 
-8. **Start the server** — Click Start. Watch the console. When you see "Done (X.XX s)! For help, type /help", the server is ready.
-9. **Test local connection** — Open Minecraft Java on the same Mac or another computer on your home network. Add a server using your Mac's local IP (e.g. 192.168.1.x) and port 25565. You should be able to connect.
-10. **Enable external access** — Friends outside your home need one of two approaches — (A) Port Forwarding: log into your router and forward TCP port 25565 (and UDP 19132 for Geyser cross-play). Or (B) Playit.gg Tunneling: no router access needed; create a free Playit.gg account and enable the tunnel in Edit Server → Settings → Network. See Connection & Access for full step-by-step guides on both.
-11. **(Optional) Set up DuckDNS** — Create a free hostname at duckdns.org and add it to Preferences. Share yourname.duckdns.org with friends instead of your raw IP.
+### Checklist: Phase 4 — Give it memory and initiate
 
-### Checklist: Phase 4 — Stay Safe
-
-12. **Create a backup** — Once everything works, open Server Details → Worlds and create your first backup. Label it "initial setup" or similar.
-13. **Invite friends** — Share your DuckDNS hostname (or IP) and port with friends. Java players use the Multiplayer menu; Bedrock players with Geyser add a server in their Servers tab.
-
-### Callout: note
-
-Congratulations! If you made it through this checklist, you're hosting a Minecraft Java server. Check out the other topics in this guide whenever you want to understand something more deeply or add new features.
+10. **Set RAM** — Click the server name or open **Manage… → Edit**, then review the server's Java memory settings. Pick an amount that leaves enough memory for macOS and Minecraft on the same computer. [RAM & Performance](help:handbook.ram-performance) explains the tradeoff.
+11. **Initiate the first start** — Click **Initiate** in the left sidebar. This first-start flow handles the EULA and checks the services you selected, including cross-play, Playit, and broadcast. Follow any sign-in or access prompts. Watch the status and console until MSC reports that the server is ready. Later starts use **Start**.
+12. **Connect and make a backup** — Test the local Java address shown in **Overview** or **How to Connect** before sending a public address to friends. If Bedrock cross-play is enabled, test its Bedrock address too. Once the world is working, open **Worlds** and make a first backup; [Worlds & Backups](help:handbook.worlds-backups) explains how to restore it.

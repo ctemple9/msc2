@@ -87,11 +87,16 @@ async fn exchange(auth: AuthState, mut stream: UnixStream) -> Result<(), String>
         },
         Err(_) => serde_json::json!({ "status": "error", "code": "unauthorized" }),
     };
+    let authorized = response["status"] == "ok";
     let mut bytes = serde_json::to_vec(&response)
         .map_err(|error| format!("encoding local CLI response: {error}"))?;
     bytes.push(b'\n');
     tokio::time::timeout(std::time::Duration::from_secs(2), stream.write_all(&bytes))
         .await
         .map_err(|_| "local CLI response timed out".to_string())?
-        .map_err(|error| format!("writing local CLI response: {error}"))
+        .map_err(|error| format!("writing local CLI response: {error}"))?;
+    if authorized {
+        super::local_watch::wait(&mut stream).await?;
+    }
+    Ok(())
 }

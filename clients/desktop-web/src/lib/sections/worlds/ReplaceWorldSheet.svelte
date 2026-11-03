@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { onDestroy } from 'svelte';
+  import { reportTransferFailure } from '../shared/transfer-notices';
   // Ports ServerEditorWorldTab.swift's replaceWorldSheetView -- swaps the
   // live world's content from an external ZIP, taking a safety backup
   // first. MSC 1 also offers "World Folder…" as a source; the picker
@@ -9,9 +11,13 @@
   // there's no "rename while replacing" affordance in either.
   import Sheet from '../../components/base/Sheet.svelte';
   import Button from '../../components/base/Button.svelte';
-  import { getPlatform } from '../../platform';
   import { onMount } from 'svelte';
-  import type { FileChunkSource } from '../../platform/types';
+  import {
+    discardUpload,
+    pickUploadSource,
+    sourceApi,
+    type UploadSource,
+  } from '../shared/upload-source';
   import type { Schema, ScreenApi } from '../shared/types';
   import { call, mutate } from '../shared/types';
   import StagedUploadSheet from '../components/StagedUploadSheet.svelte';
@@ -28,15 +34,38 @@
     | { kind: 'replacing'; statusLine: string }
     | { kind: 'failed'; message: string };
 
+  let stagedInput: string | undefined;
+  let consumed = false;
+  let disposed = false;
+  async function closeSelection(): Promise<void> {
+    if (stagedInput && !consumed) {
+      try {
+        await discardUpload(transferApi, stagedInput);
+        stagedInput = undefined;
+      } catch (error) {
+        reportTransferFailure(transferApi, error);
+        return;
+      }
+    }
+    onClose();
+  }
+  onDestroy(() => {
+    disposed = true;
+    if (stagedInput && !consumed)
+      void discardUpload(transferApi, stagedInput).catch((error) =>
+        reportTransferFailure(transferApi, error),
+      );
+  });
+  let transferApi: ScreenApi | undefined;
   let step: Step = { kind: 'pick' };
   let levelName = 'world';
-  let pendingWorldSource: FileChunkSource | undefined;
+  let pendingWorldSource: UploadSource | undefined;
   let picking = false;
 
   onMount(() => {
     void (async () => {
       const settings = await call<Schema['SettingsResponseDTO'] | undefined>(
-        api,
+        transferApi ?? api,
         undefined,
         settingsPath,
       );
@@ -45,16 +74,23 @@
   });
 
   async function chooseAndStage(): Promise<void> {
-    if (!api?.uploadFile || serverRunning || picking) return;
+    if (!api || (!api.selectUploadSource && !api.uploadFile) || serverRunning || picking) return;
     picking = true;
     try {
-      const picked = await (
-        await getPlatform()
-      ).pickFileStream({
-        label: 'Choose a backup ZIP',
-        extensions: ['zip'],
-      });
-      if (picked) pendingWorldSource = picked;
+      const picked = await pickUploadSource(
+        api,
+        'active-world-replace',
+        {
+          label: 'Choose a backup ZIP',
+          extensions: ['zip'],
+        },
+        {},
+        () => !disposed,
+      );
+      if (picked) {
+        pendingWorldSource = picked;
+        transferApi = sourceApi(picked, api);
+      }
     } catch (error) {
       step = {
         kind: 'failed',
@@ -67,6 +103,8 @@
 
   function finishWorldUpload(upload: Schema['StagedUploadCompleteResultDTO']): void {
     if (!pendingWorldSource) throw new Error('The selected world archive is no longer available.');
+    stagedInput = upload.stagedUploadId;
+    consumed = false;
     step = {
       kind: 'staged',
       fileName: pendingWorldSource.name,
@@ -84,12 +122,14 @@
     step = { kind: 'replacing', statusLine: 'Replacing world…' };
     try {
       const result = await mutate<Schema['WorldReplaceActiveResultDTO']>(
-        api,
+        transferApi ?? api,
         worldPaths.replaceActive,
         { newLevelName: levelName, stagedUploadId },
       );
+      consumed = true;
+      stagedInput = undefined;
       if (result.operationId) {
-        const operation = await pollOperation(api, result.operationId, (tick) => {
+        const operation = await pollOperation(transferApi ?? api, result.operationId, (tick) => {
           step = { kind: 'replacing', statusLine: tick.statusLine ?? 'Replacing world…' };
         });
         if (operation?.state !== 'succeeded') {
@@ -100,6 +140,7 @@
           return;
         }
       }
+      if (disposed) return;
       onReplaced();
       onClose();
     } catch (error) {
@@ -115,7 +156,7 @@
   title="Replace World"
   size="sm"
   visible={!pendingWorldSource}
-  onClose={step.kind === 'replacing' ? undefined : onClose}
+  onClose={step.kind === 'replacing' ? undefined : closeSelection}
 >
   <div class="body">
     {#if step.kind === 'pick' || step.kind === 'staged'}
@@ -131,7 +172,7 @@
         <p class="explain">Selected: {step.fileName}</p>
       {/if}
       <div class="footer">
-        <Button variant="secondary" onclick={onClose}>Cancel</Button>
+        <Button variant="secondary" onclick={closeSelection}>Cancel</Button>
         {#if step.kind === 'staged'}
           <Button variant="primary" onclick={() => void submit()}>Apply Replace</Button>
         {:else}
@@ -150,7 +191,7 @@
       <p class="lede error-text">Replace Failed</p>
       <p class="explain">{step.message}</p>
       <div class="footer">
-        <Button variant="secondary" onclick={onClose}>Close</Button>
+        <Button variant="secondary" onclick={closeSelection}>Close</Button>
       </div>
     {/if}
   </div>

@@ -7,9 +7,9 @@
     "line": 169
   },
   "input": {
-    "root": "/Users/cameron",
+    "root": "/Users/example",
     "relativePath": "",
-    "homeDir": "/Users/cameron",
+    "homeDir": "/Users/example",
     "fsTree": {}
   },
   "expected": {

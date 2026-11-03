@@ -11,6 +11,7 @@
   import Card from '../../components/base/Card.svelte';
   import Button from '../../components/base/Button.svelte';
   import Icon from '../../components/base/Icon.svelte';
+  import Menu from '../../components/base/Menu.svelte';
   import { imageObjectUrl, type Schema, type ScreenApi } from '../shared/types';
   import { slotThumbnailUrl } from '../worlds/model';
 
@@ -22,9 +23,12 @@
   export let gamemode: string | undefined = undefined;
   export let onSwitch: () => void = () => {};
   export let onBackup: () => void = () => {};
+  export let onChangeThumbnail: () => void = () => {};
+  export let onViewMap: () => void = () => {};
 
   let thumbnailObjectUrl: string | undefined;
   let thumbnailLoadToken = 0;
+  let thumbnailMenu: { x: number; y: number } | undefined;
 
   $: thumbnailPath = slot ? slotThumbnailUrl(slot) : undefined;
   $: thumbnailUrl = thumbnailPath
@@ -90,6 +94,15 @@
     performance?.worldDay !== undefined && performance?.worldTimeTicks !== undefined
       ? `Day ${performance.worldDay} · ${formatWorldTime(performance.worldTimeTicks)}`
       : undefined;
+
+  function openThumbnailMenu(event: MouseEvent): void {
+    const button = event.currentTarget as HTMLButtonElement;
+    const rect = button.getBoundingClientRect();
+    thumbnailMenu =
+      event.detail === 0
+        ? { x: rect.left, y: rect.bottom }
+        : { x: event.clientX, y: event.clientY };
+  }
 </script>
 
 <Card padding="14px 16px">
@@ -99,12 +112,18 @@
 
   {#if slot}
     <div class="row">
-      <div
+      <button
+        type="button"
         class="thumb"
+        class:selected={thumbnailMenu !== undefined}
         style={thumbnail ? `background-image: url(${thumbnail});` : placeholderStyle(slot.name)}
+        aria-label={`Actions for ${slot.name} thumbnail`}
+        aria-haspopup="menu"
+        aria-expanded={thumbnailMenu !== undefined}
+        onclick={openThumbnailMenu}
       >
         {#if !thumbnail}<Icon name="world" size={22} />{/if}
-      </div>
+      </button>
       <div class="meta">
         <p class="name">{slot.name}</p>
         <span class="edition">{isBedrock ? 'Bedrock' : 'Java'}</span>
@@ -138,6 +157,18 @@
   {/if}
 </Card>
 
+{#if thumbnailMenu}
+  <Menu
+    x={thumbnailMenu.x}
+    y={thumbnailMenu.y}
+    onClose={() => (thumbnailMenu = undefined)}
+    items={[
+      { label: 'Change Thumbnail', disabled: !api?.upload, onSelect: onChangeThumbnail },
+      { label: 'View Map', onSelect: onViewMap },
+    ]}
+  />
+{/if}
+
 <style>
   .overline {
     display: flex;
@@ -155,12 +186,27 @@
   .thumb {
     width: 56px;
     height: 56px;
+    box-sizing: border-box;
     border-radius: 8px;
     flex-shrink: 0;
     display: flex;
     align-items: center;
     justify-content: center;
     color: rgba(255, 255, 255, 0.85);
+    padding: 0;
+    border: 2px solid transparent;
+    appearance: none;
+    -webkit-appearance: none;
+    cursor: pointer;
+    background-size: cover;
+    background-position: center;
+  }
+  .thumb.selected {
+    border-color: var(--msc2-selection);
+  }
+  .thumb:focus-visible {
+    outline: 2px solid var(--msc2-selection);
+    outline-offset: 2px;
   }
   .meta {
     flex: 1;

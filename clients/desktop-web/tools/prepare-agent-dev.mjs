@@ -8,14 +8,31 @@ const clientRoot = fileURLToPath(new URL('..', import.meta.url));
 const workspaceRoot = resolve(clientRoot, '../..');
 const agentName = process.platform === 'win32' ? 'msc.exe' : 'msc';
 const arguments_ = process.argv.slice(2);
-const unsupportedArguments = arguments_.filter((argument) => argument !== '--release');
+const targetArguments = arguments_.filter((argument) => argument.startsWith('--target='));
+const rustTarget = targetArguments[0]?.slice('--target='.length);
+const nativeTarget = {
+  'darwin:x64': 'x86_64-apple-darwin',
+  'darwin:arm64': 'aarch64-apple-darwin',
+  'linux:x64': 'x86_64-unknown-linux-gnu',
+  'win32:x64': 'x86_64-pc-windows-msvc',
+}[`${process.platform}:${process.arch}`];
+if (targetArguments.length > 1 || (rustTarget !== undefined && rustTarget !== nativeTarget)) {
+  fail('--target must name this machine’s native Rust target, once');
+}
+const unsupportedArguments = arguments_.filter(
+  (argument) =>
+    !['--release', '--validate-appliance'].includes(argument) && !targetArguments.includes(argument),
+);
 if (unsupportedArguments.length > 0) {
   fail(`unsupported argument(s): ${unsupportedArguments.join(', ')}`);
 }
 
 const profile = arguments_.includes('--release') ? 'release' : 'debug';
 const cargoProfileArguments = profile === 'release' ? ['--release'] : [];
-const source = join(workspaceRoot, 'target', profile, agentName);
+// Release staging and headless packaging must use the same Cargo output tree.
+const cargoTargetArguments = rustTarget ? ['--target', rustTarget] : [];
+const targetDirectory = rustTarget ? ['target', rustTarget] : ['target'];
+const source = join(workspaceRoot, ...targetDirectory, profile, agentName);
 const destinationRoot = join(clientRoot, 'src-tauri', 'target');
 const packageAgentDirectory = join(destinationRoot, 'package', 'agent');
 const vantageName = process.platform === 'win32' ? 'vantage.exe' : 'vantage';
@@ -23,14 +40,21 @@ const bedrockMapName = process.platform === 'win32' ? 'bedrock-map.exe' : 'bedro
 
 const applianceChecksums = {
   'vmlinuz-kata': '85ac495fce6bb6ee01206c8e022b65acad45ca3fcc2729ba377af33943c8b05e',
-  'appliance-initramfs.gz': 'd8e0ce4b9a2b9f752e2a482cf52feebaccaac4d892c619f41fa4011d68ac1291',
+  'appliance-initramfs.gz': 'fbbaaefd80aa47e18343367ac171babb3cdcecf7da58acc14ac94db4f77bcce6',
 };
 
+if (arguments_.includes('--validate-appliance')) {
+  verifyMacosAppliance();
+  console.log('Bedrock appliance matches the desktop staging checksums');
+  process.exit(0);
+}
+
 const version = verifyVersions();
-const build = spawnSync('cargo', ['build', '-p', 'msc-agent', ...cargoProfileArguments], {
-  cwd: workspaceRoot,
-  stdio: 'inherit',
-});
+const build = spawnSync(
+  'cargo',
+  ['build', '--locked', '-p', 'msc-agent', ...cargoProfileArguments, ...cargoTargetArguments],
+  { cwd: workspaceRoot, stdio: 'inherit' },
+);
 if (build.status !== 0) {
   process.exit(build.status ?? 1);
 }
@@ -90,7 +114,7 @@ if (process.platform === 'darwin' && process.arch === 'x64') {
   console.log(`staged ${process.arch} macOS agent without Bedrock sidecar`);
 }
 
-function stageMacosSidecar() {
+function verifyMacosAppliance() {
   // The verified Intel pair is part of the MSC 2 repository so a macOS
   // developer build does not depend on an external MSC 1 checkout. Keep the
   // environment variable as an explicit override for release or replacement
@@ -109,6 +133,11 @@ function stageMacosSidecar() {
       fail(`Bedrock appliance checksum mismatch for ${name}: expected ${checksum}, got ${actual}`);
     }
   }
+  return applianceDirectory;
+}
+
+function stageMacosSidecar() {
+  const applianceDirectory = verifyMacosAppliance();
 
   const derivedData = join(destinationRoot, 'bedrock-sidecar-build');
   rmSync(derivedData, { recursive: true, force: true });
@@ -191,7 +220,7 @@ function stageBedrockMap() {
     'cargo',
     // Terrain rendering is CPU intensive; ship the same optimized exporter
     // used by the browser proof even when the desktop/agent are debug builds.
-    ['build', '--locked', '--release', '--manifest-path', manifest],
+    ['build', '--locked', '--release', ...cargoTargetArguments, '--manifest-path', manifest],
     { cwd: workspaceRoot, stdio: 'inherit' },
   );
   if (built.status !== 0) fail('could not build the Bedrock terrain exporter');
@@ -199,7 +228,7 @@ function stageBedrockMap() {
     workspaceRoot,
     'tools',
     'world-map-proof',
-    'target',
+    ...targetDirectory,
     'release',
     process.platform === 'win32' ? 'msc-world-map-proof.exe' : 'msc-world-map-proof',
   );

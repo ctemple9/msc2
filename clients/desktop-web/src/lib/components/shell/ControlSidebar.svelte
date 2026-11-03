@@ -46,6 +46,9 @@
   export let servers: readonly Schema['ServerDTO'][] = [];
   export let activeServerId: string | undefined = undefined;
   export let running = false;
+  export let stopping = false;
+  export let lifecycleBusy = false;
+  export let statusNotice = '';
   export let connected = false;
   export let capabilities: Schema['CapabilitiesDTO'] | null = null;
   export let canControl = true;
@@ -57,6 +60,8 @@
   export let initiationHidden = false;
   export let initiationServerId: string | undefined = undefined;
   export let onResumeInitiation: () => void = () => undefined;
+  export let onDiscardInitiation: () => void = () => undefined;
+  export let discardingInitiation = false;
   export let onOpenAgentSetup: () => void;
   export let onManage: () => void;
   export let addressesVisible = false;
@@ -185,6 +190,7 @@
   }
 
   function startOrInitiate(): void {
+    if (stopping || lifecycleBusy || discardingInitiation) return;
     if (running) {
       onLifecycle('stop');
     } else if (activeServer?.firstStartRequired) {
@@ -225,19 +231,45 @@
         <Button
           variant={running ? 'stop' : 'start'}
           size="sm"
-          disabled={!canControl || !activeServer}
+          disabled={!canControl ||
+            !activeServer ||
+            stopping ||
+            lifecycleBusy ||
+            discardingInitiation}
           onclick={startOrInitiate}
           anchorId="ob_start_button"
         >
           <ShellIcon name={running ? 'stop' : 'play'} size={13} />
-          {running ? 'Stop' : startLabel}
+          {stopping ? 'Stopping…' : running ? 'Stop' : startLabel}
         </Button>
         <Button variant="secondary" size="sm" onclick={onOpenAgentSetup}>Agent</Button>
       </div>
+      {#if statusNotice}
+        <p class="status-notice" role="status">{statusNotice}</p>
+      {/if}
       {#if canResumeInitiation}
         <div class="initiation-notice" role="status">
-          <span>First-start setup is hidden. Resume it when you’re ready.</span>
-          <Button variant="secondary" size="sm" onclick={onResumeInitiation}>Resume setup</Button>
+          <span
+            >First-start setup is hidden. Resume it or discard its progress; your world stays.</span
+          >
+          <div class="initiation-actions">
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={discardingInitiation}
+              onclick={onResumeInitiation}
+            >
+              Resume setup
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={discardingInitiation}
+              onclick={onDiscardInitiation}
+            >
+              {discardingInitiation ? 'Stopping…' : 'Discard setup'}
+            </Button>
+          </div>
         </div>
       {/if}
     </div>
@@ -347,6 +379,12 @@
 </aside>
 
 <style>
+  .status-notice {
+    margin: 8px 0 0;
+    font-size: 12px;
+    color: var(--msc2-text-secondary);
+  }
+
   .sidebar {
     width: 240px;
     flex-shrink: 0;
@@ -435,6 +473,10 @@
     background: var(--msc2-tier-surface);
     font-size: 11px;
     line-height: 1.4;
+  }
+  .initiation-actions {
+    display: flex;
+    gap: 8px;
   }
   .disclosure {
     border-top: 1px solid var(--msc2-hairline-subtle);

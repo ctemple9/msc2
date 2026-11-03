@@ -3,7 +3,11 @@
   import Card from '../../components/base/Card.svelte';
   import Field from '../../components/base/Field.svelte';
   import Sheet from '../../components/base/Sheet.svelte';
-  import { getPlatform } from '../../platform';
+  import ModpackUploadProgress from '../components/ModpackUploadProgress.svelte';
+  import { nativeProgress, discardUpload } from '../shared/upload-source';
+  import { reportTransferFailure } from '../shared/transfer-notices';
+  import type { FileUploadProgress } from '../../platform/types';
+  import { onDestroy } from 'svelte';
   import type { Schema, ScreenApi } from '../shared/types';
   import { bytesLabel, errorMessage, mutate } from '../shared/types';
   import { pollOperation } from './wizard/model';
@@ -24,41 +28,178 @@
   let notice = '';
   let noticeIsError = false;
 
-  const defaultDownloadLimit = 512 * 1024 * 1024;
-  const transferExportPath = '/v1/servers/export';
-
+  let selected: { stagedUploadId: string; agentHostId: string; fileName: string } | undefined;
+  let selectedApi: ScreenApi | undefined;
+  let controller: AbortController | undefined;
+  let nativeTask: Promise<unknown> | undefined;
+  let redeemed = false;
+  let disposed = false;
+  let cleanupBlocked = false;
+  let transferProgress: FileUploadProgress | undefined;
+  let transferName = 'Server transfer';
+  async function releaseSelection(): Promise<void> {
+    if (selected && !redeemed) await discardUpload(selectedApi, selected.stagedUploadId);
+    selected = undefined;
+    selectedApi = undefined;
+  }
+  onDestroy(() => {
+    disposed = true;
+    controller?.abort();
+    if (!isWorking)
+      void releaseSelection().catch((error) => reportTransferFailure(selectedApi, error));
+  });
+  async function closeSheet(): Promise<void> {
+    if (isWorking && !controller) return;
+    const wasWorking = isWorking;
+    controller?.abort();
+    if (transferProgress) transferProgress = { ...transferProgress, phase: 'cancelling' };
+    try {
+      await nativeTask;
+      if (wasWorking && cleanupBlocked) return;
+    } catch (error) {
+      if (
+        typeof error === 'object' &&
+        error !== null &&
+        'cleanup' in error &&
+        error.cleanup === 'unconfirmed'
+      ) {
+        notice = errorMessage(error);
+        noticeIsError = true;
+        return;
+      }
+    }
+    try {
+      await releaseSelection();
+      onClose();
+    } catch (error) {
+      notice = errorMessage(error);
+      noticeIsError = true;
+    }
+  }
   async function exportServers(): Promise<void> {
-    if (!api?.download) {
-      notice = 'Transfer downloads need a connected client.';
+    nativeTask = runExport();
+    await nativeTask;
+  }
+  async function runExport(): Promise<void> {
+    const scoped = api?.snapshot?.() ?? api;
+    if (!scoped?.saveNativeDownload) {
+      notice = 'Native transfer saving needs a connected desktop.';
       noticeIsError = true;
       return;
     }
     isWorking = true;
     notice = '';
+    controller = new AbortController();
+    cleanupBlocked = false;
+    transferProgress = { phase: 'preparing', bytesUploaded: 0, totalBytes: 0 };
+    let exportId: string | undefined;
     try {
-      const result = await mutate<Schema['ServerTransferExportResultDTO']>(api, transferExportPath);
-      const bytes = await api.download(
-        result.stagedDownloadId,
-        Math.max(defaultDownloadLimit, result.sizeBytes + 16 * 1024 * 1024),
-      );
-      saveDownload(bytes, result.fileName);
+      const caps = await scoped.get<Schema['CapabilitiesDTO']>('/v1/capabilities');
+      if (!caps.nativeTransfers?.serverArchive)
+        throw new Error('Update the agent to export a verified native transfer file.');
+      if (controller.signal.aborted) throw new Error('Export cancelled before preparing.');
+      const task = (async () => {
+        const result =
+          await scoped.post<Schema['ServerTransferExportResultDTO']>('/v1/servers/export');
+        exportId = result.stagedDownloadId;
+        transferName = result.fileName;
+        if (controller?.signal.aborted) {
+          await scoped.delete?.(`/v1/staged-downloads/${result.stagedDownloadId}`);
+          exportId = undefined;
+          throw new Error('Export cancelled before saving.');
+        }
+        await scoped.saveNativeDownload!(
+          result.stagedDownloadId,
+          result.fileName,
+          result.sizeBytes,
+          {
+            signal: controller?.signal,
+            onProgress: (next) => {
+              if (!disposed) transferProgress = nativeProgress(next);
+            },
+          },
+        );
+        exportId = undefined;
+        return result;
+      })();
+      const result = await task;
+      if (api?.hostId?.() !== scoped.hostId?.()) return;
       notice = `Exported ${result.serverCount} server${result.serverCount === 1 ? '' : 's'} (${bytesLabel(result.sizeBytes)}).`;
       noticeIsError = false;
     } catch (error) {
       notice = errorMessage(error);
       noticeIsError = true;
+      const confirmed =
+        typeof error === 'object' &&
+        error !== null &&
+        'cleanup' in error &&
+        error.cleanup === 'confirmed';
+      if (exportId && !confirmed) {
+        try {
+          if (!scoped.delete) throw new Error('Cleanup is unavailable.');
+          await scoped.delete(`/v1/staged-downloads/${exportId}`);
+        } catch {
+          cleanupBlocked = true;
+          notice += ' Agent export cleanup could not be confirmed.';
+          reportTransferFailure(scoped, notice);
+        }
+      }
     } finally {
       isWorking = false;
+      nativeTask = undefined;
+      controller = undefined;
     }
   }
-
   async function chooseTransferFile(): Promise<void> {
-    const path = await (
-      await getPlatform()
-    ).pickFilePath({ label: 'Choose MSC transfer file', extensions: ['msctransfer'] });
-    if (path) sourcePath = path;
+    nativeTask = runChooseTransferFile();
+    await nativeTask;
   }
-
+  async function runChooseTransferFile(): Promise<void> {
+    const scoped = api?.snapshot?.() ?? api;
+    if (!scoped?.pickNativeUpload) {
+      notice = 'Native selection needs a connected desktop.';
+      noticeIsError = true;
+      return;
+    }
+    isWorking = true;
+    notice = '';
+    controller = new AbortController();
+    cleanupBlocked = false;
+    transferProgress = { phase: 'preparing', bytesUploaded: 0, totalBytes: 0 };
+    try {
+      await releaseSelection();
+      redeemed = false;
+      const task = scoped.pickNativeUpload('msc-transfer-archive', false, {
+        signal: controller.signal,
+        onProgress: (next) => {
+          if (!disposed) transferProgress = nativeProgress(next);
+        },
+      });
+      const result = await task;
+      if (result) {
+        if (disposed || controller.signal.aborted || api?.hostId?.() !== result.agentHostId) {
+          await scoped.delete?.(`/v1/staged-uploads/${result.stagedUploadId}`);
+          throw new Error('The selected host changed. Choose the transfer file again.');
+        }
+        selected = result;
+        selectedApi = scoped;
+        sourcePath = result.fileName;
+      }
+    } catch (error) {
+      notice = errorMessage(error);
+      noticeIsError = true;
+      cleanupBlocked =
+        typeof error === 'object' &&
+        error !== null &&
+        'cleanup' in error &&
+        error.cleanup === 'unconfirmed';
+      if (disposed && cleanupBlocked) reportTransferFailure(scoped, notice);
+    } finally {
+      isWorking = false;
+      nativeTask = undefined;
+      controller = undefined;
+    }
+  }
   async function importTransfer(): Promise<void> {
     const path = sourcePath.trim();
     if (!path) return;
@@ -67,22 +208,39 @@
       noticeIsError = true;
       return;
     }
+    const native = selected && path === selected.fileName ? selected : undefined;
+    const scoped = native ? selectedApi : (api?.snapshot?.() ?? api);
+    if (native && api?.hostId?.() !== native.agentHostId) {
+      notice = 'This source belongs to another host. Choose it again.';
+      noticeIsError = true;
+      return;
+    }
     isWorking = true;
     notice = '';
+    transferProgress = { phase: 'importing', bytesUploaded: 0, totalBytes: 0 };
     try {
-      const result = await mutate<Schema['ServerImportResultDTO']>(api, '/v1/servers/import', {
+      const result = await mutate<Schema['ServerImportResultDTO']>(scoped, '/v1/servers/import', {
         action: 'importTransfer',
-        sourcePath: path,
+        ...(native ? { stagedUploadId: native.stagedUploadId } : { sourcePath: path }),
         importKind: 'transfer',
         transferMode: importMode,
         ...(importMode === 'replaceAll' ? { backupPath: backupPath.trim() } : {}),
       });
+      if (native) redeemed = true;
       const operation = result.operationId
-        ? await pollOperation(api, result.operationId)
+        ? await pollOperation(scoped, result.operationId, (tick) => {
+            if (!disposed)
+              transferProgress = {
+                phase: 'importing',
+                bytesUploaded: 0,
+                totalBytes: 0,
+                statusLine: tick.statusLine ?? undefined,
+              };
+          })
         : undefined;
-      if (operation?.state === 'failed' || operation?.state === 'cancelled') {
-        throw new Error(operation.error?.message ?? 'Transfer import did not complete.');
-      }
+      if (result.operationId && operation?.state !== 'succeeded')
+        throw new Error(operation?.error?.message ?? 'Transfer import did not complete.');
+      if (api?.hostId?.() !== scoped?.hostId?.()) return;
       notice = result.message;
       noticeIsError = false;
       onImported();
@@ -93,21 +251,9 @@
       isWorking = false;
     }
   }
-
-  function saveDownload(bytes: Uint8Array, fileName: string): void {
-    const buffer = new ArrayBuffer(bytes.byteLength);
-    new Uint8Array(buffer).set(bytes);
-    const url = URL.createObjectURL(new Blob([buffer], { type: 'application/octet-stream' }));
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = fileName;
-    link.click();
-    link.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 0);
-  }
 </script>
 
-<Sheet title="Server Transfer" size="md" {onClose}>
+<Sheet title="Server Transfer" size="md" onClose={() => void closeSheet()}>
   {#if view === 'home'}
     <div class="transfer">
       <div class="intro">
@@ -163,7 +309,11 @@
 
       <div class="form">
         <div class="field-row">
-          <Field bind:value={sourcePath} placeholder="Path to .msctransfer on the agent" />
+          <Field
+            bind:value={sourcePath}
+            placeholder="Choose a transfer file, or enter a path on the agent"
+            disabled={isWorking}
+          />
           <Button variant="secondary" onclick={() => void chooseTransferFile()} disabled={isWorking}
             >Choose…</Button
           >
@@ -202,12 +352,24 @@
         <Button
           variant="primary"
           onclick={() => void importTransfer()}
-          disabled={isWorking || !sourcePath.trim()}
+          disabled={isWorking || !sourcePath.trim() || redeemed}
         >
           {isWorking ? 'Importing…' : 'Import'}
         </Button>
       </div>
     </div>
+  {/if}
+  {#if isWorking && transferProgress}
+    <ModpackUploadProgress
+      fileName={transferName}
+      progress={transferProgress}
+      onCancel={controller && transferProgress.phase !== 'cancelling'
+        ? () => {
+            transferProgress = { ...transferProgress!, phase: 'cancelling' };
+            controller?.abort();
+          }
+        : undefined}
+    />
   {/if}
 </Sheet>
 

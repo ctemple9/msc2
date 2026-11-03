@@ -30,7 +30,7 @@
   // No per-field "Learn more" links: HelpLink renders a plain <a href> to
   // /hosts/{hostId}/servers/{serverId}/handbook?topic=..., which
   // hard-navigates the whole webview instead of switching sections in-app --
-  // Cameron hit this live (splash restart, then a fresh, disconnected
+  // the owner hit this live (splash restart, then a fresh, disconnected
   // Handbook load). Handbook itself isn't rebuilt yet either (P12.16, not
   // started), so it's not worth wiring a real in-app link here now. Re-add
   // once both exist.

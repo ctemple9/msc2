@@ -45,6 +45,8 @@
   let onboarding: OnboardingGuide | null = null;
   let tourIndex = 0;
   let loaded = false;
+  let topicHistory: string[] = [];
+  let topicSelection = 0;
 
   const defaultState: FirstLaunchState = {
     setupComplete: false,
@@ -96,9 +98,29 @@
   });
 
   async function selectTopic(id: string): Promise<void> {
+    if (id === topicId) return;
+    const selection = ++topicSelection;
+    const next = await call<HelpTopic | null>(api, null, `/v1/help/${encodeURIComponent(id)}`);
+    if (selection !== topicSelection) return;
+    if (topicId) topicHistory = [...topicHistory, topicId];
     topicId = id;
     activeView = 'handbook';
-    topic = await call<HelpTopic | null>(api, null, `/v1/help/${encodeURIComponent(id)}`);
+    topic = next;
+  }
+  async function goBack(): Promise<void> {
+    const previous = topicHistory.at(-1);
+    if (!previous) return;
+    topicHistory = topicHistory.slice(0, -1);
+    const selection = ++topicSelection;
+    const next = await call<HelpTopic | null>(
+      api,
+      null,
+      `/v1/help/${encodeURIComponent(previous)}`,
+    );
+    if (selection !== topicSelection) return;
+    topicId = previous;
+    topic = next;
+    activeView = 'handbook';
   }
   function completeSetup(): void {
     saveLaunchState({ ...launchState, setupComplete: true });
@@ -134,7 +156,7 @@
   {#if !loaded}
     <p class="msc2-type-meta" role="status">Loading guide content…</p>
   {:else}
-    <section class="zone">
+    <section class="zone" class:handbook-view={activeView === 'handbook'}>
       <div class="section-header">
         <div class="overline">
           <Icon name="note" size={13} />
@@ -148,7 +170,15 @@
       </div>
       <Card padding="18px">
         {#if activeView === 'handbook'}
-          <HandbookBrowser {catalog} {topic} {topicId} onSelect={(id) => void selectTopic(id)} />
+          <HandbookBrowser
+            {catalog}
+            {topic}
+            {topicId}
+            canGoBack={topicHistory.length > 0}
+            onBack={() => void goBack()}
+            onSelect={(id) => void selectTopic(id)}
+            onOpenRouter={() => selectView('router')}
+          />
         {:else if activeView === 'router'}
           <RouterGuidePanel {api} catalog={routerGuides} />
         {:else if onboarding}
@@ -205,11 +235,32 @@
     display: flex;
     flex-direction: column;
     gap: 16px;
+    height: 100%;
+    min-height: 0;
   }
   .zone {
     display: flex;
     flex-direction: column;
     gap: 8px;
+  }
+  .zone.handbook-view {
+    flex: 1;
+    min-height: 0;
+  }
+  .zone.handbook-view :global(.card) {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+  }
+  @media (max-width: 560px) {
+    .help-screen {
+      height: auto;
+    }
+    .zone.handbook-view,
+    .zone.handbook-view :global(.card) {
+      flex: none;
+    }
   }
   .section-header {
     display: flex;

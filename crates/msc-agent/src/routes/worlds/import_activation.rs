@@ -32,7 +32,18 @@ pub async fn import(
         Ok(server) => server,
         Err(response) => return response,
     };
-    let (source_path, staged_path) = if has_staged_upload {
+    let (source_path, staged_path, _native_guard) = if has_staged_upload {
+        if !state
+            .staging
+            .native
+            .target_matches(staged_upload_id, &server.id)
+        {
+            return error_response(
+                StatusCode::CONFLICT,
+                "target_mismatch",
+                "Upload belongs to a different server.",
+            );
+        }
         let entry = {
             state
                 .staging
@@ -58,7 +69,7 @@ pub async fn import(
                 "Unknown or already-redeemed staged upload.",
             );
         }
-        (entry.path.clone(), Some(entry.path))
+        (entry.path.clone(), Some(entry.path), entry.native_guard)
     } else {
         let backup_id = backup_id.expect("exactly one source was validated above");
         let server_dir = Path::new(&server.server_dir);
@@ -68,7 +79,7 @@ pub async fn import(
         else {
             return error_response(StatusCode::NOT_FOUND, "backup_not_found", "No such backup.");
         };
-        (entry.zip_path, None)
+        (entry.zip_path, None, None)
     };
 
     // External ZIPs may have loose files or enclosing folders. The importer
@@ -170,6 +181,7 @@ pub async fn export(
             state.staging.downloads.lock().unwrap().insert(
                 id.clone(),
                 StagedDownload {
+                    owner: credential.credential_id.clone(),
                     expires_at_unix,
                     path: destination,
                 },
@@ -191,42 +203,6 @@ pub async fn export(
         response.status(),
     );
     response
-}
-
-#[cfg(test)]
-pub async fn download_staged_bytes(
-    State(state): State<WorldsRoutesState>,
-    AxumPath(id): AxumPath<String>,
-) -> Response {
-    let entry = { state.staging.downloads.lock().unwrap().remove(&id) };
-    let Some(entry) = entry else {
-        return error_response(
-            StatusCode::NOT_FOUND,
-            "not_found",
-            "Unknown or already-redeemed staged download.",
-        );
-    };
-    if now_unix() > entry.expires_at_unix {
-        let _ = std::fs::remove_file(&entry.path);
-        return error_response(
-            StatusCode::NOT_FOUND,
-            "not_found",
-            "Unknown or already-redeemed staged download.",
-        );
-    }
-    match std::fs::read(&entry.path) {
-        Ok(bytes) => {
-            let _ = std::fs::remove_file(&entry.path);
-            let mut headers = HeaderMap::new();
-            headers.insert(header::CONTENT_TYPE, "application/zip".parse().unwrap());
-            (StatusCode::OK, headers, bytes).into_response()
-        }
-        Err(_) => error_response(
-            StatusCode::NOT_FOUND,
-            "not_found",
-            "Unknown or already-redeemed staged download.",
-        ),
-    }
 }
 
 // =====================================================================
@@ -499,7 +475,19 @@ pub async fn replace_active(
     // upload given) or `BackupZip` (an uploaded, bounded, server-
     // generated staging path) — `WorldReplaceSource::ExistingFolder`
     // is unreachable from this route.
+    let mut native_guard = None;
     let world_source = if let Some(staged_upload_id) = &body.staged_upload_id {
+        if !state
+            .staging
+            .native
+            .target_matches(staged_upload_id, &server.id)
+        {
+            return error_response(
+                StatusCode::CONFLICT,
+                "target_mismatch",
+                "Upload belongs to a different server.",
+            );
+        }
         let entry = {
             state
                 .staging
@@ -525,6 +513,7 @@ pub async fn replace_active(
                 "Unknown or already-redeemed staged upload.",
             );
         }
+        native_guard = entry.native_guard;
         WorldReplaceSource::BackupZip(entry.path)
     } else {
         WorldReplaceSource::Fresh
@@ -561,6 +550,7 @@ pub async fn replace_active(
     tokio::spawn(async move {
         let now = iso8601_now();
         let result = tokio::task::spawn_blocking(move || {
+            let _native_guard = native_guard;
             worlds::replace_world(
                 &StdFileSystem,
                 &server_dir,

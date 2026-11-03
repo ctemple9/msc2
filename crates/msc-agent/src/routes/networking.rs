@@ -63,6 +63,138 @@ type SharedBroadcastService = XboxBroadcastService<'static>;
 const PLAYIT_AUTOSTART_RETRY_DELAY: Duration = Duration::from_secs(2);
 const PLAYIT_AUTOSTART_MAX_RETRIES: u8 = 3;
 const PLAYIT_CONTROL_SESSION_MAX_RESTARTS: u8 = 3;
+// Cancelled preparations can overlap a replacement download. Serialize only
+// artifact promotion, without holding the live helper's state lock.
+static BROADCAST_ACQUISITION_LOCK: Mutex<()> = Mutex::new(());
+static BROADCAST_AUTH_LOCK: Mutex<()> = Mutex::new(());
+
+fn broadcast_auth_file() -> PathBuf {
+    config_repository::default_app_data_dir().join("helpers/xbox-broadcast/auth/cache.json")
+}
+
+fn server_broadcast_auth_file(server: &ConfigServer) -> PathBuf {
+    Path::new(&server.server_dir).join(".msc2-broadcast/cache/cache.json")
+}
+
+fn read_broadcast_auth(path: &Path) -> Result<Option<Vec<u8>>, String> {
+    let bytes = match std::fs::read(path) {
+        Ok(bytes) => bytes,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(format!("Cannot read Xbox Broadcast sign-in: {error}")),
+    };
+    if bytes.is_empty() {
+        return Ok(None);
+    }
+    serde_json::from_slice::<serde_json::Value>(&bytes)
+        .map_err(|_| "Xbox Broadcast sign-in cache is incomplete or invalid".to_string())?;
+    Ok(Some(bytes))
+}
+
+fn has_broadcast_auth(servers: &[ConfigServer]) -> bool {
+    read_broadcast_auth(&broadcast_auth_file())
+        .ok()
+        .flatten()
+        .is_some()
+        || servers.iter().any(|server| {
+            read_broadcast_auth(&server_broadcast_auth_file(server))
+                .ok()
+                .flatten()
+                .is_some()
+        })
+}
+
+fn broadcast_auth_identity(bytes: &[u8]) -> Option<String> {
+    let json: serde_json::Value = serde_json::from_slice(bytes).ok()?;
+    json.get("xboxUserProfile")?
+        .get("id")?
+        .as_str()
+        .filter(|id| !id.is_empty())
+        .map(str::to_owned)
+}
+
+fn write_broadcast_auth(path: &Path, bytes: &[u8]) -> Result<(), String> {
+    let parent = path
+        .parent()
+        .ok_or("Xbox Broadcast sign-in path has no parent")?;
+    std::fs::create_dir_all(parent)
+        .map_err(|error| format!("Cannot create Xbox Broadcast sign-in directory: {error}"))?;
+    let temporary = path.with_extension("json.tmp");
+    std::fs::write(&temporary, bytes)
+        .map_err(|error| format!("Cannot stage Xbox Broadcast sign-in: {error}"))?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&temporary, std::fs::Permissions::from_mode(0o600))
+            .map_err(|error| format!("Cannot protect Xbox Broadcast sign-in: {error}"))?;
+    }
+    #[cfg(windows)]
+    if path.exists() {
+        std::fs::remove_file(path)
+            .map_err(|error| format!("Cannot replace Xbox Broadcast sign-in: {error}"))?;
+    }
+    std::fs::rename(&temporary, path)
+        .map_err(|error| format!("Cannot save Xbox Broadcast sign-in: {error}"))
+}
+
+fn prepare_broadcast_auth(servers: &[ConfigServer], server: &ConfigServer) -> Result<(), String> {
+    let _guard = BROADCAST_AUTH_LOCK
+        .lock()
+        .expect("Broadcast auth lock poisoned");
+    let host = broadcast_auth_file();
+    if read_broadcast_auth(&host)?.is_none() {
+        let mut candidates = Vec::new();
+        for existing in servers {
+            let path = server_broadcast_auth_file(existing);
+            if let Some(bytes) = read_broadcast_auth(&path)? {
+                let modified = std::fs::metadata(&path)
+                    .and_then(|metadata| metadata.modified())
+                    .ok();
+                candidates.push((bytes, modified));
+            }
+        }
+        if let Some((first, _)) = candidates.first() {
+            let identity = broadcast_auth_identity(first);
+            let same_account = candidates.iter().all(|(bytes, _)| {
+                bytes == first || (identity.is_some() && broadcast_auth_identity(bytes) == identity)
+            });
+            if !same_account {
+                return Err("Several existing Xbox Broadcast sign-ins belong to different or unidentified accounts. Their files are preserved; choose one account before enabling host-wide sign-in.".into());
+            }
+            let newest = candidates
+                .iter()
+                .max_by_key(|(_, modified)| *modified)
+                .expect("at least one broadcast sign-in exists");
+            write_broadcast_auth(&host, &newest.0)?;
+        }
+    }
+    let target = server_broadcast_auth_file(server);
+    if let Some(bytes) = read_broadcast_auth(&host)? {
+        // A live helper owns its working file. This runs only before launch.
+        write_broadcast_auth(&target, &bytes)?;
+    }
+    Ok(())
+}
+
+fn capture_broadcast_auth(server: &ConfigServer) -> Result<(), String> {
+    let _guard = BROADCAST_AUTH_LOCK
+        .lock()
+        .expect("Broadcast auth lock poisoned");
+    let source = server_broadcast_auth_file(server);
+    let Some(bytes) = read_broadcast_auth(&source)? else {
+        return Ok(());
+    };
+    let host = broadcast_auth_file();
+    let source_time = std::fs::metadata(&source)
+        .and_then(|meta| meta.modified())
+        .ok();
+    let host_time = std::fs::metadata(&host)
+        .and_then(|meta| meta.modified())
+        .ok();
+    if host_time.is_none_or(|host_time| source_time.is_some_and(|time| time > host_time)) {
+        write_broadcast_auth(&host, &bytes)?;
+    }
+    Ok(())
+}
 
 #[derive(Debug, Clone, Copy)]
 struct PendingPlayitStart {
@@ -247,11 +379,32 @@ impl PlayitLifecycleController {
             self.lifecycle.append_console_line("xbox-broadcast", &error);
             return;
         }
+        if let Err(error) =
+            prepare_broadcast_auth(&self.lifecycle.app_config_snapshot().servers, server)
+        {
+            self.lifecycle.append_console_line("xbox-broadcast", &error);
+            return;
+        }
         let launch = xbox_broadcast::XboxBroadcastLaunch {
             java_path: PathBuf::from(self.lifecycle.app_config_snapshot().java_path),
             working_directory,
         };
-        let _ = service.start(launch, &acquisition);
+        match service.begin_start() {
+            Ok(operation_id) => {
+                drop(services);
+                spawn_broadcast_start_worker(
+                    Arc::clone(&self.broadcast),
+                    self.lifecycle.clone(),
+                    server.id.clone(),
+                    operation_id,
+                    launch,
+                    acquisition,
+                );
+            }
+            Err(error) => self
+                .lifecycle
+                .append_console_line("xbox-broadcast", &error.to_string()),
+        }
     }
 
     fn stop_for_server(&self, server_id: &str) {
@@ -747,6 +900,54 @@ fn append_playit_console_line(lifecycle: &LifecycleRoutesState, line: PlayitOutp
     lifecycle.append_console_line("playit", &text);
 }
 
+/// Provider I/O must not hold the helper lock or occupy an async worker.
+fn spawn_broadcast_start_worker(
+    services: Arc<Mutex<BTreeMap<String, SharedBroadcastService>>>,
+    lifecycle: LifecycleRoutesState,
+    server_id: String,
+    operation_id: String,
+    launch: xbox_broadcast::XboxBroadcastLaunch,
+    acquisition: xbox_broadcast::XboxBroadcastJarAcquisition<'static>,
+) {
+    tokio::task::spawn_blocking(move || {
+        let _download = BROADCAST_ACQUISITION_LOCK
+            .lock()
+            .expect("Broadcast acquisition lock poisoned");
+        let acquired = acquisition.cached_current().map_or_else(
+            || {
+                let active = services
+                    .lock()
+                    .expect("Broadcast service lock poisoned")
+                    .values()
+                    .any(|service| service.process_is_running());
+                if active {
+                    Err(xbox_broadcast::XboxBroadcastDownloadError::Busy)
+                } else {
+                    acquisition.acquire()
+                }
+            },
+            Ok,
+        );
+        let mut services = services.lock().expect("Broadcast service lock poisoned");
+        let Some(service) = services.get_mut(&server_id) else {
+            return;
+        };
+        let result = match acquired {
+            Ok(acquired) => service
+                .finish_start(&operation_id, launch, &acquired)
+                .map(|_| ()),
+            Err(error) => {
+                let message = error.to_string();
+                lifecycle.append_console_line("xbox-broadcast", &message);
+                service.fail_start(&operation_id, message)
+            }
+        };
+        if let Err(error) = result {
+            lifecycle.append_console_line("xbox-broadcast", &error.to_string());
+        }
+    });
+}
+
 /// Keeps the managed Xbox Broadcast process moving independently of status
 /// requests. Its output contains both the Microsoft device-code prompt and
 /// the readiness line that completes the first-start operation.
@@ -762,11 +963,15 @@ fn spawn_broadcast_output_pump(
         loop {
             interval.tick().await;
             let mut transport_updates = Vec::new();
+            let mut running_servers = Vec::new();
             {
                 let Ok(mut services) = services.lock() else {
                     continue;
                 };
                 for (server_id, service) in services.iter_mut() {
+                    if service.process_is_running() {
+                        running_servers.push(server_id.clone());
+                    }
                     match service.poll() {
                         Ok(lines) => {
                             for line in lines {
@@ -797,6 +1002,16 @@ fn spawn_broadcast_output_pump(
                     FirstRunTransport::Broadcast,
                     status,
                 );
+            }
+            let config = lifecycle.app_config_snapshot();
+            for server in config
+                .servers
+                .iter()
+                .filter(|server| running_servers.contains(&server.id))
+            {
+                if let Err(error) = capture_broadcast_auth(server) {
+                    lifecycle.append_console_line("xbox-broadcast", &error);
+                }
             }
         }
     });
@@ -910,16 +1125,27 @@ fn prepare_broadcast_config(
 
 pub async fn playit_status(State(state): State<NetworkingState>) -> Response {
     let Ok(server) = state.active_server() else {
+        let config = state.lifecycle.app_config_snapshot();
+        let has_secret_key = state
+            .secrets
+            .get(PLAYIT_SECRET_KEY)
+            .ok()
+            .flatten()
+            .is_some_and(|key| !key.trim().is_empty());
         return Json(PlayitStatusDto {
             server_name: String::new(),
             server_type: "java".into(),
             playit_enabled: false,
             is_running: false,
-            has_secret_key: false,
-            java_address: None,
-            bedrock_address: None,
-            voice_address: None,
+            has_secret_key,
+            agent_id: config.playit_agent_id,
+            java_address: config.playit_java_address,
+            bedrock_address: config.playit_bedrock_address,
+            voice_address: config.playit_voice_address,
             voice_chat_enabled: false,
+            uses_java_tunnel: false,
+            uses_bedrock_tunnel: false,
+            uses_voice_tunnel: false,
             note: Some("no_active_server".into()),
         })
         .into_response();
@@ -947,6 +1173,15 @@ pub async fn playit_status(State(state): State<NetworkingState>) -> Response {
     };
     let mut config = state.lifecycle.app_config_snapshot();
     let tunnel_specs = server_playit_tunnel_specs(&server);
+    let uses_java_tunnel = tunnel_specs
+        .iter()
+        .any(|spec| spec.kind == msc_domain::networking::PlayitTunnelKind::Java);
+    let uses_bedrock_tunnel = tunnel_specs
+        .iter()
+        .any(|spec| spec.kind == msc_domain::networking::PlayitTunnelKind::Bedrock);
+    let uses_voice_tunnel = tunnel_specs
+        .iter()
+        .any(|spec| spec.kind == msc_domain::networking::PlayitTunnelKind::Voice);
     let configured_agent_id = config.playit_agent_id.clone();
     let has_missing_address = tunnel_specs.iter().any(|spec| match spec.kind {
         msc_domain::networking::PlayitTunnelKind::Java => config.playit_java_address.is_none(),
@@ -1017,10 +1252,14 @@ pub async fn playit_status(State(state): State<NetworkingState>) -> Response {
         playit_enabled: server.playit_enabled,
         is_running: lifecycle_status.is_active(),
         has_secret_key: has_secret,
+        agent_id: config.playit_agent_id,
         java_address: config.playit_java_address,
         bedrock_address: config.playit_bedrock_address,
         voice_address,
         voice_chat_enabled,
+        uses_java_tunnel,
+        uses_bedrock_tunnel,
+        uses_voice_tunnel,
         note: status_note,
     })
     .into_response()
@@ -1055,6 +1294,7 @@ pub async fn update_playit_enabled(
         Ok::<_, &str>(())
     }) {
         Ok(()) => {
+            state.lifecycle.update_playit_lifecycle(&server_id, enabled);
             if let Some(server) = state
                 .lifecycle
                 .app_config_snapshot()
@@ -1158,7 +1398,12 @@ pub async fn playit_setup(
     let transport = state.playit_transport;
     let secrets = state.secrets;
     let existing_agent_id = state.lifecycle.app_config_snapshot().playit_agent_id;
-    let active_server = state.lifecycle.active_config_server();
+    // MSC Settings provisions the host account without touching the selected server.
+    let active_server = if request.account_only {
+        None
+    } else {
+        state.lifecycle.active_config_server()
+    };
     let tunnel_specs = active_server
         .as_ref()
         .filter(|server| server.playit_enabled)
@@ -1525,6 +1770,7 @@ pub async fn broadcast_status(State(state): State<NetworkingState>) -> Response 
             xbox_broadcast_running: false,
             bedrock_broadcast_running: false,
             authenticated: false,
+            has_saved_auth: false,
             gamertag: None,
         })
         .into_response();
@@ -1544,14 +1790,14 @@ pub async fn broadcast_status(State(state): State<NetworkingState>) -> Response 
             let authenticated =
                 status.gamertag.is_some() || status.snapshot.status == HelperStatus::Running;
             let is_bedrock = server.server_type == ServerType::Bedrock;
-            let configured_gamertag = state
-                .lifecycle
-                .app_config_snapshot()
-                .xbox_broadcast_alt_gamertag;
+            let config = state.lifecycle.app_config_snapshot();
+            let has_saved_auth = has_broadcast_auth(&config.servers);
+            let configured_gamertag = config.xbox_broadcast_alt_gamertag;
             Json(BroadcastStatusDto {
                 xbox_broadcast_running: running && !is_bedrock,
                 bedrock_broadcast_running: running && is_bedrock,
                 authenticated,
+                has_saved_auth,
                 gamertag: status
                     .gamertag
                     .or(configured_gamertag.filter(|_| authenticated)),
@@ -1774,6 +2020,29 @@ pub async fn clear_broadcast_credentials(
         return response;
     }
     let config = state.lifecycle.app_config_snapshot();
+    {
+        let mut services = state
+            .broadcast
+            .lock()
+            .expect("Broadcast service lock poisoned");
+        for service in services.values_mut() {
+            if let Err(error) = service.stop() {
+                return helper_error_response(error.to_string(), "broadcast_stop_failed");
+            }
+        }
+    }
+    let _auth_guard = BROADCAST_AUTH_LOCK
+        .lock()
+        .expect("Broadcast auth lock poisoned");
+    for path in std::iter::once(broadcast_auth_file())
+        .chain(config.servers.iter().map(server_broadcast_auth_file))
+    {
+        if let Err(error) = std::fs::remove_file(path)
+            && error.kind() != std::io::ErrorKind::NotFound
+        {
+            return helper_error_response(error.to_string(), "broadcast_auth_clear_failed");
+        }
+    }
     let secret_keys = std::iter::once(
         msc_infrastructure::xbox_broadcast::global_alt_password_secret_key().to_string(),
     )
@@ -1809,33 +2078,24 @@ pub async fn clear_broadcast_credentials(
 pub async fn broadcast_jar_status(
     State(state): State<NetworkingState>,
 ) -> Json<BroadcastJarStatusDto> {
-    let directory = state.helper_cache.join("xbox-broadcast");
-    let artifact = std::fs::read_dir(directory)
-        .ok()
-        .into_iter()
-        .flatten()
-        .find_map(|version| {
-            let version = version.ok()?.path();
-            std::fs::read_dir(&version)
-                .ok()?
-                .flatten()
-                .find_map(|entry| {
-                    let path = entry.path();
-                    if path.extension().and_then(|ext| ext.to_str()) == Some("jar") {
-                        Some((
-                            path.file_name()?.to_string_lossy().into_owned(),
-                            version.file_name()?.to_string_lossy().into_owned(),
-                        ))
-                    } else {
-                        None
-                    }
-                })
-        });
+    let artifact = match state.broadcast_acquisition() {
+        Ok(acquisition) => tokio::task::spawn_blocking(move || acquisition.cached_current())
+            .await
+            .ok()
+            .flatten(),
+        Err(_) => None,
+    };
     Json(BroadcastJarStatusDto {
         installed: artifact.is_some(),
         downloading: false,
-        filename: artifact.as_ref().map(|(filename, _)| filename.clone()),
-        version: artifact.map(|(_, version)| version),
+        filename: artifact.as_ref().and_then(|acquired| {
+            acquired
+                .artifact
+                .path
+                .file_name()
+                .map(|name| name.to_string_lossy().into_owned())
+        }),
+        version: artifact.map(|acquired| acquired.artifact.version),
     })
 }
 
@@ -1858,7 +2118,41 @@ pub async fn download_broadcast_jar(
         Ok(acquisition) => acquisition,
         Err(response) => return response,
     };
-    match acquisition.acquire() {
+    let services = Arc::clone(&state.broadcast);
+    let acquired = tokio::task::spawn_blocking(move || {
+        let _download = BROADCAST_ACQUISITION_LOCK
+            .lock()
+            .expect("Broadcast acquisition lock poisoned");
+        let active = services
+            .lock()
+            .expect("Broadcast service lock poisoned")
+            .values()
+            .any(|service| {
+                service.process_is_running()
+                    || service.status().is_ok_and(|status| {
+                        matches!(
+                            status.snapshot.status,
+                            HelperStatus::Starting | HelperStatus::Running
+                        )
+                    })
+            });
+        if active {
+            return Err(xbox_broadcast::XboxBroadcastDownloadError::Busy);
+        }
+        acquisition.acquire()
+    })
+    .await;
+    let acquired = match acquired {
+        Ok(result) => result,
+        Err(error) => {
+            let message = format!("Xbox Broadcast download worker failed: {error}");
+            let _ = state
+                .operations
+                .fail(&operation, "broadcast_download_failed", message.clone());
+            return helper_error_response(message, "broadcast_download_failed");
+        }
+    };
+    match acquired {
         Ok(acquired) => {
             let filename = acquired
                 .artifact
@@ -1899,6 +2193,14 @@ pub async fn start_broadcast(
     State(state): State<NetworkingState>,
     Extension(credential): Extension<AuthenticatedCredential>,
 ) -> Response {
+    request_broadcast_start(state, credential, "broadcast_start_requested")
+}
+
+fn request_broadcast_start(
+    state: NetworkingState,
+    credential: AuthenticatedCredential,
+    result: &str,
+) -> Response {
     if let Some(response) = require_permission(&credential, PermissionCategoryDto::Broadcast) {
         return response;
     }
@@ -1918,21 +2220,36 @@ pub async fn start_broadcast(
     if let Err(error) = prepare_broadcast_config(&state.lifecycle, &server, &workdir) {
         return helper_error_response(error, "broadcast_config_failed");
     }
+    if let Err(error) =
+        prepare_broadcast_auth(&state.lifecycle.app_config_snapshot().servers, &server)
+    {
+        return helper_error_response(error, "broadcast_auth_failed");
+    }
     let launch = xbox_broadcast::XboxBroadcastLaunch {
         java_path: PathBuf::from(state.lifecycle.app_config_snapshot().java_path),
         working_directory: workdir,
     };
-    match service.start(launch, &acquisition) {
-        Ok(operation_id) => (
-            StatusCode::ACCEPTED,
-            Json(BroadcastSimpleResultDto {
-                result: "broadcast_start_requested".into(),
-                operation_id: Some(operation_id),
-            }),
-        )
-            .into_response(),
-        Err(error) => helper_error_response(error.to_string(), "broadcast_start_failed"),
-    }
+    let operation_id = match service.begin_start() {
+        Ok(id) => id,
+        Err(error) => return helper_error_response(error.to_string(), "broadcast_start_failed"),
+    };
+    drop(services);
+    spawn_broadcast_start_worker(
+        Arc::clone(&state.broadcast),
+        state.lifecycle.clone(),
+        server.id,
+        operation_id.clone(),
+        launch,
+        acquisition,
+    );
+    (
+        StatusCode::ACCEPTED,
+        Json(BroadcastSimpleResultDto {
+            result: result.into(),
+            operation_id: Some(operation_id),
+        }),
+    )
+        .into_response()
 }
 
 pub async fn stop_broadcast(
@@ -1976,30 +2293,17 @@ pub async fn restart_broadcast(
         Ok(server) => server,
         Err(response) => return response,
     };
-    let acquisition = match state.broadcast_acquisition() {
-        Ok(acquisition) => acquisition,
-        Err(response) => return response,
-    };
-    let mut services = state.broadcast_service(&server);
-    let service = services.get_mut(&server.id).expect("service was inserted");
-    let _ = service.stop();
-    let workdir = PathBuf::from(&server.server_dir).join(".msc2-broadcast");
-    let _ = std::fs::create_dir_all(&workdir);
-    let launch = xbox_broadcast::XboxBroadcastLaunch {
-        java_path: PathBuf::from(state.lifecycle.app_config_snapshot().java_path),
-        working_directory: workdir,
-    };
-    match service.start(launch, &acquisition) {
-        Ok(operation_id) => (
-            StatusCode::ACCEPTED,
-            Json(BroadcastSimpleResultDto {
-                result: "broadcast_restart_requested".into(),
-                operation_id: Some(operation_id),
-            }),
-        )
-            .into_response(),
-        Err(error) => helper_error_response(error.to_string(), "broadcast_restart_failed"),
+    {
+        let mut services = state.broadcast_service(&server);
+        let service = services.get_mut(&server.id).expect("service was inserted");
+        if let Err(error) = service.stop() {
+            return helper_error_response(error.to_string(), "broadcast_restart_failed");
+        }
+        if let Err(error) = service.poll() {
+            return helper_error_response(error.to_string(), "broadcast_restart_failed");
+        }
     }
+    request_broadcast_start(state, credential, "broadcast_restart_requested")
 }
 
 pub async fn resource_packs(

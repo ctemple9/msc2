@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "MSC 2",
-  "version": "0.1.23",
+  "version": "0.1.43",
   "identifier": "com.ctemple.msc2",
   "build": {
     "beforeDevCommand": "npm run build && npm run prepare:agent && npm run dev",
@@ -43,6 +43,23 @@
     ],
     "resources": {
       "target/package/agent": "agent"
+    },
+    "macOS": {
+      "dmg": {
+        "background": "dmg-background.png",
+        "windowSize": {
+          "width": 640,
+          "height": 360
+        },
+        "appPosition": {
+          "x": 160,
+          "y": 180
+        },
+        "applicationFolderPosition": {
+          "x": 480,
+          "y": 180
+        }
+      }
     },
     "linux": {
       "deb": {

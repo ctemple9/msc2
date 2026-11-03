@@ -13,7 +13,11 @@ use std::path::{Path, PathBuf};
 #[cfg(any(not(target_os = "linux"), debug_assertions, test))]
 use std::sync::Mutex;
 
+mod agent_indicator;
+mod indicator_startup;
+mod native_transfer;
 mod ssh;
+mod storage;
 mod uninstall;
 mod update;
 #[cfg(target_os = "windows")]
@@ -237,12 +241,14 @@ async fn desktop_exchange_pairing(
         base_url,
         token: result.token,
     };
+    let _authorization_change = native_transfer::changing_authorization(&result.agent_host_id);
     desktop_secret_store()?
         .set(
             &credential_key(&result.agent_host_id),
             &serde_json::to_string(&record).expect("desktop credential serializes"),
         )
         .map_err(|error| error.to_string())?;
+
     let _ = result.expires_at;
     Ok(DesktopPairingResult {
         agent_host_id: result.agent_host_id,
@@ -296,12 +302,14 @@ async fn desktop_automate_remote_pairing(
         base_url,
         token: credential.token,
     };
+    let _authorization_change = native_transfer::changing_authorization(&credential.agent_host_id);
     desktop_secret_store()?
         .set(
             &credential_key(&credential.agent_host_id),
             &serde_json::to_string(&record).expect("desktop credential serializes"),
         )
         .map_err(|error| error.to_string())?;
+
     Ok(DesktopRemotePairingResult {
         state: "paired",
         agent_host_id: Some(credential.agent_host_id),
@@ -425,6 +433,7 @@ fn desktop_forget_credentials(request: ForgetDesktopCredentialsRequest) -> Resul
     for host_id in request.host_ids {
         let host_id = host_id.trim();
         if !host_id.is_empty() {
+            let _authorization_change = native_transfer::changing_authorization(host_id);
             store
                 .delete(&credential_key(host_id))
                 .map_err(|error| error.to_string())?;
@@ -435,6 +444,7 @@ fn desktop_forget_credentials(request: ForgetDesktopCredentialsRequest) -> Resul
             .get(LOCAL_HOST_ID_KEY)
             .map_err(|error| error.to_string())?
         {
+            let _authorization_change = native_transfer::changing_authorization(&local_host_id);
             store
                 .delete(&credential_key(&local_host_id))
                 .map_err(|error| error.to_string())?;
@@ -539,12 +549,14 @@ fn bootstrap_local_macos() -> Result<DesktopPairingResult, String> {
         base_url: "http://127.0.0.1:48001".to_string(),
         token,
     };
+    let _authorization_change = native_transfer::changing_authorization(&host_id);
     store
         .set(
             &credential_key(&host_id),
             &serde_json::to_string(&record).expect("desktop credential serializes"),
         )
         .map_err(|error| error.to_string())?;
+
     store
         .set(LOCAL_HOST_ID_KEY, &host_id)
         .map_err(|error| error.to_string())?;
@@ -631,9 +643,14 @@ async fn desktop_authorized_request(request: DesktopRequest) -> Result<DesktopRe
     let method = Method::from_bytes(request.method.as_bytes())
         .map_err(|_| "The requested HTTP method is not supported.".to_string())?;
     let url = relative_request_url(&record.base_url, &request.path)?;
+    let status_read = method == Method::GET && url.path() == "/v1/status";
     let mut builder = reqwest::Client::new()
         .request(method, url)
         .header(header::AUTHORIZATION, format!("Bearer {}", record.token));
+    // A stalled status read must not permanently occupy the desktop's poll slot.
+    if status_read {
+        builder = builder.timeout(std::time::Duration::from_secs(5));
+    }
     for (name, value) in request.headers {
         let lower = name.to_ascii_lowercase();
         if matches!(lower.as_str(), "authorization" | "cookie" | "host") {
@@ -667,6 +684,7 @@ async fn desktop_authorized_request(request: DesktopRequest) -> Result<DesktopRe
     if status == reqwest::StatusCode::UNAUTHORIZED && !update::health_trial() {
         // A revoked or expired credential must not linger locally after the
         // agent has authoritatively rejected it.
+        let _authorization_change = native_transfer::changing_authorization(&request.agent_host_id);
         store.delete(&key).map_err(|error| error.to_string())?;
     }
     Ok(DesktopResponse {
@@ -771,12 +789,14 @@ async fn desktop_probe_host_route(
         base_url,
         token: record.token,
     };
+    let _authorization_change = native_transfer::changing_authorization(&request.agent_host_id);
     store
         .set(
             &key,
             &serde_json::to_string(&updated).expect("desktop credential serializes"),
         )
         .map_err(|error| error.to_string())?;
+
     Ok(DesktopRouteProbeResult {
         reachable: true,
         status: Some(status.as_u16()),
@@ -793,6 +813,18 @@ async fn agent_service_status() -> Result<AgentServiceStatus, String> {
     tauri::async_runtime::spawn_blocking(agent_service_status_blocking)
         .await
         .map_err(|error| format!("Could not check the agent service: {error}"))?
+}
+
+#[tauri::command]
+fn agent_indicator_enabled() -> Result<bool, String> {
+    agent_indicator::is_running()
+}
+
+#[tauri::command]
+async fn set_agent_indicator_enabled(enabled: bool) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || indicator_startup::set_enabled(enabled))
+        .await
+        .map_err(|error| error.to_string())?
 }
 
 fn agent_service_status_blocking() -> Result<AgentServiceStatus, String> {
@@ -864,6 +896,12 @@ fn manage_agent_service_blocking(
             let request = agent_install_request()?;
             let expected_binary = request.binary_path.clone();
             let helper = bedrock_helper_install_request()?;
+            let _build_guard = msc_infrastructure::managed_builds::guard(
+                &agent_data_directory()?.join("agent/builds"),
+                true,
+                true,
+            )
+            .map_err(|e| e.to_string())?;
             let report = msc_platform_macos::service::install_and_start_elevated(request, helper)
                 .map_err(|error| error.to_string())?;
             let report = ensure_service_report_uses_binary(report, &expected_binary)?;
@@ -902,6 +940,12 @@ fn manage_agent_service_blocking(
             let request = agent_install_request()?;
             let expected_binary = expected_local_agent_binary()?;
             let helper = linux_system_agent_path()?;
+            let _build_guard = msc_infrastructure::managed_builds::guard(
+                &agent_data_directory()?.join("agent/builds"),
+                true,
+                true,
+            )
+            .map_err(|e| e.to_string())?;
             let report =
                 msc_platform_linux::service::install_desktop_service_elevated(request, &helper)
                     .map_err(|error| error.to_string())?;
@@ -926,6 +970,12 @@ fn manage_agent_service_blocking(
             AgentServiceAction::Install | AgentServiceAction::Repair => {
                 let request = agent_install_request()?;
                 let expected_binary = request.binary_path.clone();
+                let _build_guard = msc_infrastructure::managed_builds::guard(
+                    &agent_data_directory()?.join("agent/builds"),
+                    true,
+                    true,
+                )
+                .map_err(|e| e.to_string())?;
                 windows_service::install(&request, _owner_window)?;
                 let report = manager
                     .execute(ServiceManagerCommand::Status { service_name })
@@ -946,6 +996,11 @@ fn manage_agent_service_blocking(
             }
         }
     };
+    if report.state == ServiceState::NotInstalled {
+        indicator_startup::remove()?;
+    } else if let Err(error) = indicator_startup::install() {
+        eprintln!("MSC 2 agent indicator: {error}");
+    }
     Ok(report_status(report))
 }
 
@@ -1387,7 +1442,10 @@ fn stage_packaged_agent(
     let file_name = source
         .file_name()
         .ok_or_else(|| "The packaged agent path has no file name.".to_string())?;
-    let build_directory = data_directory.join("agent/builds").join(digest);
+    let build_root = data_directory.join("agent/builds");
+    let _build_guard = msc_infrastructure::managed_builds::guard(&build_root, true, true)
+        .map_err(|e| e.to_string())?;
+    let build_directory = build_root.join(&digest);
     let destination = build_directory.join(file_name);
     let renderer_destination = build_directory.join(
         renderer
@@ -1404,6 +1462,8 @@ fn stage_packaged_agent(
     stage_packaged_executable(source, &destination, &source_bytes)?;
     stage_packaged_executable(renderer, &renderer_destination, &renderer_bytes)?;
     stage_packaged_executable(bedrock_map, &bedrock_map_destination, &bedrock_map_bytes)?;
+    msc_infrastructure::managed_builds::record_current(&build_root, &digest)
+        .map_err(|e| e.to_string())?;
     Ok(destination)
 }
 
@@ -1767,6 +1827,22 @@ fn reveal_command(path: &Path) -> std::process::Command {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    if std::env::args().any(|arg| arg == "--unregister-agent-indicator") {
+        if let Err(error) = indicator_startup::remove() {
+            eprintln!("{error}");
+        }
+        return;
+    }
+    if std::env::args().any(|arg| arg == "--stop-agent-indicator") {
+        if let Err(error) = agent_indicator::stop() {
+            eprintln!("{error}");
+        }
+        return;
+    }
+    if std::env::args().any(|arg| arg == "--agent-indicator") {
+        agent_indicator::run(desktop_context());
+        return;
+    }
     if ssh::run_ssh_askpass_helper() {
         return;
     }
@@ -1776,8 +1852,22 @@ pub fn run() {
     #[cfg(target_os = "macos")]
     ensure_ad_hoc_signed_or_reexec();
 
+    #[cfg(target_os = "macos")]
+    update::report_desktop_update_ready(false);
+
     tauri::Builder::default()
-        .on_page_load(|_webview, payload| {
+        .setup(|_| {
+            if let Err(error) = indicator_startup::install() {
+                eprintln!("MSC 2 agent indicator: {error}");
+            }
+            Ok(())
+        })
+        .on_page_load(|webview, payload| {
+            if webview.label() == "main"
+                && payload.event() == tauri::webview::PageLoadEvent::Started
+            {
+                native_transfer::invalidate_all();
+            }
             // Windows waits for the mounted client shell, not HTML loading.
             #[cfg(not(target_os = "windows"))]
             update::report_desktop_update_ready(
@@ -1786,11 +1876,38 @@ pub fn run() {
             #[cfg(target_os = "windows")]
             let _ = payload;
         })
+        .on_window_event(|window, event| {
+            if window.label() == "main" {
+                if let tauri::WindowEvent::DragDrop(tauri::DragDropEvent::Drop { paths, .. }) =
+                    event
+                {
+                    let sources = native_transfer::remember_dropped_sources(paths);
+                    let _ = tauri::Emitter::emit(window, "native-source-drop", sources);
+                }
+            }
+            if window.label() == "main" && matches!(event, tauri::WindowEvent::Destroyed) {
+                native_transfer::invalidate_all();
+            }
+        })
         .manage(ssh::SshTunnelManager::default())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_notification::init())
         .invoke_handler(tauri::generate_handler![
+            storage::storage_active_scans,
+            storage::storage_composed,
+            storage::storage_overview,
+            storage::storage_local,
+            storage::storage_cached,
+            storage::storage_remote,
+            storage::storage_reveal,
+            native_transfer::download::download_staged_file,
+            native_transfer::download::cancel_native_download,
+            native_transfer::pick_upload_source,
+            native_transfer::release_upload_source,
+            native_transfer::start_native_upload,
+            native_transfer::wait_native_upload,
+            native_transfer::cancel_native_upload,
             desktop_report_update_ready,
             desktop_exchange_pairing,
             desktop_automate_remote_pairing,
@@ -1802,6 +1919,8 @@ pub fn run() {
             open_external_url,
             reveal_in_file_manager,
             agent_service_status,
+            agent_indicator_enabled,
+            set_agent_indicator_enabled,
             agent_health_check,
             quit_app,
             manage_agent_service,
@@ -1814,8 +1933,13 @@ pub fn run() {
             ssh::ssh_tunnel_retry,
             ssh::ssh_tunnel_stop
         ])
-        .run(tauri::generate_context!())
+        .run(desktop_context())
         .expect("error while running the MSC 2 desktop shell");
+}
+
+fn desktop_context() -> tauri::Context<tauri::Wry> {
+    // macOS embeds a single Info.plist symbol for both process modes.
+    tauri::generate_context!()
 }
 
 #[cfg(test)]

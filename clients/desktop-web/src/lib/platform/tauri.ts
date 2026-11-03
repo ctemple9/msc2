@@ -5,6 +5,10 @@ import type {
   FilePickerRequest,
   FileChunkSource,
   MenuEntry,
+  NativeFilePickerRequest,
+  NativeFileDescriptor,
+  NativeFileSource,
+  NativeDroppedSource,
   PickedFile,
   PlatformAdapter,
   TauriPlatformDependencies,
@@ -36,6 +40,11 @@ export function createTauriPlatform(dependencies: TauriPlatformDependencies): Pl
       return dependencies.readFileStream(path);
     },
     pickFile: (request) => dependencies.pickFile(request),
+    pickNativeFile: (request) => {
+      if (!dependencies.pickNativeFile)
+        throw new Error('Native file selection is unavailable in this desktop build.');
+      return dependencies.pickNativeFile(request);
+    },
     pickFileStream: (request) => {
       if (!dependencies.pickFileStream)
         throw new Error('Streaming file reads are unavailable in this desktop build.');
@@ -47,6 +56,7 @@ export function createTauriPlatform(dependencies: TauriPlatformDependencies): Pl
     quitApplication: dependencies.quitApplication,
     openExternal: (url: string) => dependencies.openExternal(url),
     revealInFileManager: dependencies.revealInFileManager,
+    onNativeSourceDrop: dependencies.onNativeSourceDrop,
     onFileDrop: (handler) => dependencies.onFileDrop(handler),
     onCloseRequested: dependencies.onCloseRequested,
     // P11.23 supplies per-host pairing and secret-store behavior. This seam
@@ -54,6 +64,8 @@ export function createTauriPlatform(dependencies: TauriPlatformDependencies): Pl
     credentialFor: async (_hostId: string) => null,
     agentHealthCheck: dependencies.agentHealthCheck,
     agentServiceStatus: dependencies.agentServiceStatus,
+    agentIndicatorEnabled: dependencies.agentIndicatorEnabled,
+    setAgentIndicatorEnabled: dependencies.setAgentIndicatorEnabled,
     manageAgentService: dependencies.manageAgentService,
     previewLocalUninstall:
       dependencies.previewLocalUninstall ??
@@ -98,6 +110,18 @@ export async function loadTauriPlatform(): Promise<PlatformAdapter> {
   ]);
 
   return createTauriPlatform({
+    async pickNativeFile(request: NativeFilePickerRequest): Promise<NativeFileSource | null> {
+      const source = await invoke<NativeFileDescriptor | null>('pick_upload_source', { request });
+      if (!source) return null;
+      const agentHostId = source.binding.agentHostId;
+      const sourceId = source.sourceId;
+      return Object.freeze({
+        ...source,
+        binding: Object.freeze({ ...source.binding }),
+        kind: 'native' as const,
+        close: () => invoke<void>('release_upload_source', { agentHostId, sourceId }),
+      });
+    },
     async pickFolder(label: string): Promise<string | null> {
       const picked = await open({
         title: label,
@@ -204,6 +228,10 @@ export async function loadTauriPlatform(): Promise<PlatformAdapter> {
     // DOM (dragDropEnabled defaults true, tauri.conf.json), so this is the
     // only source of a *real* dropped path -- an HTML5 `ondrop` handler in
     // the component only ever sees an empty `dataTransfer` here.
+    onNativeSourceDrop: async (handler: (sources: readonly NativeDroppedSource[]) => void) => {
+      const { listen } = await import('@tauri-apps/api/event');
+      return listen<NativeDroppedSource[]>('native-source-drop', (event) => handler(event.payload));
+    },
     onFileDrop: async (handler: (paths: readonly string[]) => void) =>
       getCurrentWebview().onDragDropEvent((event) => {
         if (event.payload.type === 'drop') handler(event.payload.paths);
@@ -215,6 +243,9 @@ export async function loadTauriPlatform(): Promise<PlatformAdapter> {
       invoke<UninstallScheduled>('uninstall_local', { request }),
     agentHealthCheck: () => invoke<boolean>('agent_health_check'),
     agentServiceStatus: () => invoke<AgentServiceStatus>('agent_service_status'),
+    agentIndicatorEnabled: () => invoke<boolean>('agent_indicator_enabled'),
+    setAgentIndicatorEnabled: (enabled: boolean) =>
+      invoke<void>('set_agent_indicator_enabled', { enabled }),
     manageAgentService: (action: AgentServiceAction) =>
       invoke<AgentServiceStatus>('manage_agent_service', { action }),
     checkForUpdates: () => invoke<UpdateCheckResult>('check_for_updates'),

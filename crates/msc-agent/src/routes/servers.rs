@@ -250,6 +250,13 @@ pub async fn export_transfer(
         return response;
     }
 
+    let Ok(permit) = staging.transfer_slots.clone().try_acquire_owned() else {
+        return error_response(
+            StatusCode::TOO_MANY_REQUESTS,
+            "stream_capacity",
+            "Both native transfer slots are active.",
+        );
+    };
     let servers = state.export_inputs();
     if servers.is_empty() {
         return error_response(
@@ -277,8 +284,28 @@ pub async fn export_transfer(
         source_machine_name: agent_host_name(),
         app_config_version: AppConfig::LATEST_CONFIG_VERSION,
     };
+    struct PendingExport {
+        path: PathBuf,
+        published: std::sync::atomic::AtomicBool,
+    }
+    impl Drop for PendingExport {
+        fn drop(&mut self) {
+            if !self.published.load(std::sync::atomic::Ordering::Acquire) {
+                let _ = std::fs::remove_file(&self.path);
+            }
+        }
+    }
+    // Retain cleanup in the producer too: disconnecting this handler must not
+    // leave an unregistered archive after its blocking writer finishes.
+    let pending = std::sync::Arc::new(PendingExport {
+        path: destination.clone(),
+        published: Default::default(),
+    });
+    let producer_pending = pending.clone();
     let export_path = destination.clone();
     let result = tokio::task::spawn_blocking(move || {
+        let _pending = producer_pending;
+        let _permit = permit;
         let file = std::fs::File::create(&export_path).map_err(|error| error.to_string())?;
         export_server_transfer(&request, file).map_err(|error| error.to_string())?;
         std::fs::metadata(&export_path)
@@ -311,10 +338,14 @@ pub async fn export_transfer(
     staging.downloads.lock().unwrap().insert(
         id.clone(),
         crate::routes::worlds::StagedDownload {
+            owner: credential.credential_id.clone(),
             expires_at_unix,
             path: destination,
         },
     );
+    pending
+        .published
+        .store(true, std::sync::atomic::Ordering::Release);
     Json(ServerTransferExportResultDto {
         staged_download_id: id,
         expires_at: crate::routes::worlds::unix_to_iso8601(expires_at_unix),
@@ -1095,6 +1126,13 @@ fn redeem_modpack_upload(
     let Some(staged_upload_id) = staged_upload_id.filter(|id| !id.trim().is_empty()) else {
         return Ok(None);
     };
+    if !staging.native.creation_matches(staged_upload_id) {
+        return Err(Box::new(error_response(
+            StatusCode::CONFLICT,
+            "target_mismatch",
+            "This upload was selected for an existing server.",
+        )));
+    }
     let entry = staging.uploads.lock().unwrap().remove(staged_upload_id);
     let Some(entry) = entry else {
         return Err(Box::new(error_response(
@@ -1129,6 +1167,43 @@ fn pack_unresolved_files(
 }
 
 fn pack_summary(report: &provisioning::PackApplyReport) -> serde_json::Value {
+    let flagged_file_outcomes: Vec<serde_json::Value> = match report {
+        provisioning::PackApplyReport::CurseForge(report) => report
+            .inspection_flagged_files
+            .iter()
+            .map(|name| {
+                let outcome = if let Some(file) = report
+                    .excluded_manifest_files
+                    .iter()
+                    .find(|file| &file.file_name == name)
+                {
+                    format!("Excluded: {}", file.reason)
+                } else if report
+                    .recovered_modrinth_files
+                    .iter()
+                    .any(|path| path.file_name().is_some_and(|file| file == name.as_str()))
+                {
+                    "Recovered from Modrinth".into()
+                } else if report
+                    .installed_files
+                    .iter()
+                    .any(|path| path.file_name().is_some_and(|file| file == name.as_str()))
+                {
+                    "Downloaded directly; available during installation".into()
+                } else if let Some(file) = report
+                    .unresolved_files
+                    .iter()
+                    .find(|file| &file.file_name == name)
+                {
+                    format!("Needs attention: {}", file.reason)
+                } else {
+                    "Could not reconcile provider metadata; review the unresolved files".into()
+                };
+                serde_json::json!({"fileName": name, "outcome": outcome})
+            })
+            .collect(),
+        provisioning::PackApplyReport::Mrpack(_) => Vec::new(),
+    };
     let (
         pack_name,
         pack_version,
@@ -1196,6 +1271,7 @@ fn pack_summary(report: &provisioning::PackApplyReport) -> serde_json::Value {
         "installedCount": installed_count,
         "recoveredModrinthFiles": recovered_modrinth_files,
         "recoveredModrinthCount": recovered_modrinth_count,
+        "flaggedFileOutcomes": flagged_file_outcomes,
         "unresolvedFiles": unresolved_files,
         "unresolvedCount": unresolved_count,
     })
@@ -1311,7 +1387,15 @@ pub async fn delete(
         return invalid_body("missing_server_id", "serverId is required.");
     }
 
-    match state.delete_fleet_server(&server_id) {
+    let operation = match state.operations().begin_lifecycle(
+        "server-delete",
+        Some(server_id.clone()),
+        "Deleting server.",
+    ) {
+        Ok(o) => o,
+        Err(e) => return super::operations::operation_error_response(e),
+    };
+    let response = match state.delete_fleet_server(&server_id) {
         Ok(deleted) => Json(ServerDeleteResultDto {
             success: true,
             message: format!("Deleted server \"{}\".", deleted.removed_display_name),
@@ -1324,7 +1408,19 @@ pub async fn delete(
             "delete_failed",
             &error.to_string(),
         ),
+    };
+    if response.status().is_success() {
+        let _ = state
+            .operations()
+            .succeed(&operation, "Server deleted.", Default::default());
+    } else {
+        let _ = state.operations().fail(
+            &operation,
+            "server_delete_failed",
+            format!("HTTP {}", response.status()),
+        );
     }
+    response
 }
 
 fn delete_server_error_response(error: DeleteServerError) -> Response {
@@ -1979,6 +2075,7 @@ mod tests {
         backup_path: Option<&str>,
     ) -> ServerImportRequestDto {
         ServerImportRequestDto {
+            staged_upload_id: None,
             action: Some("importTransfer".to_string()),
             source_path: Some(source_path.to_string_lossy().into_owned()),
             import_kind: Some("transfer".to_string()),
@@ -2001,6 +2098,8 @@ mod tests {
         import(
             State(state.clone()),
             Extension(transfer_credential()),
+            Extension(StagingStore::default()),
+            None,
             Ok(Json(body)),
         )
         .await
@@ -2227,6 +2326,7 @@ mod tests {
         server_type: Option<&str>,
     ) -> ServerImportRequestDto {
         ServerImportRequestDto {
+            staged_upload_id: None,
             action: Some(action.to_string()),
             source_path: Some(source_path.to_string_lossy().into_owned()),
             import_kind: import_kind.map(str::to_string),
@@ -2247,6 +2347,7 @@ mod tests {
 
     fn rescan_request() -> ServerImportRequestDto {
         ServerImportRequestDto {
+            staged_upload_id: None,
             action: Some("rescan".to_string()),
             source_path: None,
             import_kind: None,
@@ -2523,6 +2624,8 @@ mod tests {
         let response = import(
             State(state),
             Extension(credential),
+            Extension(StagingStore::default()),
+            None,
             Ok(Json(rescan_request())),
         )
         .await;
@@ -2692,6 +2795,7 @@ mod tests {
         staging.uploads.lock().unwrap().insert(
             "pack-upload".to_string(),
             StagedUpload {
+                native_guard: None,
                 purpose: msc_api::dto::StagedUploadPurposeDto::ModpackArchive,
                 file_name: None,
                 operation_id: None,

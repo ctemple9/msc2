@@ -173,6 +173,7 @@ struct LifecycleRoutesInner {
     console_correlation: Mutex<ConsoleCorrelation>,
     time_observation: Mutex<TimeObservation>,
     time_query_lock: tokio::sync::Mutex<()>,
+    health_check_slot: Arc<tokio::sync::Semaphore>,
 }
 
 #[derive(Clone, Deserialize, Serialize)]
@@ -807,6 +808,7 @@ impl LifecycleRoutesState {
                 console_correlation: Mutex::new(ConsoleCorrelation::default()),
                 time_observation: Mutex::new(TimeObservation::default()),
                 time_query_lock: tokio::sync::Mutex::new(()),
+                health_check_slot: Arc::new(tokio::sync::Semaphore::new(1)),
             }),
         }
     }
@@ -927,9 +929,13 @@ impl LifecycleRoutesState {
         server_type: Option<ServerType>,
     ) -> Result<OperationId, msc_application::operations::LifecycleOperationError> {
         let status_line = match server_type {
-            Some(ServerType::Java) => "Importing Java server.",
-            Some(ServerType::Bedrock) => "Importing Bedrock server.",
-            None => "Importing server.",
+            Some(ServerType::Java) => {
+                "Installing Java server in storage: extracting or copying files."
+            }
+            Some(ServerType::Bedrock) => {
+                "Installing Bedrock server in storage: extracting or copying files."
+            }
+            None => "Installing server in storage: extracting or copying files.",
         };
         self.inner.operations.begin_lifecycle(
             "paper-import",
@@ -969,6 +975,23 @@ impl LifecycleRoutesState {
 
     pub fn servers_root(&self) -> PathBuf {
         self.inner.app_config.servers_root()
+    }
+
+    pub(crate) fn storage_host_id(&self) -> Result<String, String> {
+        self.inner
+            .auth_state
+            .as_ref()
+            .ok_or_else(|| "Agent identity is unavailable".to_string())?
+            .agent_host_id()
+            .map_err(|error| format!("Agent identity is unavailable: {error:?}"))
+    }
+
+    pub(crate) fn storage_credential_valid(&self, credential: &AuthenticatedCredential) -> bool {
+        self.inner.auth_state.as_ref().is_some_and(|auth| {
+            auth.stream_retains_permissions(&crate::auth::StreamAuthentication {
+                credential: credential.clone(),
+            })
+        })
     }
 
     pub fn app_config_path(&self) -> PathBuf {
@@ -1105,6 +1128,10 @@ impl LifecycleRoutesState {
         self.inner.process
     }
 
+    pub(super) fn health_check_slot(&self) -> Arc<tokio::sync::Semaphore> {
+        self.inner.health_check_slot.clone()
+    }
+
     /// Connects the networking-owned Playit services after both route states
     /// have been constructed.  Keeping the registration late avoids a cycle
     /// in the application state while still giving lifecycle the only place
@@ -1158,6 +1185,19 @@ impl LifecycleRoutesState {
         }
     }
 
+    pub fn update_playit_lifecycle(&self, server_id: &str, enabled: bool) {
+        let mut first_start = self.inner.first_start.lock().unwrap();
+        if let Some(run) = first_start.as_mut()
+            && run.server_id == server_id
+        {
+            run.playit = if enabled {
+                FirstStartTransportState::Waiting
+            } else {
+                FirstStartTransportState::NotApplicable
+            };
+        }
+    }
+
     /// Stop the backend that actually owns the first-start process. The Java
     /// lifecycle service is still the right owner for Java, but Bedrock lives
     /// in the selected runtime (including the macOS VM sidecar).
@@ -1192,7 +1232,7 @@ impl LifecycleRoutesState {
         }
     }
 
-    fn stop_all_playit_helpers(&self) {
+    pub(crate) fn stop_all_playit_helpers(&self) {
         if let Some(integration) = self.playit_lifecycle() {
             integration.stop_all();
         }
@@ -1311,6 +1351,10 @@ impl LifecycleRoutesState {
                 | msc_application::bedrock_runtime::BedrockRuntimeState::Running
                 | msc_application::bedrock_runtime::BedrockRuntimeState::Stopping
         )
+    }
+
+    pub(crate) fn bedrock_run_generation(&self) -> u64 {
+        self.inner.bedrock_run_generation.load(Ordering::Relaxed)
     }
 
     pub(crate) fn bedrock_runtime_is_bound(&self) -> bool {
@@ -2070,6 +2114,9 @@ impl LifecycleRoutesState {
         }
 
         apply_active_java_world_profile(&registered).map_err(|message| {
+            let message = format!(
+                "MSC could not apply the saved world settings before launching Java: {message}"
+            );
             let _ =
                 self.inner
                     .operations
@@ -2321,7 +2368,15 @@ impl LifecycleRoutesState {
         if let Some(server_id) = active_server_id.as_deref() {
             self.stop_helpers_for_server(server_id);
         }
-        self.inner.lifecycle.lock().unwrap().request_stop()?;
+        let mut lifecycle = self.inner.lifecycle.lock().unwrap();
+        // First-start can request its own stop while a desktop stop request is
+        // in flight. Let the existing shutdown finish without sending it twice.
+        if !matches!(
+            lifecycle.state(),
+            LifecycleState::Stopping | LifecycleState::Stopped
+        ) {
+            lifecycle.request_stop()?;
+        }
         Ok(active_server_id)
     }
 
@@ -2887,12 +2942,35 @@ impl LifecycleRoutesState {
     }
 
     fn drain_bedrock_events(&self) {
+        if !matches!(
+            self.inner.bedrock_runtime.state(),
+            msc_application::bedrock_runtime::BedrockRuntimeState::Starting
+                | msc_application::bedrock_runtime::BedrockRuntimeState::Running
+                | msc_application::bedrock_runtime::BedrockRuntimeState::Stopping
+        ) {
+            return;
+        }
         loop {
             let event = match self.inner.bedrock_runtime.poll_event() {
                 Ok(Some(event)) => event,
                 Ok(None) => break,
                 Err(error) => {
                     let message = error.to_string();
+                    self.append_console_line(
+                        "msc",
+                        &format!("Bedrock helper event error: {message}"),
+                    );
+                    eprintln!("Bedrock helper event error: {message}");
+                    // A rejected event does not establish server termination.
+                    // Preserve its helpers while the runtime still owns a live run.
+                    if matches!(
+                        self.inner.bedrock_runtime.state(),
+                        msc_application::bedrock_runtime::BedrockRuntimeState::Starting
+                            | msc_application::bedrock_runtime::BedrockRuntimeState::Running
+                            | msc_application::bedrock_runtime::BedrockRuntimeState::Stopping
+                    ) {
+                        break;
+                    }
                     self.clear_console_correlation();
                     self.clear_time_observation();
                     if let Some(server_id) = self.active_server_id() {
@@ -3141,7 +3219,7 @@ impl LifecycleRoutesState {
                 if output_events.iter().any(|event| {
                     matches!(event, msc_application::output_reducer::OutputEvent::Ready)
                 }) {
-                    if let Err(error) = self.apply_active_java_world_gameplay() {
+                    if let Err(error) = self.apply_active_java_world_gameplay(false) {
                         self.inner.console.push(ConsoleLine::with_origin(
                             "msc",
                             None,
@@ -3169,7 +3247,10 @@ impl LifecycleRoutesState {
         }
     }
 
-    pub fn apply_active_java_world_gameplay(&self) -> Result<(), String> {
+    pub fn apply_active_java_world_gameplay(
+        &self,
+        switch_online_players: bool,
+    ) -> Result<(), String> {
         let Some(server_id) = self.active_server_id() else {
             return Ok(());
         };
@@ -3187,13 +3268,18 @@ impl LifecycleRoutesState {
                 .ok()
                 .and_then(|raw| msc_domain::nbt::java_runtime_metadata(&raw).0)
         });
-        let commands = msc_application::java_world_settings::runtime_commands(
+        let mut commands = msc_application::java_world_settings::runtime_commands(
             &profile,
             detected_version
                 .as_deref()
                 .or(server.minecraft_version.as_deref()),
         )
         .map_err(|error| error.to_string())?;
+        if switch_online_players && let Some(mode) = &profile.gameplay.default_game_mode {
+            // Keep restart-time defaults separate from a deliberate live
+            // change, which should also reach players already online.
+            commands.push(format!("gamemode {mode} @a"));
+        }
         for command in commands {
             self.inner
                 .lifecycle
@@ -3374,6 +3460,47 @@ impl LifecycleRoutesState {
     fn abort_first_start(&self) {
         *self.inner.first_start.lock().unwrap() = None;
         *self.inner.first_start_pass_two_started_at.lock().unwrap() = None;
+    }
+
+    pub fn discard_first_start(&self, server_id: &str) -> Result<(), String> {
+        if !self
+            .inner
+            .app_config
+            .servers()
+            .iter()
+            .any(|server| server.id == server_id)
+        {
+            return Err("server no longer exists".into());
+        }
+        if self.status_snapshot().running {
+            return Err("stop the server before discarding first-start setup".into());
+        }
+        let mut first_start = self.inner.first_start.lock().unwrap();
+        if first_start
+            .as_ref()
+            .is_some_and(|run| run.server_id != server_id)
+        {
+            return Err("another server has an active first-start setup".into());
+        }
+        self.try_mutate_config(|config| {
+            let Some(server) = config
+                .servers
+                .iter_mut()
+                .find(|server| server.id == server_id)
+            else {
+                return Err("server no longer exists".to_string());
+            };
+            server.has_shown_first_start_popup = false;
+            Ok::<_, String>(())
+        })
+        .map_err(|error| match error {
+            TryMutateError::Domain(message) => message,
+            TryMutateError::Save(error) => error.to_string(),
+        })?;
+        self.stop_helpers_for_server(server_id);
+        *first_start = None;
+        *self.inner.first_start_pass_two_started_at.lock().unwrap() = None;
+        Ok(())
     }
 
     fn finish_active_lifecycle_operation_success(&self, status_line: &str) {
@@ -3690,6 +3817,35 @@ pub async fn stop(
         })
         .into_response(),
         Err(error) => lifecycle_error_response(error),
+    }
+}
+
+pub async fn discard_first_start(
+    State(state): State<LifecycleRoutesState>,
+    Extension(credential): Extension<AuthenticatedCredential>,
+    body: Result<Json<ActiveServerRequestDto>, JsonRejection>,
+) -> Response {
+    if let Some(response) = require_permission(&credential, PermissionCategoryDto::ServerControl) {
+        return response;
+    }
+    let Json(body) = match body {
+        Ok(body) => body,
+        Err(_) => return invalid_body("invalid_json", "Request body must be valid JSON."),
+    };
+    let Some(server_id) = body.server_id.filter(|id| !id.trim().is_empty()) else {
+        return invalid_body("missing_server_id", "serverId is required.");
+    };
+    match state.discard_first_start(&server_id) {
+        Ok(()) => Json(SimpleResultDto {
+            result: "first_start_discarded".into(),
+            active_server_id: Some(server_id),
+            operation_id: None,
+            runtime: None,
+        })
+        .into_response(),
+        Err(message) => {
+            error_response(StatusCode::CONFLICT, "first_start_discard_failed", &message)
+        }
     }
 }
 
@@ -4580,6 +4736,15 @@ mod tests {
 
         let active = state.stop_active_server().unwrap();
         assert_eq!(active.as_deref(), Some("paper-1"));
+        assert_eq!(
+            state.inner.lifecycle.lock().unwrap().state(),
+            LifecycleState::Stopping
+        );
+        // A second caller may arrive after first-start has already stopped it.
+        assert_eq!(
+            state.stop_active_server().unwrap().as_deref(),
+            Some("paper-1")
+        );
 
         std::fs::remove_dir_all(server_dir).unwrap();
     }
@@ -4688,11 +4853,11 @@ mod tests {
     #[test]
     fn durable_server_state_default_paths_are_app_data_not_temp() {
         let app_config_path = default_app_config_path_from_env(|key| match key {
-            "HOME" => Some(OsString::from("/Users/cameron")),
+            "HOME" => Some(OsString::from("/Users/example")),
             _ => None,
         });
         let servers_root = default_servers_root_from_env(|key| match key {
-            "HOME" => Some(OsString::from("/Users/cameron")),
+            "HOME" => Some(OsString::from("/Users/example")),
             _ => None,
         });
 

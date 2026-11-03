@@ -1,6 +1,10 @@
 <script lang="ts">
   import { onDestroy, onMount } from 'svelte';
-  import { observeServerRun, forgetHostRuns } from './lib/sections/shared/server-uptime';
+  import {
+    observeServerRun,
+    forgetHostRuns,
+    serverRunKey,
+  } from './lib/sections/shared/server-uptime';
   import { bundleIdentity } from './lib/bundle-identity';
   import { ApiClient, ApiError } from './lib/api/client';
   import ApplicationShell from './lib/components/ApplicationShell.svelte';
@@ -10,6 +14,7 @@
   import { createClientRouter } from './routes/router';
   import UnknownSection from './routes/UnknownSection.svelte';
   import FirstStartSheet from './lib/sections/server-editor/FirstStartSheet.svelte';
+  import { serverEditorPaths } from './lib/sections/server-editor/model';
   import StartupFailureSheet from './lib/sections/server-editor/StartupFailureSheet.svelte';
   import BroadcastAuthSheet from './lib/sections/server-editor/BroadcastAuthSheet.svelte';
   import ServerEditorSheet from './lib/sections/server-editor/ServerEditorSheet.svelte';
@@ -48,7 +53,7 @@
   import ResetSheet from './lib/sections/app-settings/ResetSheet.svelte';
   import { restoreAccent } from './lib/styles/accent';
   import { bannerColorFor } from './lib/styles/bannerColor';
-  import { waitForRunningState } from './lib/lifecycle/serverLifecycle';
+  import { ServerStatusMonitor, waitForRunningState } from './lib/lifecycle/serverLifecycle';
   import { PRIMARY_TABS } from './lib/navigation/primaryTabs';
   import { selectAvailableServerId } from './lib/navigation/serverSelection';
   import {
@@ -58,6 +63,8 @@
   } from './lib/navigation/tabPreloading';
   import type { Capabilities, NavigationContext, SectionDescriptor } from './lib/navigation/types';
   import type { Schema, ScreenApi } from './lib/sections/shared/types';
+  import { transferNotices, dismissTransferFailure } from './lib/sections/shared/transfer-notices';
+  import { guardUploadApi } from './lib/sections/shared/upload-source';
   import './lib/sections/shared/screen.css';
 
   const sections: SectionDescriptor[] = [
@@ -311,24 +318,132 @@
     return client;
   }
 
-  function createScreenApi(): ScreenApi {
+  let stoppedFolderPrompt: { name: string; resolve: (confirmed: boolean) => void } | undefined;
+
+  function finishStoppedFolderPrompt(confirmed: boolean): void {
+    const prompt = stoppedFolderPrompt;
+    stoppedFolderPrompt = undefined;
+    prompt?.resolve(confirmed);
+  }
+
+  function confirmStoppedFolder(name: string): Promise<boolean> {
+    // A second picker must not strand the first selected source behind a new prompt.
+    finishStoppedFolderPrompt(false);
+    return new Promise((resolve) => (stoppedFolderPrompt = { name, resolve }));
+  }
+
+  function createScreenApi(boundClient?: ApiClient): ScreenApi {
+    const currentClient = () => boundClient ?? requireClient();
     return {
-      get: <T,>(path: string) => requireClient().requestJson<T>('GET', path),
+      hostId: () => currentClient().host,
+      isCurrent: () => currentClient().host === client?.host,
+      cleanupStatus: <T,>(path: string) => currentClient().requestJson<T>('GET', path),
+      uploadNative: (source, options) => currentClient().stagedUploadNative(source, options),
+      selectUploadSource: async (purpose, request, bindings = {}) => {
+        const initiatingClient = currentClient();
+        const host = initiatingClient.host;
+        const targetServerId =
+          bindings.targetServerId === null
+            ? undefined
+            : (bindings.targetServerId ?? (selectedServerId || undefined));
+        const current = () =>
+          client?.host === host && (!targetServerId || selectedServerId === targetServerId);
+        const scoped = guardUploadApi(createScreenApi(initiatingClient), current);
+        const caps = await scoped.get<Schema['CapabilitiesDTO']>('/v1/capabilities');
+        if (
+          caps.nativeTransfers &&
+          (caps.nativeTransfers.protocol !== 1 || !caps.nativeTransfers.streamUpload)
+        )
+          throw new Error(
+            'Native transfers are unavailable on this host. Update the agent or resolve its staging error before choosing a file.',
+          );
+        if (
+          bindings.targetServerId === null &&
+          caps.nativeTransfers &&
+          !caps.nativeTransfers.creationContext
+        )
+          throw new Error('Update this agent to select files before creating a server.');
+        const platform = await getPlatform();
+        if (!platform.pickNativeFile)
+          throw new Error('Native file selection is unavailable in this desktop build.');
+        const source = await platform.pickNativeFile({
+          ...request,
+          droppedSourceId: bindings.droppedSourceId,
+          binding: {
+            agentHostId: host,
+            purpose,
+            targetServerId,
+            creationContext: bindings.targetServerId === null,
+            operationId: bindings.operationId,
+            fileId: bindings.fileId,
+          },
+        });
+        if (!source) return null;
+        if (source.directory && !(await confirmStoppedFolder(source.name))) {
+          await source.close();
+          return null;
+        }
+        if (!current()) {
+          await source.close();
+          throw new Error('The selected host or server changed. Choose the file again.');
+        }
+        return Object.freeze({ ...source, uploadApi: scoped, olderAgent: !caps.nativeTransfers });
+      },
+      snapshot: () => {
+        const initiating = currentClient();
+        return guardUploadApi(createScreenApi(initiating), () => client?.host === initiating.host);
+      },
+      delete: (path) => currentClient().requestJson<void>('DELETE', path),
+      pickNativeUpload: async (purpose, directory = false, options = {}, droppedSourceId) => {
+        const initiatingClient = currentClient();
+        const platform = await getPlatform();
+        if (!platform.pickNativeFile) throw new Error('Native source selection is unavailable.');
+        const source = await platform.pickNativeFile({
+          label: directory
+            ? 'Choose stopped server folder'
+            : purpose === 'msc-transfer-archive'
+              ? 'Choose MSC transfer file'
+              : 'Choose server ZIP',
+          extensions: directory
+            ? []
+            : purpose === 'msc-transfer-archive'
+              ? ['msctransfer']
+              : ['zip'],
+          directory,
+          droppedSourceId,
+          binding: { agentHostId: initiatingClient.host, purpose },
+        });
+        if (!source) return null;
+        if (source.directory && !(await confirmStoppedFolder(source.name))) {
+          await source.close();
+          return null;
+        }
+        if (client?.host !== initiatingClient.host) {
+          await source.close();
+          throw new Error('The selected host changed. Choose the folder again.');
+        }
+        const result = await initiatingClient.stagedUploadNative(source, options);
+        return { ...result, fileName: source.name };
+      },
+      saveNativeDownload: (id, fileName, size, options) =>
+        currentClient().downloadNative(id, fileName, size, options),
+      get: <T,>(path: string) => currentClient().requestJson<T>('GET', path),
       post: <T,>(path: string, body?: unknown) =>
-        requireClient().requestJson<T>('POST', path, { body }),
-      getBytes: (path: string) => requireClient().requestBytes('GET', path),
-      resourceUrl: (path: string) => requireClient().resourceUrl(path),
+        currentClient().requestJson<T>('POST', path, { body }),
+      getBytes: (path: string, signal?: AbortSignal) =>
+        currentClient().requestBytes('GET', path, { signal }),
+      resourceUrl: (path: string) => currentClient().resourceUrl(path),
       upload: (purpose, bytes, options) =>
-        requireClient().stagedUpload({ purpose, ...options }, bytes),
+        currentClient().stagedUpload({ purpose, ...options }, bytes),
       uploadFile: (purpose, source, options) => {
         const { onProgress, chunkSizeBytes, signal, ...uploadOptions } = options ?? {};
-        return requireClient().stagedUploadFromFile({ purpose, ...uploadOptions }, source, {
+        return currentClient().stagedUploadFromFile({ purpose, ...uploadOptions }, source, {
           onProgress,
           chunkSizeBytes,
           signal,
         });
       },
-      download: (id, maxBytes) => requireClient().downloadBytes(id, maxBytes),
+      download: (id, maxBytes) => currentClient().downloadBytes(id, maxBytes),
     };
   }
 
@@ -345,13 +460,72 @@
   let selectedServerId = '';
   let permissions: readonly string[] = [];
   let capabilities: Capabilities | null = null;
+  let statusRefreshVersion = 0;
   let shellMessage = 'Connecting to the selected host…';
   let servers: readonly Schema['ServerDTO'][] = [];
   let status: Schema['RemoteAPIStatus'] = defaultStatus;
-  let healthRefreshVersion = 0;
+  const statusMonitor = new ServerStatusMonitor<Schema['RemoteAPIStatus']>();
+  let statusPollTimer: ReturnType<typeof setInterval> | undefined;
+  let statusPollError = '';
+  let lifecycleRequests: ReadonlySet<string> = new Set();
+  let pendingStops: ReadonlyMap<string, number | undefined> = new Map();
+  $: currentRunKey = serverRunKey(hostId, selectedServerId);
+  $: stopping = pendingStops.has(currentRunKey);
+  $: lifecycleBusy = lifecycleRequests.has(currentRunKey);
+
+  function recordStop(key: string, pid: number | undefined): void {
+    pendingStops = new Map(pendingStops).set(key, pid);
+  }
+
+  function clearStop(key: string): void {
+    const next = new Map(pendingStops);
+    next.delete(key);
+    pendingStops = next;
+  }
+
+  function applyServerStatus(next: Schema['RemoteAPIStatus']): void {
+    status = next;
+    const serverId = next.activeServerId ?? selectedServerId;
+    observeServerRun(hostId, serverId, next.running);
+    const key = serverRunKey(hostId, serverId);
+    const stoppedPid = pendingStops.get(key);
+    if (
+      !next.running ||
+      (stoppedPid !== undefined && next.pid !== undefined && next.pid !== stoppedPid)
+    ) {
+      clearStop(key);
+    }
+  }
+
+  async function pollServerStatus(): Promise<void> {
+    if (!clientReady || !client || lifecycleBusy) return;
+    const selectedClient = client;
+    const selectedHost = hostId;
+    const selectedServer = selectedServerId;
+    const generation = hostOrchestrator.currentGeneration;
+    const isCurrent = () =>
+      clientReady &&
+      client === selectedClient &&
+      hostId === selectedHost &&
+      selectedServerId === selectedServer &&
+      generation === hostOrchestrator.currentGeneration;
+    await statusMonitor.poll(
+      () => selectedClient.requestJson<Schema['RemoteAPIStatus']>('GET', '/v1/status'),
+      (next) => {
+        if (!isCurrent()) return;
+        statusPollError = '';
+        applyServerStatus(next);
+      },
+      (error) => {
+        if (isCurrent())
+          statusPollError = `Could not refresh server status: ${formatConnectionFailure(error)}`;
+      },
+    );
+  }
   let initiationServer: Schema['ServerDTO'] | undefined;
   let initiationVisible = false;
   let initiationComplete = false;
+  let discardingInitiation = false;
   let broadcastAuth: Schema['BroadcastAuthPromptDTO'] | undefined;
   let broadcastAuthTimer: ReturnType<typeof setInterval> | undefined;
   let broadcastAuthRequest = 0;
@@ -602,10 +776,12 @@
 
   async function waitForStartOperation(
     operationId: string,
+    actionClient: ApiClient,
   ): Promise<Schema['OperationDTO'] | undefined> {
     const deadline = Date.now() + 10_000;
     for (;;) {
-      const operation = await screenApi.get<Schema['OperationDTO']>(
+      const operation = await actionClient.requestJson<Schema['OperationDTO']>(
+        'GET',
         `/v1/operations/${encodeURIComponent(operationId)}`,
       );
       if (
@@ -649,9 +825,21 @@
       // The sidebar's fallback selection must also become the agent's active
       // server before section APIs can serve that server's data.
       if (nextServerId && nextServerId !== nextStatus.activeServerId) {
-        await selectedClient.requestJson('POST', '/v1/active-server', { body: { serverId: nextServerId } });
+        try {
+          await selectedClient.requestJson('POST', '/v1/active-server', {
+            body: { serverId: nextServerId },
+          });
+        } catch (error) {
+          // Pending reset recovery must stay connected so its controls remain
+          // accessible, even when automatic server selection is blocked.
+          if (!(error instanceof ApiError) || error.error.code !== 'host_reset_pending')
+            throw error;
+        }
         if (generation !== hostOrchestrator.currentGeneration) return false;
-        nextStatus = await selectedClient.requestJson<Schema['RemoteAPIStatus']>('GET', '/v1/status');
+        nextStatus = await selectedClient.requestJson<Schema['RemoteAPIStatus']>(
+          'GET',
+          '/v1/status',
+        );
         nextCapabilities = await selectedClient.getCapabilities();
         if (generation !== hostOrchestrator.currentGeneration) return false;
       }
@@ -659,8 +847,7 @@
       capabilities = nextCapabilities;
       permissions = me.permissions;
       servers = nextServers;
-      status = nextStatus;
-      observeServerRun(hostId, nextStatus.activeServerId ?? '', nextStatus.running);
+      applyServerStatus(nextStatus);
       selectedServerId = nextServerId;
       hostStore.setServers(selectedHostId, nextServers);
       if (nextServerId) hostStore.selectServer(selectedHostId, nextServerId);
@@ -686,6 +873,8 @@
   }
 
   async function selectServer(id: string): Promise<void> {
+    statusMonitor.reset();
+    statusPollError = '';
     try {
       await screenApi.post('/v1/active-server', { serverId: id });
       loadedSections = [];
@@ -705,15 +894,36 @@
   }
 
   async function lifecycle(action: 'start' | 'stop'): Promise<void> {
+    if (!clientReady || !client || lifecycleBusy || stopping) return;
+    const actionClient = client;
+    const actionHostId = hostId;
+    const actionServerId = selectedServerId;
+    const actionServer = activeServer;
+    const generation = hostOrchestrator.currentGeneration;
+    const key = serverRunKey(actionHostId, actionServerId);
+    if (lifecycleRequests.has(key) || pendingStops.has(key)) return;
+    const isCurrent = () =>
+      client === actionClient &&
+      hostId === actionHostId &&
+      selectedServerId === actionServerId &&
+      generation === hostOrchestrator.currentGeneration;
+    lifecycleRequests = new Set(lifecycleRequests).add(key);
+    statusMonitor.reset();
+    statusPollError = '';
+    let acceptedStop = false;
+    if (action === 'stop') recordStop(key, status.pid);
     try {
-      const accepted = await screenApi.post<Schema['SimpleResult']>(
+      const accepted = await actionClient.requestJson<Schema['SimpleResult']>(
+        'POST',
         action === 'start' ? '/v1/start' : '/v1/stop',
       );
+      acceptedStop = action === 'stop';
       if (action === 'start' && accepted.operationId) {
-        const operation = await waitForStartOperation(accepted.operationId);
+        const operation = await waitForStartOperation(accepted.operationId, actionClient);
+        if (!isCurrent()) return;
         if (operation?.state === 'failed' || operation?.state === 'cancelled') {
           startupFailure = {
-            serverName: activeServer?.name ?? 'Server',
+            serverName: actionServer?.name ?? 'Server',
             errorCode: operation.error?.code ?? 'server_start_failed',
             message: operation.error?.message ?? 'The server did not become ready.',
           };
@@ -722,24 +932,30 @@
         }
       }
       const nextStatus = await waitForRunningState(
-        () => screenApi.get<Schema['RemoteAPIStatus']>('/v1/status'),
+        () => actionClient.requestJson<Schema['RemoteAPIStatus']>('GET', '/v1/status'),
         action === 'start',
       );
-      status = nextStatus;
-      observeServerRun(hostId, nextStatus.activeServerId ?? '', nextStatus.running);
-      if (action === 'start' && nextStatus.running && activeServer?.serverType === 'java') {
+      observeServerRun(
+        actionHostId,
+        nextStatus.activeServerId ?? actionServerId,
+        nextStatus.running,
+      );
+      if (action === 'stop' && !nextStatus.running) clearStop(key);
+      if (!isCurrent()) return;
+      applyServerStatus(nextStatus);
+      if (action === 'start' && nextStatus.running && actionServer?.serverType === 'java') {
         try {
-          const diagnosis = await screenApi.get<Schema['HealthProblemsResponseDTO']>(
+          const diagnosis = await actionClient.requestJson<Schema['HealthProblemsResponseDTO']>(
+            'GET',
             '/v1/health/problems',
           );
+          if (!isCurrent()) return;
           const helperProblem = diagnosis.isSoftFail
-            ? diagnosis.problems.find((problem) =>
-                /geyser|floodgate/i.test(problem.offenderName),
-              )
+            ? diagnosis.problems.find((problem) => /geyser|floodgate/i.test(problem.offenderName))
             : undefined;
           if (helperProblem) {
             startupFailure = {
-              serverName: activeServer.name,
+              serverName: actionServer.name,
               errorCode: 'geyser_plugin_failed',
               message: `${helperProblem.offenderName} did not load.`,
               problems: [helperProblem],
@@ -752,7 +968,7 @@
       }
       if (action === 'start' && !nextStatus.running) {
         startupFailure = {
-          serverName: activeServer?.name ?? 'Server',
+          serverName: actionServer?.name ?? 'Server',
           errorCode: 'server_startup_timeout',
           message: accepted.operationId
             ? 'The server did not become ready before the start check timed out.'
@@ -761,22 +977,30 @@
         shellMessage = startupFailure.message;
       }
     } catch (error) {
+      if (action === 'stop' && !acceptedStop) clearStop(key);
+      if (!isCurrent()) return;
       if (action === 'start') {
         const apiError = error instanceof ApiError ? error.error : undefined;
         startupFailure = {
-          serverName: activeServer?.name ?? 'Server',
+          serverName: actionServer?.name ?? 'Server',
           errorCode: apiError?.code ?? 'server_start_failed',
           message: apiError?.message ?? (error instanceof Error ? error.message : String(error)),
         };
         shellMessage = startupFailure.message;
       } else {
-        shellMessage = `Unable to ${action} the server: ${String(error)}`;
+        statusPollError = `Unable to stop the server: ${formatConnectionFailure(error)}`;
+        shellMessage = statusPollError;
       }
     } finally {
-      // The health card describes the completed lifecycle attempt, not just
-      // the shell's cached status snapshot. The Overview consumes this
-      // version as a targeted refresh signal while retaining its tab instance.
-      healthRefreshVersion += 1;
+      const requests = new Set(lifecycleRequests);
+      requests.delete(key);
+      lifecycleRequests = requests;
+      if (isCurrent()) {
+        statusMonitor.reset();
+        void pollServerStatus();
+      }
+      // Refresh the lightweight running state after a lifecycle action.
+      if (isCurrent()) statusRefreshVersion += 1;
     }
   }
 
@@ -802,6 +1026,35 @@
       initiationVisible = true;
     } else {
       openInitiation();
+    }
+  }
+
+  async function discardInitiation(): Promise<void> {
+    const server = initiationServer;
+    if (!server || discardingInitiation) return;
+    discardingInitiation = true;
+    statusPollError = '';
+    try {
+      const current = await screenApi.get<Schema['RemoteAPIStatus']>('/v1/status');
+      if (current.running) {
+        if (current.activeServerId !== server.id) {
+          throw new Error('Select the server with the hidden setup before discarding it.');
+        }
+        await lifecycle('stop');
+        const stopped = await screenApi.get<Schema['RemoteAPIStatus']>('/v1/status');
+        if (stopped.running)
+          throw new Error('The server is still stopping. Try again when it stops.');
+      }
+      await screenApi.post(serverEditorPaths.discardFirstStart, { serverId: server.id });
+      initiationServer = undefined;
+      initiationVisible = false;
+      initiationComplete = false;
+      await refreshServerSnapshot();
+      statusPollError = 'Setup progress discarded. The existing world was kept.';
+    } catch (error) {
+      statusPollError = `Could not discard setup: ${error instanceof Error ? error.message : String(error)}`;
+    } finally {
+      discardingInitiation = false;
     }
   }
 
@@ -831,6 +1084,8 @@
   ): Promise<void> {
     if (generation !== hostOrchestrator.currentGeneration) return;
     const selectedHostId = hostId;
+    statusMonitor.reset();
+    statusPollError = '';
     cancelTabPreload?.();
     cancelTabPreload = undefined;
     clientReady = false;
@@ -930,12 +1185,16 @@
   onMount(() => {
     restoreAccent();
     void initializeShell();
+    statusPollTimer = setInterval(() => void pollServerStatus(), 2000);
     const onPopState = () => void selectFromLocation();
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
   });
 
   onDestroy(() => {
+    finishStoppedFolderPrompt(false);
+    statusMonitor.reset();
+    if (statusPollTimer !== undefined) clearInterval(statusPollTimer);
     if (broadcastAuthTimer !== undefined) clearInterval(broadcastAuthTimer);
   });
 
@@ -1026,6 +1285,9 @@
   {servers}
   activeServerId={selectedServerId}
   running={status.running}
+  {stopping}
+  {lifecycleBusy}
+  statusNotice={statusPollError}
   connected={!!capabilities}
   {capabilities}
   {canControl}
@@ -1042,6 +1304,8 @@
   )}
   initiationServerId={initiationServer?.id}
   onResumeInitiation={resumeInitiation}
+  onDiscardInitiation={() => void discardInitiation()}
+  {discardingInitiation}
   onOpenAgentSetup={openAgentSetup}
   onManage={() => (manageOpen = true)}
   {addressesVisible}
@@ -1051,6 +1315,14 @@
   onRefresh={() => void initializeClient()}
   onEditServer={activeServer ? () => (headerEditingServer = activeServer) : undefined}
 >
+  {#each $transferNotices.filter((notice) => notice.hostId === hostId) as notice}
+    <div class="intro-copy" role="alert">
+      <p>{notice.message}</p>
+      <Button variant="secondary" onclick={() => dismissTransferFailure(notice.hostId)}
+        >Dismiss</Button
+      >
+    </div>
+  {/each}
   {#if loadedSections.length}
     {#each loadedSections as loaded (loaded.id)}
       <div
@@ -1093,10 +1365,10 @@
             selectedServerId = id;
           }}
           onFleet={() => (manageOpen = true)}
+          {statusRefreshVersion}
           onWorlds={() => void selectSection('worlds')}
           addressesVisible={activeSection === 'home' ? addressesVisible : false}
           onToggleAddresses={toggleAddresses}
-          {healthRefreshVersion}
         />
       </div>
     {/each}
@@ -1228,7 +1500,6 @@
     api={screenApi}
     {hostId}
     hostName={hosts.find((host) => host.id === hostId)?.displayName ?? 'Selected host'}
-    activeServerXboxBroadcastEnabled={activeServer?.xboxBroadcastEnabled === true}
     serverUsesPlayit={servers.find((server) => server.id === selectedServerId)?.playitEnabled}
     onClose={() => (settingsOpen = false)}
     {preloadTabs}
@@ -1252,7 +1523,10 @@
     {permissions}
     {isDesktopShell}
     isLocalHost={isLocalHostForReset()}
-    onClose={() => (resetOpen = false)}
+    onClose={() => {
+      resetOpen = false;
+      window.dispatchEvent(new CustomEvent('msc:reset-recovery-closed'));
+    }}
     onClientReset={resetClientState}
     onHostResetComplete={completeHostReset}
   />
@@ -1260,7 +1534,32 @@
 
 <SplashGate onComplete={completeSplash} />
 {#if splashComplete && clientReady}
-  <FirstLaunchGate api={screenApi} agentReady={agentReadiness === 'ready'} />
+  <FirstLaunchGate
+    api={screenApi}
+    agentReady={agentReadiness === 'ready'}
+    onResetRecovery={() => {
+      resetOpen = true;
+    }}
+  />
+{/if}
+
+{#if stoppedFolderPrompt}
+  <Sheet
+    title="Import stopped server folder"
+    size="sm"
+    onClose={() => finishStoppedFolderPrompt(false)}
+  >
+    <p>
+      Stop the Minecraft server that owns “{stoppedFolderPrompt.name}” before continuing. MSC will
+      copy the folder and preserve the original.
+    </p>
+    <div class="ssh-password-actions">
+      <Button variant="secondary" onclick={() => finishStoppedFolderPrompt(false)}>Cancel</Button>
+      <Button variant="primary" onclick={() => finishStoppedFolderPrompt(true)}
+        >Source server is stopped</Button
+      >
+    </div>
+  </Sheet>
 {/if}
 
 <style>

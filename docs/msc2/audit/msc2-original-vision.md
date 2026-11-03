@@ -22,7 +22,7 @@ MSC turns those moving parts into one understandable application.
 
 MSC 2 expands that idea beyond macOS. A user should be able to set up a server on the computer they already own, move that server to a more efficient operating system later, and continue controlling it from the same familiar interface. A server should not be tied to the operating system on which it was first created.
 
-This is especially important on memory-constrained hardware. On an 8 GB 2019 MacBook Pro, macOS can consume enough memory that a large modpack cannot safely receive the 5–5.5 GB it needs. A minimal Linux installation can devote substantially more of the machine to Java and Minecraft. MSC 2 makes that Linux installation practical without requiring the user to give up the MSC experience.
+This is especially important on memory-constrained hardware. On an 8 GB laptop, macOS can consume enough memory that a large modpack cannot safely receive the 5–5.5 GB it needs. A minimal Linux installation can devote substantially more of the machine to Java and Minecraft. MSC 2 makes that Linux installation practical without requiring the user to give up the MSC experience.
 
 The Linux host may have no desktop environment at all. It can boot directly into a lightweight operating system, start MSC automatically, start the selected Minecraft server, join Tailscale, and then be managed from an iPhone, another computer, or a browser.
 
@@ -1026,7 +1026,7 @@ At boot:
 
 The host’s idle memory is reserved as much as possible for Minecraft. The MSC service is designed to remain small when idle and to avoid retaining unbounded console, metric, catalog, or task data in memory.
 
-The 2019 MacBook Pro requires special attention because its Apple T2 chip affects Linux support for built-in keyboard, trackpad, Wi-Fi, audio, fans, and other hardware. MSC 2 does not solve kernel support itself, but its Linux documentation recognizes T2-compatible kernels and the T2 Linux community as part of running on that hardware. For a headless host, reliable networking, storage, thermals, and sleep behavior matter more than desktop polish.
+The laptop requires special attention because its Apple T2 chip affects Linux support for built-in keyboard, trackpad, Wi-Fi, audio, fans, and other hardware. MSC 2 does not solve kernel support itself, but its Linux documentation recognizes T2-compatible kernels and the T2 Linux community as part of running on that hardware. For a headless host, reliable networking, storage, thermals, and sleep behavior matter more than desktop polish.
 
 The host must not sleep while a server is running. MSC reports suspend configuration problems and can integrate with the platform’s sleep-inhibition mechanism.
 
@@ -1228,7 +1228,7 @@ No graphical window is required on the host for any of these capabilities.
 
 ## The Essential MSC 2 Experience
 
-A user installs minimal Debian on the 2019 MacBook Pro, enables the MSC service, imports the existing modded server, allocates approximately 5 GB of Java heap, and configures a 4 GB emergency swap file. The laptop boots with no desktop environment. Tailscale and MSC start automatically.
+A user installs minimal Debian on the laptop, enables the MSC service, imports the existing modded server, allocates approximately 5 GB of Java heap, and configures a 4 GB emergency swap file. The laptop boots with no desktop environment. Tailscale and MSC start automatically.
 
 From an iPhone, the user opens MSC Remote and selects the host by its Tailscale name. The dashboard shows that the modded server is stopped, the last backup is healthy, the pack has no unresolved dependencies, and enough memory is available. The user taps Start.
 

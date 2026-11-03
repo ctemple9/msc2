@@ -1,10 +1,11 @@
 <script lang="ts">
-  // Window chrome: title + the one sanctioned flourish (the terrain banner, shown
-  // only while running) + five icon actions. No fake OS traffic lights — the real
-  // window chrome comes from the Tauri titlebar.
+  // Window chrome: title, the running terrain banner, header actions, and the
+  // tour actions when the guided-tour card is hidden. Tauri provides the titlebar.
   // docs/msc2/renderings/shell.html, MSC 1 ContentView.swift top banner.
   import ShellIcon from './ShellIcon.svelte';
   import RunningBannerGame from './RunningBannerGame.svelte';
+  import Button from '../base/Button.svelte';
+  import { hiddenTourActions } from '../../help/onboarding';
 
   export let bannerColor: string;
   export let running = false;
@@ -29,7 +30,15 @@
     <div class="spacer"></div>
   {/if}
 
-  <div class="actions">
+  <div class="actions" class:has-tour-actions={$hiddenTourActions !== null}>
+    {#if $hiddenTourActions}
+      <div class="tour-actions" role="group" aria-label="Tour actions">
+        <Button variant="secondary" size="sm" onclick={$hiddenTourActions.showTip}>Show tip</Button>
+        <Button variant="secondary" size="sm" onclick={$hiddenTourActions.skip}
+          >{$hiddenTourActions.skipLabel}</Button
+        >
+      </div>
+    {/if}
     <button
       type="button"
       class="icon-btn"
@@ -108,7 +117,15 @@
   }
   .actions {
     display: flex;
+    align-items: center;
     gap: 4px;
+  }
+  .tour-actions {
+    display: flex;
+    gap: 4px;
+    padding-right: 8px;
+    margin-right: 4px;
+    border-right: 1px solid var(--msc2-hairline-faint);
   }
   .icon-btn {
     display: inline-flex;
@@ -133,5 +150,32 @@
   .icon-btn:disabled {
     opacity: 0.35;
     cursor: default;
+  }
+  @media (max-width: 600px) {
+    .topbar {
+      height: auto;
+      min-height: 52px;
+      flex-wrap: wrap;
+      padding: 8px 12px;
+    }
+    .spacer {
+      display: none;
+    }
+    .actions.has-tour-actions {
+      flex-basis: 100%;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+    .tour-actions {
+      order: 2;
+      flex-basis: 100%;
+      justify-content: flex-end;
+      padding-right: 0;
+      margin-right: 0;
+      border-right: 0;
+    }
+    .actions.has-tour-actions > .icon-btn {
+      order: 1;
+    }
   }
 </style>

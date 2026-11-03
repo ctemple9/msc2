@@ -3,12 +3,12 @@
   import Select from '../../components/base/Select.svelte';
   import { isTauri } from '@tauri-apps/api/core';
   import { getCurrentWindow, LogicalPosition } from '@tauri-apps/api/window';
-  import type { WorldSource } from '@thoughts-on-things/vantage-mc/core';
+  import type { BiomeEntry, WorldSource } from '../../vantage/core/index.js';
   import type {
     PlayerLayer,
     PlayerSnapshot,
     VantageViewer,
-  } from '@thoughts-on-things/vantage-mc/three';
+  } from '../../vantage/three/index.js';
   import type { Schema, ScreenApi } from '../shared/types';
   import { pollOperation } from './model';
 
@@ -28,6 +28,19 @@
   type PreparationProgress = { dimension: string; stage: string; completed: number | null; total: number | null };
   let preparation: PreparationProgress | undefined;
   let progressPoll: ReturnType<typeof setInterval> | undefined;
+  let mapTiming: {
+    edition: string;
+    startedAt: number;
+    manifestAt?: number;
+    viewerAttachedAt?: number;
+    firstTileResponseAt?: number;
+    firstLoadedTileAt?: number;
+    loaded: number;
+    total: number;
+    frameAt: number;
+    longFrames: number;
+    worstFrame: number;
+  } | undefined;
   let progressRequest = false;
   async function refreshPreparation(): Promise<void> {
     if (!alive || !busy || progressRequest || !api?.getBytes) return;
@@ -41,8 +54,187 @@
     finally { progressRequest = false; }
   }
   let refreshing = false;
+  type PreRenderEstimate = {
+    totalTiles: number;
+    cachedTiles: number;
+    cachedBytes: number;
+    estimatedTotalBytes: number;
+    suggestedBudgetMib: number;
+    maxBudgetMib: number;
+    operationId: string | null;
+    operation: Schema['OperationDTO'] | null;
+  };
+  let preRenderOpen = false;
+  let preRenderEstimate: PreRenderEstimate | undefined;
+  let preRenderBudgetGb = 4.3;
+  let preRenderError = '';
+  let preRenderBusy = false;
+  let preRenderPoll: ReturnType<typeof setInterval> | undefined;
+  let preRenderRequest = false;
+  let preRenderReadGeneration = 0;
+  let preRenderPollCount = 0;
+
+  function bytesAsGb(bytes: number): string {
+    return `${(bytes / 1_000_000_000).toFixed(1)} GB`;
+  }
+
+  function preRenderBudgetMib(): number {
+    return Math.round((preRenderBudgetGb * 1_000_000_000) / 1024 ** 2);
+  }
+  async function readPreRenderEstimate(force = false): Promise<void> {
+    if (
+      !api ||
+      !alive ||
+      !preRenderOpen ||
+      !selectedDimension ||
+      (preRenderRequest && !force)
+    )
+      return;
+    preRenderRequest = true;
+    const generation = ++preRenderReadGeneration;
+    const dimension = selectedDimension;
+    try {
+      const result = await api.get<PreRenderEstimate>(
+        `/v1/worlds/map/pre-render?dimension=${encodeURIComponent(dimension)}`,
+      );
+      if (!alive || dimension !== selectedDimension || generation !== preRenderReadGeneration) return;
+      if (!preRenderEstimate) {
+        preRenderBudgetGb = Math.ceil((result.suggestedBudgetMib * 1024 ** 2) / 1_000_000_000 * 10) / 10;
+      }
+      preRenderEstimate = result;
+      preRenderError = '';
+    } catch (error) {
+      if (alive && dimension === selectedDimension && generation === preRenderReadGeneration)
+        preRenderError =
+          error instanceof Error ? error.message : 'Pre-render estimate unavailable.';
+    } finally {
+      if (generation === preRenderReadGeneration) preRenderRequest = false;
+    }
+  }
+  async function refreshPreRenderStatus(): Promise<void> {
+    const operation = preRenderEstimate?.operation;
+    if (
+      !api ||
+      !preRenderOpen ||
+      !preRenderEstimate?.operationId ||
+      !operation ||
+      (operation.state !== 'running' && operation.state !== 'queued')
+    )
+      return;
+    try {
+      const updated = await api.get<Schema['OperationDTO']>(
+        `/v1/operations/${preRenderEstimate.operationId}`,
+      );
+      if (!alive || !preRenderEstimate || preRenderEstimate.operationId !== updated.id) return;
+      preRenderEstimate = {
+        ...preRenderEstimate,
+        operation: updated,
+        cachedTiles: updated.progress?.current ?? preRenderEstimate.cachedTiles,
+      };
+      // Refresh the byte total occasionally from Vantage's current manifest;
+      // the operation endpoint itself stays small and is polled every 2s.
+      preRenderPollCount += 1;
+      if (preRenderPollCount % 5 === 0) void readPreRenderEstimate();
+      if (updated.state !== 'running' && updated.state !== 'queued') void readPreRenderEstimate();
+    } catch {
+      /* The next poll can recover after a brief agent disconnect. */
+    }
+  }
+  async function startPreRender(): Promise<void> {
+    if (!api || preRenderBusy || !selectedDimension) return;
+    preRenderBusy = true;
+    preRenderError = '';
+    try {
+      await api.post('/v1/worlds/map/pre-render', {
+        dimension: selectedDimension,
+        cacheBudgetMib: preRenderBudgetMib(),
+      });
+      await readPreRenderEstimate(true);
+    } catch (error) {
+      preRenderError = error instanceof Error ? error.message : 'Pre-render could not start.';
+    } finally {
+      preRenderBusy = false;
+    }
+  }
+  async function cancelPreRender(): Promise<void> {
+    if (!api || preRenderBusy || !selectedDimension) return;
+    preRenderBusy = true;
+    preRenderError = '';
+    try {
+      await api.post('/v1/worlds/map/pre-render/cancel', { dimension: selectedDimension });
+      await readPreRenderEstimate(true);
+    } catch (error) {
+      preRenderError = error instanceof Error ? error.message : 'Pre-render could not stop.';
+    } finally {
+      preRenderBusy = false;
+    }
+  }
   let canvas: HTMLDivElement;
   let viewer: VantageViewer | undefined;
+  let biomes: BiomeEntry[] = [];
+  let biomeEnabled = false;
+  let highlightedBiome: number | null = null;
+  const qualityPresets = [
+    { name: 'Low', viewDistance: 448, maxTiles: 44, memoryMiB: 320, renderScale: 0.75, mapMemory: 32 },
+    { name: 'Medium', viewDistance: 768, maxTiles: 120, memoryMiB: 512, renderScale: 1, mapMemory: 64 },
+    { name: 'High', viewDistance: 1152, maxTiles: 264, memoryMiB: 768, renderScale: 1, mapMemory: 128 },
+    { name: 'Ultra', viewDistance: 1408, maxTiles: 400, memoryMiB: 1024, renderScale: 1, mapMemory: 128 },
+  ];
+  let quality = { ...qualityPresets[1], fog: 1 };
+  let detailStatus = '';
+  let lastDetailStatusAt = 0;
+  let visibleTileStats = { loaded: 0, loading: 0 };
+  type QualityKnob = 'viewDistance' | 'maxTiles' | 'memoryMiB' | 'renderScale' | 'fog' | 'mapMemory';
+  const qualitySliders: { key: QualityKnob; label: string; min: number; max: number; step: number; hint: string }[] = [
+    { key: 'viewDistance', label: 'View distance', min: 256, max: 2048, step: 64, hint: 'Radius of detailed terrain around the camera, in blocks.' },
+    { key: 'maxTiles', label: 'Tile budget', min: 24, max: 512, step: 8, hint: 'Maximum number of detailed terrain tiles kept loaded.' },
+    { key: 'memoryMiB', label: 'Terrain memory', min: 128, max: 1536, step: 64, hint: 'Estimated loaded-terrain budget, not total app memory.' },
+    { key: 'renderScale', label: 'Render scale', min: 0.5, max: 2, step: 0.05, hint: 'Lower is faster and softer; higher uses more GPU work.' },
+    { key: 'fog', label: 'Haze', min: 0, max: 1, step: 0.05, hint: 'Distance fog strength. Lower values can reveal terrain loading boundaries.' },
+    { key: 'mapMemory', label: 'Map memory', min: 0, max: 128, step: 32, hint: 'Snapshot resolution for previously explored terrain after detailed tiles unload.' },
+  ];
+  $: activeQuality = qualityPresets.find((preset) =>
+    preset.viewDistance === quality.viewDistance && preset.maxTiles === quality.maxTiles &&
+    preset.memoryMiB === quality.memoryMiB && preset.renderScale === quality.renderScale &&
+    preset.mapMemory === quality.mapMemory);
+
+  function applyQuality(): void {
+    viewer?.setStreaming({
+      viewDistance: quality.viewDistance,
+      maxTiles: quality.maxTiles,
+      maxBytes: quality.memoryMiB * 1024 * 1024,
+      mapMemory: quality.mapMemory,
+    });
+    viewer?.setDisplay({ renderScale: quality.renderScale, fog: quality.fog });
+    updateDetailStatus();
+  }
+
+  function updateDetailStatus(): void {
+    if (!viewer) {
+      detailStatus = '';
+      return;
+    }
+    const admitted = Math.max(0, Math.floor(viewer.plannedDetailRadius));
+    const requested = viewer.streamingSettings.viewDistance;
+    const limit = admitted + 16 < requested ? `, budget-limited from ${requested}` : '';
+    const loading = visibleTileStats.loading > 0 ? ` · ${visibleTileStats.loading} loading` : '';
+    detailStatus = `Planned detail radius ${admitted} blocks${limit} · ${visibleTileStats.loaded} shown${loading}`;
+  }
+
+  function setQualityKnob(key: QualityKnob, value: number): void {
+    quality = { ...quality, [key]: value };
+    applyQuality();
+  }
+
+  function qualityValue(key: QualityKnob): string {
+    const value = quality[key];
+    if (key === 'viewDistance') return `${value} blocks`;
+    if (key === 'memoryMiB') return `${value} MiB`;
+    if (key === 'renderScale') return `${value.toFixed(2)}×`;
+    if (key === 'fog') return value.toFixed(2);
+    if (key === 'mapMemory') return value ? `${value} px` : 'Off';
+    return String(value);
+  }
   let alive = true;
   let loadGeneration = 0;
   let frameId = 0;
@@ -50,6 +242,30 @@
   let flying = false;
   let topDown = false;
   let depthY = 83;
+  let depthOpen = false;
+  const depthSteps = [1, 4, 16];
+  let depthStepIndex = 0;
+  let depthStepVisible = false;
+  let depthStepTimer: ReturnType<typeof setTimeout> | undefined;
+
+  function showDepthStep(): void {
+    depthStepVisible = true;
+    if (depthStepTimer) clearTimeout(depthStepTimer);
+    depthStepTimer = setTimeout(() => (depthStepVisible = false), 1200);
+  }
+
+  function depthKey(event: KeyboardEvent): void {
+    if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+      if (!event.repeat) depthStepIndex = Math.max(0, Math.min(depthSteps.length - 1,
+        depthStepIndex + (event.key === 'ArrowRight' ? 1 : -1)));
+    } else {
+      setDepth(Math.round(depthY) + (event.key === 'ArrowUp' ? 1 : -1) * depthSteps[depthStepIndex], true);
+    }
+    showDepthStep();
+  }
   let depthMin = 2;
   let depthMax = 126;
   let spawn: { x: number; y: number; z: number } | undefined;
@@ -72,16 +288,6 @@
   let playerRequestsInFlight = 0;
   let savedHeightAt: VantageViewer['controls']['heightAt'] | undefined;
 
-  function bedrockTileStatus(
-    displayName: string,
-    stats: { loaded: number; loading: number; total: number; lowres?: number },
-  ): string {
-    if (stats.total === 0) return `No saved terrain in ${displayName}`;
-    const loading = stats.loading > 0 ? ` · ${stats.loading} loading` : '';
-    const overview = stats.lowres ? ` · ${stats.lowres} overview tiles` : '';
-    return `Saved ${displayName} terrain · ${stats.loaded} detailed / ${stats.total} saved tiles${overview}${loading}`;
-  }
-
   $: selected = dimensions.find((dimension) => dimension.id === selectedDimension);
 
   function say(value: string): void {
@@ -91,12 +297,33 @@
   }
 
   function disposeViewer(): void {
+    if (mapTiming) {
+      const timing = mapTiming;
+      console.info(`${timing.edition} map: viewer diagnostics`, {
+        manifestSeconds: timing.manifestAt === undefined
+          ? null : Number(((timing.manifestAt - timing.startedAt) / 1000).toFixed(1)),
+        viewerAttachedSeconds: timing.viewerAttachedAt === undefined
+          ? null : Number(((timing.viewerAttachedAt - timing.startedAt) / 1000).toFixed(1)),
+        firstTileResponseSeconds: timing.firstTileResponseAt === undefined
+          ? null : Number(((timing.firstTileResponseAt - timing.startedAt) / 1000).toFixed(1)),
+        firstTileAttachedSeconds: timing.firstLoadedTileAt === undefined
+          ? null : Number(((timing.firstLoadedTileAt - timing.startedAt) / 1000).toFixed(1)),
+        loadedTilesAtClose: timing.loaded,
+        totalTiles: timing.total,
+        framesOver100ms: timing.longFrames,
+        worstFrameMs: Number(timing.worstFrame.toFixed(1)),
+      });
+      mapTiming = undefined;
+    }
     stopFollowing();
     releaseDesktopLook();
     playerLayer?.dispose();
     playerLayer = undefined;
     viewer?.dispose();
     viewer = undefined;
+    savedHeightAt = undefined;
+    biomes = [];
+    highlightedBiome = null;
   }
 
   function asBuffer(bytes: Uint8Array): ArrayBuffer {
@@ -112,8 +339,21 @@
 
   async function loadDimension(dimension: string): Promise<void> {
     selectedDimension = dimension;
+    preRenderEstimate = undefined;
+    if (preRenderOpen) void readPreRenderEstimate();
+    detailStatus = '';
+    visibleTileStats = { loaded: 0, loading: 0 };
     const generation = ++loadGeneration;
     disposeViewer();
+    mapTiming = {
+      edition: serverType === 'bedrock' ? 'Bedrock' : 'Java',
+      startedAt: performance.now(),
+      loaded: 0,
+      total: 0,
+      frameAt: performance.now(),
+      longFrames: 0,
+      worstFrame: 0,
+    };
     spawn = undefined;
     const entry = dimensions.find((item) => item.id === dimension);
     if (!entry) return;
@@ -129,52 +369,65 @@
     }
     busy = true;
     preparation = undefined;
-    status = serverType === 'bedrock'
-      ? 'Preparing saved Bedrock terrain and verified textures…'
-      : `Preparing ${entry.displayName} terrain and Minecraft textures…`;
+    status = `Preparing ${entry.displayName} terrain and Minecraft textures…`;
     let opening: VantageViewer | undefined;
-    let bedrockStats: { loaded: number; loading: number; total: number; lowres?: number } | undefined;
     try {
       const read = async (path: string, signal?: AbortSignal): Promise<ArrayBuffer> => {
         if (signal?.aborted) throw new DOMException('Cancelled', 'AbortError');
-        const bytes = await api!.getBytes!(artifactPath(dimension, path));
+        const started = performance.now();
+        const bytes = await api!.getBytes!(artifactPath(dimension, path), signal);
         if (signal?.aborted || !alive || generation !== loadGeneration) {
           throw new DOMException('Cancelled', 'AbortError');
+        }
+        if (path.startsWith('tiles/') && path.endsWith('.vtile') && mapTiming &&
+            mapTiming.firstTileResponseAt === undefined) {
+          mapTiming.firstTileResponseAt = performance.now();
+          console.info(`${mapTiming.edition} map: first tile received from agent`, {
+            seconds: Number(((mapTiming.firstTileResponseAt - mapTiming.startedAt) / 1000).toFixed(1)),
+            requestMs: Number((mapTiming.firstTileResponseAt - started).toFixed(1)),
+            bytes: bytes.byteLength,
+          });
         }
         return asBuffer(bytes);
       };
       const manifest = JSON.parse(new TextDecoder().decode(await read('manifest.json'))) as {
         spawn?: { x: number; y: number; z: number };
       };
+      if (mapTiming) mapTiming.manifestAt = performance.now();
       if (!alive || generation !== loadGeneration) return;
       const { VantageViewer: Viewer, PlayerLayer: Layer } =
-        await import('@thoughts-on-things/vantage-mc/three');
+        await import('../../vantage/three/index.js');
       if (!alive || generation !== loadGeneration) return;
       opening = new Viewer(canvas, {
         players: { enabled: false },
         urlState: false,
-        // The Bedrock agent serializes tile exports while extending its shared
-        // texture atlas. Match that limit instead of queueing six blocked HTTP
-        // requests that all appear to be rendering at once.
-        ...(serverType === 'bedrock'
-          ? {
-              streaming: {
-                concurrency: 1,
-                maxBytes: 512 * 1024 * 1024,
-                maxTiles: 120,
-                // The whole-world overview replaces remembered screenshots.
-                mapMemory: 0,
-              },
-            }
-          : {}),
+        streaming: { concurrency: 4 },
       });
-      if (serverType === 'bedrock') {
-        opening.on('stats', (stats) => {
+      opening.on('biomes', (entries) => {
+        if (alive && generation === loadGeneration) biomes = entries;
+      });
+      opening.on('biomelayer', (state) => {
+        if (alive && generation === loadGeneration) {
+          biomeEnabled = state.enabled;
+          highlightedBiome = state.highlight;
+        }
+      });
+      opening.on('stats', (stats) => {
           if (!alive || generation !== loadGeneration) return;
-          bedrockStats = stats;
-          status = bedrockTileStatus(entry.displayName, stats);
+          if (mapTiming) {
+            visibleTileStats = { loaded: stats.loaded, loading: stats.loading };
+            mapTiming.loaded = stats.loaded;
+            mapTiming.total = stats.total;
+            if (stats.loaded > 0 && mapTiming.firstLoadedTileAt === undefined) {
+              mapTiming.firstLoadedTileAt = performance.now();
+              console.info(`${mapTiming.edition} map: first tile attached to viewer`, {
+                seconds: Number(((mapTiming.firstLoadedTileAt - mapTiming.startedAt) / 1000).toFixed(1)),
+                loadedTiles: stats.loaded,
+                totalTiles: stats.total,
+              });
+            }
+          }
         });
-      }
       const source: WorldSource = {
         label: `${worldName} · ${entry.displayName}`,
         manifest,
@@ -183,6 +436,10 @@
       await opening.load({ world: source });
       if (!alive || generation !== loadGeneration) return;
       viewer = opening;
+      if (mapTiming) mapTiming.viewerAttachedAt = performance.now();
+      biomes = viewer.biomes;
+      viewer.setBiomeLayer(biomeEnabled);
+      applyQuality();
       opening = undefined;
       const range = viewer.sliceRange;
       depthMin = Math.ceil(range.min + 2);
@@ -199,11 +456,7 @@
       const worldSpawn = manifest.spawn;
       spawn = worldSpawn && [worldSpawn.x, worldSpawn.y, worldSpawn.z].every(Number.isFinite)
         ? worldSpawn : undefined;
-      status = serverType === 'bedrock'
-        ? bedrockStats
-          ? bedrockTileStatus(entry.displayName, bedrockStats)
-          : `Rendering saved ${entry.displayName} terrain tiles…`
-        : `Saved ${entry.displayName} terrain`;
+      status = `Saved ${entry.displayName} terrain`;
     } catch (error) {
       if (alive && generation === loadGeneration) {
         status = error instanceof Error ? error.message : 'Saved terrain could not be loaded.';
@@ -253,7 +506,18 @@
 
   function updateToolbar(): void {
     if (!alive) return;
+    const now = performance.now();
+    if (mapTiming) {
+      const frameMs = now - mapTiming.frameAt;
+      mapTiming.frameAt = now;
+      if (frameMs > 100) mapTiming.longFrames += 1;
+      mapTiming.worstFrame = Math.max(mapTiming.worstFrame, frameMs);
+    }
     if (viewer) {
+      if (now - lastDetailStatusAt >= 250) {
+        updateDetailStatus();
+        lastDetailStatusAt = now;
+      }
       const moved = playerLayer?.update(performance.now());
       if (followedId && playerLayer) {
         const position = playerLayer.positionOf(followedId);
@@ -276,14 +540,23 @@
     frameId = requestAnimationFrame(updateToolbar);
   }
 
-  function setDepth(y: number): void {
-    if (!viewer) return;
+  function setDepth(y: number, smooth = false): void {
+    if (!viewer || !Number.isFinite(y)) return;
     stopFollowing();
-    // Surface-following would lift the focus back above the selected cave level.
+    // Player-status polling can stop following while the slice is open. Keep
+    // terrain-follow parked so its surface height cannot override this Y.
     holdFocusHeight();
-    depthY = Math.max(depthMin, Math.min(depthMax, Math.round(y)));
+    depthY = Math.max(depthMin, Math.min(depthMax, smooth ? y : Math.round(y)));
     viewer.setSlice(depthY);
-    viewer.controls.position.y = depthY;
+    if (!viewer.isFlying) {
+      if (smooth) {
+        const position = viewer.controls.position.clone();
+        position.y = depthY;
+        viewer.controls.animateTo({ position });
+      } else {
+        viewer.controls.position.y = depthY;
+      }
+    }
     viewer.invalidate();
   }
 
@@ -292,19 +565,23 @@
     viewer?.setFlyMode(false);
   }
 
-  function stopFollowing(): void {
-    followedId = undefined;
-    playerLayer?.setFollowed(null);
+  function restoreFocusHeight(): void {
     if (viewer && savedHeightAt !== undefined) {
       viewer.controls.heightAt = savedHeightAt;
       savedHeightAt = undefined;
     }
+  }
+
+  function stopFollowing(): void {
+    followedId = undefined;
+    playerLayer?.setFollowed(null);
+    if (viewer?.slice === null) restoreFocusHeight();
     viewer?.invalidate();
   }
 
   function holdFocusHeight(): void {
-    if (!viewer || savedHeightAt !== undefined) return;
-    savedHeightAt = viewer.controls.heightAt;
+    if (!viewer) return;
+    if (savedHeightAt === undefined) savedHeightAt = viewer.controls.heightAt;
     viewer.controls.heightAt = null;
   }
 
@@ -400,6 +677,7 @@
     leaveFly();
     stopFollowing();
     viewer.setSlice(null);
+    restoreFocusHeight();
     const target =
       playerLayer.positionOf(player.id) ??
       viewer.controls.position.clone().set(player.x, player.y, player.z);
@@ -432,7 +710,6 @@
   function toggleFly(): void {
     if (!viewer) return;
     stopFollowing();
-    viewer.setSlice(null);
     const controls = viewer.controls;
     const focus = controls.position.clone();
     const groundY = controls.heightAt?.(focus.x, focus.z) ?? focus.y;
@@ -547,6 +824,7 @@
     stopFollowing();
     leaveFly();
     viewer.setSlice(null);
+    restoreFocusHeight();
     depthY = depthMax;
     viewer.controls.animateTo({
       position: viewer.controls.position.clone().set(spawn.x + 0.5, spawn.y, spawn.z + 0.5),
@@ -568,8 +846,10 @@
         say(operation?.error?.message ?? 'Terrain refresh failed.');
         return;
       }
-      await loadDimension(dimension);
-      if (alive) say('Current terrain loaded');
+      // Keep the viewer and camera alive while its progressive manifest poll
+      // reconciles the refreshed snapshot against the persistent tile cache.
+      viewer?.invalidate();
+      if (alive) say('Terrain refreshed; updating changed tiles');
     } catch (error) {
       if (alive) say(error instanceof Error ? error.message : 'Terrain refresh failed.');
     } finally {
@@ -591,6 +871,15 @@
     const onMove = (event: PointerEvent) => moveDesktopLook(event);
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') releaseDesktopLook();
+      if (!depthOpen || !viewer) return;
+      // Capture before Vantage's window handler so depth shortcuts cannot
+      // also pan the map. Alt is Option on macOS.
+      if (event.altKey &&
+          ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        depthKey(event);
+      }
     };
     window.addEventListener('pointermove', onMove, true);
     window.addEventListener('keydown', onKey, true);
@@ -598,6 +887,7 @@
     void loadDimensions();
     void refreshPlayers();
     progressPoll = setInterval(() => void refreshPreparation(), 1000);
+    preRenderPoll = setInterval(() => void refreshPreRenderStatus(), 2000);
     playerPoll = setInterval(() => void refreshPlayers(), 1000);
     frameId = requestAnimationFrame(updateToolbar);
     return () => {
@@ -606,8 +896,10 @@
       ++loadGeneration;
       cancelAnimationFrame(frameId);
       if (messageTimer) clearTimeout(messageTimer);
+      if (depthStepTimer) clearTimeout(depthStepTimer);
       if (playerPoll) clearInterval(playerPoll);
       if (progressPoll) clearInterval(progressPoll);
+      if (preRenderPoll) clearInterval(preRenderPoll);
       window.removeEventListener('pointermove', onMove, true);
       window.removeEventListener('keydown', onKey, true);
       window.removeEventListener('blur', releaseDesktopLook);
@@ -626,6 +918,18 @@
     </div>
     {#if dimensions.length > 0}
       <div class="map-actions">
+        <button
+          type="button"
+          class="refresh"
+          aria-expanded={preRenderOpen}
+          onclick={() => {
+            preRenderOpen = !preRenderOpen;
+            if (preRenderOpen) {
+              preRenderError = '';
+              void readPreRenderEstimate();
+            }
+          }}>Pre-render map</button
+        >
         <button
           type="button"
           class="refresh"
@@ -648,6 +952,70 @@
       </div>
     {/if}
   </header>
+
+  {#if preRenderOpen}
+    <div class="pre-render-panel" aria-label="Terrain map pre-render">
+      {#if preRenderEstimate}
+        <span
+          >{preRenderEstimate.cachedTiles} / {preRenderEstimate.totalTiles} saved tiles cached</span
+        >
+        <span
+          >{bytesAsGb(preRenderEstimate.cachedBytes)} currently cached · estimated full cache:
+          {bytesAsGb(preRenderEstimate.estimatedTotalBytes)}</span
+        >
+        {#if preRenderEstimate.maxBudgetMib < preRenderEstimate.suggestedBudgetMib}
+          <span>Free storage is below the estimated cache limit. Free space before starting.</span>
+        {/if}
+        {#if preRenderEstimate.operation?.state === 'running' || preRenderEstimate.operation?.state === 'queued'}
+          <span
+            >{preRenderEstimate.operation.statusLine ?? 'Pre-rendering…'}
+            {#if preRenderEstimate.operation.progress}
+              {preRenderEstimate.operation.progress.current} / {preRenderEstimate.operation.progress
+                .total}
+            {/if}
+          </span>
+          <button type="button" class="refresh" disabled={preRenderBusy} onclick={cancelPreRender}
+            >Stop</button
+          >
+        {:else}
+          {#if preRenderEstimate.operation?.state === 'failed'}
+            <span role="alert"
+              >Pre-render stopped: {preRenderEstimate.operation.error?.message ?? 'The renderer reported a failure.'}</span
+            >
+            {#if /cache|storage|evict/i.test(preRenderEstimate.operation.error?.message ?? '')}
+              <span>Adjust the cache limit if storage permits, then resume the saved tiles.</span>
+            {/if}
+          {/if}
+          {#if preRenderEstimate.cachedTiles < preRenderEstimate.totalTiles}
+            <label
+              >Cache limit (GB)
+              <input
+                type="number"
+                min={Math.ceil(Math.max(4096, preRenderEstimate.suggestedBudgetMib) * 1024 ** 2 / 1_000_000_000 * 10) / 10}
+                max={Math.floor(preRenderEstimate.maxBudgetMib * 1024 ** 2 / 1_000_000_000 * 10) / 10}
+                step="0.1"
+                bind:value={preRenderBudgetGb}
+              />
+            </label>
+            <button
+              type="button"
+              class="refresh"
+              disabled={preRenderBusy ||
+                preRenderBudgetMib() < preRenderEstimate.suggestedBudgetMib ||
+                preRenderBudgetMib() > preRenderEstimate.maxBudgetMib}
+              onclick={startPreRender}
+              >{preRenderEstimate.cachedTiles > 0 ? 'Resume' : 'Start'}</button
+            >
+          {:else}
+            <span>All saved terrain tiles are cached.</span>
+          {/if}
+        {/if}
+      {:else}
+        <span>Checking saved tiles and available storage…</span>
+      {/if}
+      {#if preRenderError}<span role="alert">{preRenderError}</span>{/if}
+    </div>
+  {/if}
 
   <div class="map-stage">
     <div
@@ -674,46 +1042,126 @@
         {/if}
       </div>
     {/if}
-    <details class="players-panel" open>
-      <summary class="players-heading">
-        <span class="panel-caret" aria-hidden="true">▾</span>
-        <strong>Players</strong><span>{livePlayers.length}</span>
-      </summary>
-      {#if livePlayers.length === 0}
-        <p>{playerFeedStatus}</p>
-      {:else}
-        <ul>
-          {#each livePlayers as player (player.id)}
-            <li>
-              <div class="player-name">
-                <span>{player.name}</span>
-                {#if player.dimension !== selectedDimension}<small
-                    >{dimensions.find((entry) => entry.id === player.dimension)?.displayName ??
-                      player.dimension}</small
-                  >{/if}
-              </div>
-              <div class="player-actions">
-                <button
-                  type="button"
-                  disabled={!viewer}
-                  aria-label={`Fly to ${player.name}`}
-                  onclick={() => void focusPlayer(player, false)}>Fly</button
-                >
-                <button
-                  type="button"
-                  disabled={!viewer}
-                  aria-label={`${followedId === player.id ? 'Stop following' : 'Follow'} ${player.name}`}
-                  aria-pressed={followedId === player.id}
-                  onclick={() =>
-                    followedId === player.id ? stopFollowing() : void focusPlayer(player, true)}
-                  >{followedId === player.id ? 'Following' : 'Follow'}</button
-                >
-              </div>
-            </li>
+    <aside class="map-panels" aria-label="Map players">
+      <details class="players-panel" open>
+        <summary class="players-heading">
+          <span class="panel-caret" aria-hidden="true">▾</span>
+          <strong>Players</strong><span>{livePlayers.length}</span>
+        </summary>
+        {#if livePlayers.length === 0}
+          <p>{playerFeedStatus}</p>
+        {:else}
+          <ul>
+            {#each livePlayers as player (player.id)}
+              <li>
+                <div class="player-name">
+                  <span>{player.name}</span>
+                  {#if player.dimension !== selectedDimension}<small
+                      >{dimensions.find((entry) => entry.id === player.dimension)?.displayName ??
+                        player.dimension}</small
+                    >{/if}
+                </div>
+                <div class="player-actions">
+                  <button
+                    type="button"
+                    disabled={!viewer}
+                    aria-label={`Fly to ${player.name}`}
+                    onclick={() => void focusPlayer(player, false)}>Fly</button
+                  >
+                  <button
+                    type="button"
+                    disabled={!viewer}
+                    aria-label={`${followedId === player.id ? 'Stop following' : 'Follow'} ${player.name}`}
+                    aria-pressed={followedId === player.id}
+                    onclick={() =>
+                      followedId === player.id ? stopFollowing() : void focusPlayer(player, true)}
+                    >{followedId === player.id ? 'Following' : 'Follow'}</button
+                  >
+                </div>
+              </li>
+            {/each}
+          </ul>
+        {/if}
+      </details>
+    </aside>
+    <aside class="map-panels biome-position" aria-label="Map biomes">
+      <details class="players-panel biomes-panel">
+        <summary class="players-heading">
+          <span class="panel-caret" aria-hidden="true">▾</span>
+          <strong>Biomes</strong>
+          <button class="biome-toggle" type="button" disabled={!viewer || biomes.length === 0}
+            aria-label="Biome colors" aria-pressed={biomeEnabled}
+            onclick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              viewer?.setBiomeLayer(!biomeEnabled);
+            }}>{biomeEnabled ? 'On' : 'Off'}</button>
+        </summary>
+        {#if biomes.length === 0}
+          <p>{viewer ? 'Biome data unavailable for this terrain.' : 'Load terrain to see biomes.'}</p>
+        {:else}
+          <p>Click a biome to highlight it. Shares reflect loaded terrain.</p>
+          <ul>
+            {#each biomes as biome (biome.id)}
+              <li>
+                <button class="biome-row" type="button" title={biome.name}
+                  aria-pressed={highlightedBiome === biome.id}
+                  onclick={() => viewer?.setHighlightedBiome(highlightedBiome === biome.id ? null : biome.id)}>
+                  <span class="biome-swatch" style:background={`rgb(${biome.color.map((channel) => Math.round(channel * 255)).join(',')})`} aria-hidden="true"></span>
+                  <span class="biome-label">{biome.label}</span>
+                  <span class="biome-share">{Math.round(biome.fraction * 100)}%</span>
+                </button>
+              </li>
+            {/each}
+          </ul>
+        {/if}
+      </details>
+    {#if depthOpen && viewer}
+      <aside class="depth-position" id="map-depth-control" aria-label="Terrain depth">
+        <label for="terrain-depth">Y <output>{Math.round(depthY)}</output></label>
+        <div class="depth-track">
+          <input id="terrain-depth" type="range" min={depthMin} max={depthMax} step="any"
+            value={depthY} aria-label="Terrain depth Y" aria-valuetext={`Y ${Math.round(depthY)}`}
+            title="Drag, or hold Alt/Option and use Up/Down. Alt/Option+Left/Right changes the step."
+            onkeydown={depthKey}
+            oninput={(event) => { setDepth(Number(event.currentTarget.value), true); showDepthStep(); }}
+            onchange={() => setDepth(Math.round(depthY), true)} />
+          {#if selectedDimension === 'minecraft:overworld' && depthMin <= 63 && depthMax >= 63}
+            <span class="sea-marker" style:bottom={`${(63 - depthMin) / (depthMax - depthMin) * 100}%`}>Sea 63</span>
+          {/if}
+        </div>
+        <span class="depth-step" class:visible={depthStepVisible} aria-live="polite">{depthStepVisible ? `${depthSteps[depthStepIndex]} / key` : ''}</span>
+      </aside>
+    {/if}
+    </aside>
+    <aside class="map-panels quality-position" aria-label="Map quality">
+      <details class="players-panel quality-panel">
+        <summary class="players-heading">
+          <span class="panel-caret" aria-hidden="true">▾</span>
+          <strong>Quality</strong><span>{activeQuality?.name ?? 'Custom'}</span>
+        </summary>
+        <div class="quality-presets" role="group" aria-label="Quality presets">
+          {#each qualityPresets as preset}
+            <button type="button" disabled={!viewer} aria-pressed={activeQuality?.name === preset.name}
+              onclick={() => {
+                quality = { ...preset, fog: quality.fog };
+                applyQuality();
+              }}>{preset.name}</button>
           {/each}
-        </ul>
-      {/if}
-    </details>
+        </div>
+        <p>Higher budgets load more terrain and can increase agent work.</p>
+        <div class="quality-sliders">
+          {#each qualitySliders as slider}
+              <label title={slider.hint}>
+                <span class="quality-label">{slider.label}<output>{qualityValue(slider.key)}</output></span>
+                <input type="range" min={slider.min} max={slider.max} step={slider.step}
+                  value={quality[slider.key]} disabled={!viewer}
+                  oninput={(event) => setQualityKnob(slider.key, Number(event.currentTarget.value))} />
+              </label>
+          {/each}
+        </div>
+      </details>
+    </aside>
     {#if desktopLook}
       <div class="look-indicator" role="status">Mouse look active · Esc releases pointer</div>
     {/if}
@@ -721,7 +1169,7 @@
       <summary aria-label="Terrain status" title="Show or hide terrain status">
         <span class="terrain-caret" aria-hidden="true">▴</span>
         <span class="terrain-caption-text" role="status">
-          {status}{message ? ` · ${message}` : ''}
+          {status}{detailStatus ? ` · ${detailStatus}` : ''}{message ? ` · ${message}` : ''}
         </span>
       </summary>
     </details>
@@ -766,7 +1214,6 @@
         onclick={() => {
           stopFollowing();
           leaveFly();
-          viewer?.setSlice(null);
           viewer?.setTilt(0.42);
         }}>3D</button
       >
@@ -777,20 +1224,15 @@
         aria-pressed={flying}
         onclick={toggleFly}>Fly</button
       >
-      {#if viewer && topDown && !flying}
-        <label class="map-depth">
-          Depth Y
-          <input
-            type="range"
-            min={depthMin}
-            max={depthMax}
-            step="1"
-            value={depthY}
-            oninput={(event) => setDepth(Number(event.currentTarget.value))}
-          />
-          <output>{depthY}</output>
-        </label>
-      {/if}
+      <button type="button" class:chosen={depthOpen} disabled={!viewer}
+        aria-pressed={depthOpen} aria-controls="map-depth-control"
+        onclick={() => {
+          depthOpen = !depthOpen;
+          if (depthOpen) {
+            releaseDesktopLook();
+            setDepth(viewer?.slice ?? depthY);
+          }
+        }}>Depth</button>
       <output class="coordinates">{coords}</output>
       <button
         type="button"
@@ -903,6 +1345,31 @@
     opacity: 0.45;
     cursor: default;
   }
+  .pre-render-panel {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px 18px;
+    padding: 10px 16px;
+    color: #bfc5cc;
+    background: #1b1b20;
+    border-top: 1px solid #34343a;
+    font-size: 11px;
+  }
+  .pre-render-panel label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .pre-render-panel input {
+    width: 88px;
+    color: #f1f1f2;
+    background: #141417;
+    border: 1px solid #48484e;
+    border-radius: 5px;
+    padding: 5px;
+  }
   .map-stage {
     position: relative;
     flex: 1;
@@ -947,10 +1414,43 @@
     font-size: 12px;
     line-height: 1.5;
   }
-  .players-panel {
+  .map-panels {
     position: absolute;
     right: 16px;
     top: 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 8px;
+    max-height: calc(100% - 90px);
+    overflow-y: auto;
+  }
+  .biome-position {
+    left: 16px;
+    right: auto;
+    align-items: flex-start;
+  }
+  .quality-position { top: auto; bottom: 16px; }
+  .quality-presets { display: flex; gap: 3px; margin-top: 12px; }
+  .quality-presets button {
+    flex: 1;
+    padding: 5px 3px;
+    background: #242428;
+    border: 1px solid #48484e;
+    border-radius: 4px;
+    color: #d7dce1;
+    font: inherit;
+    font-size: 11px;
+    cursor: pointer;
+  }
+  .quality-presets button[aria-pressed='true'] { background: #244b71; border-color: #568fc5; color: #fff; }
+  .quality-presets button:disabled { opacity: 0.45; cursor: default; }
+  .quality-sliders { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
+  .quality-sliders label { display: flex; flex-direction: column; gap: 4px; }
+  .quality-label { display: flex; justify-content: space-between; gap: 8px; color: #aeb4bb; font-size: 11px; }
+  .quality-label output { color: #d7dce1; font-variant-numeric: tabular-nums; }
+  .quality-sliders input { width: 100%; margin: 0; accent-color: #568fc5; }
+  .players-panel {
     width: 224px;
     padding: 12px 14px;
     background: #141417;
@@ -961,6 +1461,39 @@
   .players-panel:not([open]) {
     width: fit-content;
   }
+  .biome-toggle {
+    border: 1px solid #48484e;
+    border-radius: 4px;
+    background: #242428;
+    color: #d7dce1;
+    font: inherit;
+    font-size: 11px;
+    padding: 3px 8px;
+    cursor: pointer;
+  }
+  .biome-toggle[aria-pressed='true'] { background: #244b71; border-color: #568fc5; color: #fff; }
+  .biome-toggle:disabled { opacity: 0.45; cursor: default; }
+  .biomes-panel li { padding: 3px 0; border: 0; }
+  .biome-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    text-align: left;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    color: #f1f1f2;
+    font: inherit;
+    font-size: 11px;
+    padding: 5px 7px;
+    cursor: pointer;
+  }
+  .biome-row:hover { background: #242428; }
+  .biome-row[aria-pressed='true'] { background: #244b71; border-color: #568fc5; }
+  .biome-swatch { width: 10px; height: 10px; flex-shrink: 0; }
+  .biome-label { flex: 1; overflow-wrap: anywhere; }
+  .biome-share { color: #aeb4bb; font-variant-numeric: tabular-nums; }
   .players-panel summary,
   .map-caption summary {
     list-style: none;
@@ -1114,21 +1647,38 @@
     opacity: 0.45;
     cursor: default;
   }
-  .map-depth {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    white-space: nowrap;
-    font-size: 11px;
+  .depth-position {
+    position: relative;
+    padding: 10px 12px;
+    background: #141417;
+    border: 1px solid #3a3a40;
+    border-radius: 7px;
     color: #c3cad1;
+    font-size: 11px;
   }
-  .map-depth input {
-    width: 90px;
+  .depth-position label { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+  .depth-position output { font-variant-numeric: tabular-nums; }
+  .depth-track { position: relative; height: clamp(100px, 26vh, 260px); margin: 12px 0; }
+  .depth-track input {
+    writing-mode: vertical-lr;
+    direction: rtl;
+    width: 20px;
+    height: 100%;
+    margin: 0;
+    accent-color: #568fc5;
   }
-  .map-depth output {
-    min-width: 22px;
-    font-variant-numeric: tabular-nums;
+  .sea-marker {
+    position: absolute;
+    left: 24px;
+    white-space: nowrap;
+    transform: translateY(50%);
+    pointer-events: none;
+    background: #141417;
+    padding: 2px 4px;
+    border-left: 8px solid #568fc5;
   }
+  .depth-step { display: block; height: 14px; min-width: 42px; visibility: hidden; font-size: 10px; }
+  .depth-step.visible { visibility: visible; }
   .coordinates {
     min-width: 155px;
     padding: 0 8px;

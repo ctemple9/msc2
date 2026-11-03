@@ -17,7 +17,7 @@
 //! list once when a unit starts" -- not "a running service calls this on
 //! demand," which is what this trait needs.
 //!
-//! **Cameron Temple confirmed, 2026-08-01** (see
+//! **the owner confirmed, 2026-08-01** (see
 //! `docs/msc2/substrate/secret-storage.md` §12 for the full record): the
 //! real target design is a small privileged helper the installer sets up
 //! once, at the same elevated moment it already writes the `systemd`

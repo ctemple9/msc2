@@ -443,3 +443,40 @@ fn curseforge_pack_import_import_refused_on_pack_managed_server_without_explicit
     );
     assert!(matches!(result, Err(CurseForgeImportError::PackManaged)));
 }
+
+#[test]
+fn blocked_files_excluded_from_server_keep_identity_and_reason() {
+    let tmp = TempDir::new("excluded-blocked-files");
+    let staged = tmp.path().join("staged");
+    fs::create_dir_all(&staged).unwrap();
+    let transport = FakeTransport {
+        files_response: serde_json::json!({"data": [
+            {"id": 101, "modId": 1, "fileName": "iris-1.jar", "downloadUrl": null},
+            {"id": 102, "modId": 2, "fileName": "shader.zip", "downloadUrl": null}
+        ]}),
+    };
+    let report = run_import(
+        &transport,
+        &secrets_with_key(),
+        &tmp.path().join("server"),
+        &metadata("overrides", vec![cf_file(1, 101), cf_file(2, 102)]),
+        &staged,
+        false,
+        false,
+        &|| false,
+    )
+    .unwrap();
+    assert!(report.installed_files.is_empty());
+    assert!(report.unresolved_files.is_empty());
+    assert_eq!(report.excluded_manifest_files.len(), 2);
+    assert_eq!(report.excluded_manifest_files[0].file_id, 101);
+    assert_eq!(report.excluded_manifest_files[0].file_name, "iris-1.jar");
+    assert_eq!(report.excluded_manifest_files[1].file_id, 102);
+    assert_eq!(report.excluded_manifest_files[1].file_name, "shader.zip");
+    assert!(
+        report
+            .excluded_manifest_files
+            .iter()
+            .all(|file| file.download_blocked && !file.reason.is_empty())
+    );
+}

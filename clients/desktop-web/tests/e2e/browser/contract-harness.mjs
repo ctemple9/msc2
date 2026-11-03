@@ -572,7 +572,7 @@ createServer(async (request, response) => {
     });
   }
   if (url.pathname === '/v1/config/servers-root')
-    return json(response, { path: '/Users/camerontemple/MinecraftServers' });
+    return json(response, { path: '/Users/example/MinecraftServers' });
   if (url.pathname === '/v1/config/java-runtime') return json(response, { executablePath: '' });
   if (url.pathname === '/v1/java-runtimes')
     return json(response, {

@@ -1,6 +1,13 @@
 import type { components } from '../../api/generated';
 import type { FileUploadOptions } from '../../api/client';
-import type { FileChunkSource } from '../../platform/types';
+import type {
+  NativeUploadOptions,
+  NativeUploadResult,
+  NativeDownloadResult,
+  FileChunkSource,
+  FilePickerRequest,
+  NativeFileSource,
+} from '../../platform/types';
 
 export type Schema = components['schemas'];
 
@@ -9,10 +16,37 @@ export type ComponentState = 'installed' | 'missing' | 'unresolved' | 'disabled'
 
 /** The screen layer uses this adapter to keep workflows independent of Tauri APIs. */
 export interface ScreenApi {
+  hostId?(): string;
+  isCurrent?(): boolean;
+  cleanupStatus?<T>(path: string): Promise<T>;
+  selectUploadSource?(
+    purpose: Schema['NativeUploadBeginRequestDTO']['purpose'],
+    request: FilePickerRequest,
+    bindings?: import('./upload-source').UploadBindings,
+  ): Promise<import('./upload-source').UploadSource | null>;
+  uploadNative?(
+    source: NativeFileSource,
+    options?: NativeUploadOptions,
+  ): Promise<NativeUploadResult>;
+  snapshot?(): ScreenApi;
+  delete?(path: string): Promise<void>;
+  pickNativeUpload?(
+    purpose: Schema['NativeUploadBeginRequestDTO']['purpose'],
+    directory?: boolean,
+    options?: NativeUploadOptions,
+    droppedSourceId?: string,
+  ): Promise<(NativeUploadResult & { fileName: string }) | null>;
+  saveNativeDownload?(
+    id: string,
+    fileName: string,
+    size: number,
+    options?: NativeUploadOptions,
+  ): Promise<NativeDownloadResult>;
+
   get<T>(path: string): Promise<T>;
   post<T>(path: string, body?: unknown): Promise<T>;
   /** Fetches binary resources through the authenticated host transport. */
-  getBytes?(path: string): Promise<Uint8Array>;
+  getBytes?(path: string, signal?: AbortSignal): Promise<Uint8Array>;
   /** Builds a host-aware URL for resources rendered directly by the webview. */
   resourceUrl?(path: string): string;
   upload?(

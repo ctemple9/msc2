@@ -8,6 +8,32 @@ private struct TestResources: ApplianceResourceProvider {
 }
 
 final class BedrockSidecarTests: XCTestCase {
+    func testSidecarExitsAfterSupervisorClosesInput() throws {
+        guard getuid() != 0 else { throw XCTSkip("VM worker requires a non-root account") }
+        let executable = Bundle(for: Self.self).bundleURL
+            .deletingLastPathComponent().appendingPathComponent("BedrockSidecar")
+        for arguments in [[], ["--vm-worker"]] as [[String]] {
+            let process = Process()
+            let input = Pipe()
+            let output = Pipe()
+            let exited = expectation(description: "sidecar exits on EOF: \(arguments)")
+            process.executableURL = executable
+            process.arguments = arguments
+            process.standardInput = input
+            process.standardOutput = output
+            process.standardError = output
+            process.terminationHandler = { _ in exited.fulfill() }
+            try process.run()
+            defer { if process.isRunning { process.terminate() } }
+            // No VM is started. EOF exercises the real cleanup-to-process-exit
+            // boundary that previously left an idle run loop alive forever.
+            try input.fileHandleForWriting.close()
+            wait(for: [exited], timeout: 5)
+            guard !process.isRunning else { return }
+            XCTAssertEqual(process.terminationStatus, 0)
+        }
+    }
+
     func testFrozenRequestsDecodeAndRejectWrongTypes() throws {
         let decoder = JSONDecoder()
         XCTAssertEqual(
@@ -24,10 +50,13 @@ final class BedrockSidecarTests: XCTestCase {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
         let ready = try encoder.encode(SidecarResponse.ready(guestIP: "192.168.64.7", port: 19132, relayUp: true))
+        XCTAssertEqual(try JSONDecoder().decode(SidecarResponse.self, from: ready), .ready(guestIP: "192.168.64.7", port: 19132, relayUp: true))
         XCTAssertEqual(String(decoding: ready, as: UTF8.self), #"{"guest_ip":"192.168.64.7","port":19132,"relay_up":true,"type":"ready"}"#)
         let terminated = try encoder.encode(SidecarResponse.terminated("guest-error:boot failed"))
+        XCTAssertEqual(try JSONDecoder().decode(SidecarResponse.self, from: terminated), .terminated("guest-error:boot failed"))
         XCTAssertEqual(String(decoding: terminated, as: UTF8.self), #"{"reason":"guest-error:boot failed","type":"terminated"}"#)
         let metrics = try encoder.encode(SidecarResponse.metrics(cpuPercent: 12.5, ramUsedMB: 512, ramMaxMB: 2048))
+        XCTAssertEqual(try JSONDecoder().decode(SidecarResponse.self, from: metrics), .metrics(cpuPercent: 12.5, ramUsedMB: 512, ramMaxMB: 2048))
         XCTAssertEqual(String(decoding: metrics, as: UTF8.self), #"{"cpu_percent":12.5,"ram_max_mb":2048,"ram_used_mb":512,"type":"metrics"}"#)
     }
 

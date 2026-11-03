@@ -6,7 +6,7 @@ import type { Schema, ScreenApi } from '../shared/types';
 // Active-server-only routes below are gated by their callers. Java runtime
 // discovery/install remains host-owned; JavaTab adds an explicit serverId to
 // javaConfig so editing another server cannot change the active server or
-// the host default (D-043).
+// the host default (D-044).
 export const serverEditorPaths = {
   rename: '/v1/servers/rename',
   xboxBroadcast: '/v1/servers/xbox-broadcast',
@@ -23,6 +23,7 @@ export const serverEditorPaths = {
   geyser: '/v1/config/geyser',
   active: '/v1/active-server',
   status: '/v1/status',
+  discardFirstStart: '/v1/first-start/discard',
   ram: '/v1/config/ram',
   broadcastStatus: '/v1/broadcast/status',
   broadcastAutostart: '/v1/broadcast/autostart',

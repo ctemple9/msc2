@@ -1200,8 +1200,19 @@ impl fmt::Display for CurseForgeImportError {
 
 impl std::error::Error for CurseForgeImportError {}
 
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExcludedManifestFile {
+    pub file_id: i64,
+    pub file_name: String,
+    pub reason: String,
+    pub download_blocked: bool,
+}
+
 #[derive(Debug, Default)]
 pub struct CurseForgeImportReport {
+    pub inspection_flagged_files: Vec<String>,
+    pub excluded_manifest_files: Vec<ExcludedManifestFile>,
     pub installed_files: Vec<PathBuf>,
     /// `(fileID, reason)` — a resolvable file whose download itself
     /// failed (network error, non-2xx status). Distinct from
@@ -1320,10 +1331,22 @@ pub fn import_curseforge(
             ));
             continue;
         };
-        if !file.file_name.to_ascii_lowercase().ends_with(".jar")
-            || known_client_only_mod_filename(&file.file_name)
-            || client_only_file_ids.contains(&file.id)
-        {
+        let exclusion = if !file.file_name.to_ascii_lowercase().ends_with(".jar") {
+            Some("Not a server mod JAR")
+        } else if known_client_only_mod_filename(&file.file_name) {
+            Some("Known client-only mod")
+        } else if client_only_file_ids.contains(&file.id) {
+            Some("Exact file identified as client-only by Modrinth")
+        } else {
+            None
+        };
+        if let Some(reason) = exclusion {
+            report.excluded_manifest_files.push(ExcludedManifestFile {
+                file_id: file.id,
+                file_name: file.file_name.clone(),
+                reason: reason.into(),
+                download_blocked: file.download_url.is_none(),
+            });
             continue;
         }
         let Some(download_url) = &file.download_url else {
@@ -1383,7 +1406,15 @@ pub fn import_curseforge(
                         continue;
                     }
                 }
-                Some(ModrinthRecoveryMatch::ClientOnly) => continue,
+                Some(ModrinthRecoveryMatch::ClientOnly) => {
+                    report.excluded_manifest_files.push(ExcludedManifestFile {
+                        file_id: file.id,
+                        file_name: file.file_name.clone(),
+                        reason: "Exact compatible Modrinth match is client-only".into(),
+                        download_blocked: true,
+                    });
+                    continue;
+                }
                 None => {}
             }
 
@@ -1423,6 +1454,12 @@ pub fn import_curseforge(
             })
             .clone();
         if matches!(modrinth_match, Some(ModrinthRecoveryMatch::ClientOnly)) {
+            report.excluded_manifest_files.push(ExcludedManifestFile {
+                file_id: file.id,
+                file_name: file.file_name.clone(),
+                reason: "Exact compatible Modrinth match is client-only".into(),
+                download_blocked: false,
+            });
             continue;
         }
         let dest = add_on_folder.join(&file.file_name);
@@ -1512,6 +1549,24 @@ pub fn import_curseforge(
         }
     };
     report.removed_client_only_files = removed.clone();
+    for file in &resolved {
+        if removed.iter().any(|path| {
+            path.file_name()
+                .is_some_and(|name| name == file.file_name.as_str())
+        }) && !report
+            .excluded_manifest_files
+            .iter()
+            .any(|entry| entry.file_id == file.id)
+        {
+            report.excluded_manifest_files.push(ExcludedManifestFile {
+                file_id: file.id,
+                file_name: file.file_name.clone(),
+                reason: "Identified as client-only after installation; removed from the server"
+                    .into(),
+                download_blocked: file.download_url.is_none(),
+            });
+        }
+    }
     remove_reported_curseforge_paths(&mut report, &removed);
 
     Ok(report)

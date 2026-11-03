@@ -378,42 +378,44 @@ fn raw_server_scan_indexes_large_macos_zip_without_extracting_it() {
         let mut archive = ZipWriter::new(file);
         let options = SimpleFileOptions::default();
         archive
-            .start_file("campak/server.properties", options)
+            .start_file("modded-sample/server.properties", options)
             .unwrap();
         archive
-            .write_all(b"server-port=25577\nmax-players=8\nlevel-name=campak\n")
+            .write_all(b"server-port=25577\nmax-players=8\nlevel-name=modded-sample\n")
             .unwrap();
-        archive.start_file("campak/eula.txt", options).unwrap();
+        archive
+            .start_file("modded-sample/eula.txt", options)
+            .unwrap();
         archive.write_all(b"eula=true\n").unwrap();
         archive
-            .start_file("campak/fabric-server-launch-1.20.1.jar", options)
+            .start_file("modded-sample/fabric-server-launch-1.20.1.jar", options)
             .unwrap();
         archive
             .start_file(
-                "campak/.fabric/server/libraries/net/fabricmc/fabric-loader/0.16.9/marker",
+                "modded-sample/.fabric/server/libraries/net/fabricmc/fabric-loader/0.16.9/marker",
                 options,
             )
             .unwrap();
         archive
-            .start_file("campak/world/level.dat", options)
+            .start_file("modded-sample/world/level.dat", options)
             .unwrap();
         archive.write_all(b"level").unwrap();
         archive
-            .start_file("campak/world/region/r.0.0.mca", options)
+            .start_file("modded-sample/world/region/r.0.0.mca", options)
             .unwrap();
         archive.write_all(b"region-data").unwrap();
 
         // This is representative of the supplied archive's large mod files.
         // A scan must use central-directory sizes and never read this payload.
         archive
-            .start_file("campak/mods/large.jar", options)
+            .start_file("modded-sample/mods/large.jar", options)
             .unwrap();
         archive.write_all(&vec![0_u8; 16 * 1024 * 1024]).unwrap();
 
         // Finder metadata must not prevent the real single server root from
         // being unwrapped.
         archive
-            .start_file("__MACOSX/campak/._server.properties", options)
+            .start_file("__MACOSX/modded-sample/._server.properties", options)
             .unwrap();
         archive.write_all(b"finder metadata").unwrap();
         archive.finish().unwrap();

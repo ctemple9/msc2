@@ -27,6 +27,9 @@
   export let servers: readonly Schema['ServerDTO'][] = [];
   export let activeServerId: string | undefined = undefined;
   export let running = false;
+  export let stopping = false;
+  export let lifecycleBusy = false;
+  export let statusNotice = '';
   export let connected = false;
   export let capabilities: Schema['CapabilitiesDTO'] | null = null;
   export let canControl = true;
@@ -40,6 +43,8 @@
   export let initiationHidden = false;
   export let initiationServerId: string | undefined = undefined;
   export let onResumeInitiation: () => void = () => undefined;
+  export let onDiscardInitiation: () => void = () => undefined;
+  export let discardingInitiation = false;
   export let onOpenAgentSetup: () => void;
   export let onManage: () => void;
   export let onHelp: (() => void) | undefined = undefined;
@@ -137,6 +142,9 @@
         {servers}
         {activeServerId}
         {running}
+        {stopping}
+        {lifecycleBusy}
+        {statusNotice}
         {connected}
         {capabilities}
         {canControl}
@@ -148,6 +156,8 @@
         {initiationHidden}
         {initiationServerId}
         {onResumeInitiation}
+        {onDiscardInitiation}
+        {discardingInitiation}
         {onOpenAgentSetup}
         {onManage}
         {addressesVisible}
@@ -193,6 +203,8 @@
         onToggle={toggleConsole}
         height={consoleCollapsed ? undefined : consoleHeight}
         {api}
+        hostId={activeHostId}
+        {activeServerId}
         serverType={activeServer?.serverType}
         {capabilities}
       />

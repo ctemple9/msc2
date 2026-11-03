@@ -5,7 +5,7 @@
   // the user can open that page, choose or drop the matching JAR, retry after
   // a failed attempt, or explicitly skip the file. Every upload is bound to
   // POST /v1/modpacks/{operationId}/manual-file for validation on the agent.
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import Sheet from '../../components/base/Sheet.svelte';
   import Button from '../../components/base/Button.svelte';
   import Field from '../../components/base/Field.svelte';
@@ -13,6 +13,8 @@
   import { getPlatform, openExternal } from '../../platform';
   import type { Schema, ScreenApi } from '../shared/types';
   import { errorMessage, mutate } from '../shared/types';
+  import { pickUploadSource, type UploadSource } from '../shared/upload-source';
+  import StagedUploadSheet from './StagedUploadSheet.svelte';
   import { addonPaths } from './model';
 
   export let api: ScreenApi | undefined = undefined;
@@ -22,6 +24,11 @@
   export let onAllResolved: () => void;
   export let onRemainingChange: (files: Schema['ModpackManualFileEntryDTO'][]) => void = () => {};
 
+  const initiatingApi = api?.snapshot?.() ?? api;
+  let pendingSource: UploadSource | undefined;
+  let pendingEntry: Schema['ModpackManualFileEntryDTO'] | undefined;
+  let unsubscribeDrop: (() => void) | undefined;
+  let disposed = false;
   let remaining = files;
   let staging: Set<string> = new Set();
   let errorByFile: Record<string, string> = {};
@@ -38,14 +45,13 @@
   onMount(async () => {
     if (!api) return;
     try {
-      const status = await api.get<Schema['CurseForgeApiKeyStatusDTO']>('/v1/config/curseforge');
+      const status =
+        await initiatingApi!.get<Schema['CurseForgeApiKeyStatusDTO']>('/v1/config/curseforge');
       curseforgeKeyConfigured = status.configured;
     } catch {
       curseforgeKeyConfigured = undefined;
     }
   });
-
-  type PickedFile = { name: string; bytes: Uint8Array };
 
   function entryForFileName(name: string): Schema['ModpackManualFileEntryDTO'] | undefined {
     const lower = name.toLowerCase();
@@ -54,68 +60,90 @@
       (remaining.length === 1 ? remaining[0] : undefined)
     );
   }
-
   async function stageAndBind(
     entry: Schema['ModpackManualFileEntryDTO'],
-    supplied?: PickedFile,
+    droppedSourceId?: string,
   ): Promise<void> {
-    if (!api?.upload) return;
-    const picked =
-      supplied ?? (await (await getPlatform()).pickFile({ label: `Choose ${entry.fileName}` }));
-    if (!picked) return;
-    staging = new Set(staging).add(entry.fileId);
-    const nextErrors = { ...errorByFile };
-    delete nextErrors[entry.fileId];
-    errorByFile = nextErrors;
+    if (pendingSource) return;
+    const purpose =
+      entry.provider && entry.provider !== 'CurseForge'
+        ? 'modpack-unresolved-file'
+        : 'curseforge-manual-file';
     try {
-      const purpose =
-        entry.provider && entry.provider !== 'CurseForge'
-          ? 'modpack-unresolved-file'
-          : 'curseforge-manual-file';
-      const staged = await api.upload(purpose, picked.bytes, {
-        operationId,
-        fileId: entry.fileId,
-        fileName: picked.name,
-      });
-      const result = await mutate<Schema['ModpackManualFileResultDTO']>(
-        api,
-        addonPaths.manualFile(operationId),
-        { fileId: entry.fileId, stagedUploadId: staged.stagedUploadId },
+      const selected = await pickUploadSource(
+        initiatingApi,
+        purpose,
+        { label: `Choose ${entry.fileName}` },
+        { operationId, fileId: entry.fileId, droppedSourceId },
+        () => !disposed,
       );
+      if (disposed) {
+        await selected?.close();
+        return;
+      }
+      if (selected) {
+        pendingSource = selected;
+        pendingEntry = entry;
+      }
+    } catch (error) {
+      errorByFile = { ...errorByFile, [entry.fileId]: errorMessage(error) };
+    }
+  }
+  async function bindManualFile(
+    upload: Schema['StagedUploadCompleteResultDTO'],
+    scoped: ScreenApi,
+  ): Promise<void> {
+    const entry = pendingEntry;
+    if (!entry) throw new Error('This file is no longer pending.');
+    staging = new Set(staging).add(entry.fileId);
+    try {
+      const result = await mutate<Schema['ModpackManualFileResultDTO']>(
+        scoped,
+        addonPaths.manualFile(operationId),
+        { fileId: entry.fileId, stagedUploadId: upload.stagedUploadId },
+      );
+      if (disposed) return;
       remaining = result.remainingManualFiles;
       onRemainingChange(remaining);
       if (result.allFilesResolved) onAllResolved();
-    } catch (error) {
-      errorByFile = {
-        ...errorByFile,
-        [entry.fileId]: error instanceof Error ? error.message : 'That file did not match.',
-      };
     } finally {
       const next = new Set(staging);
       next.delete(entry.fileId);
       staging = next;
     }
   }
-
-  async function handleDrop(event: DragEvent): Promise<void> {
+  function handleDrop(event: DragEvent): void {
     event.preventDefault();
-    const file = event.dataTransfer?.files?.[0];
-    if (!file) return;
-    const entry = entryForFileName(file.name);
-    if (!entry) {
-      errorByFile = {
-        ...errorByFile,
-        __drop: 'Drop a file whose name matches one of the unresolved entries.',
-      };
-      return;
-    }
-    await stageAndBind(entry, { name: file.name, bytes: new Uint8Array(await file.arrayBuffer()) });
   }
+  onMount(() => {
+    void (async () => {
+      const platform = await getPlatform();
+      const off = await platform.onNativeSourceDrop?.((sources) => {
+        const source = sources[0];
+        if (!source || source.directory) return;
+        const entry = entryForFileName(source.name);
+        if (!entry || !source.sourceId) {
+          errorByFile = {
+            ...errorByFile,
+            __drop: source.error ?? 'Drop a file matching an unresolved entry.',
+          };
+          return;
+        }
+        void stageAndBind(entry, source.sourceId);
+      });
+      if (disposed) off?.();
+      else unsubscribeDrop = off;
+    })();
+  });
+  onDestroy(() => {
+    disposed = true;
+    unsubscribeDrop?.();
+  });
 
   async function skipEntry(entry: Schema['ModpackManualFileEntryDTO']): Promise<void> {
     try {
       const result = await mutate<Schema['ModpackManualFileResultDTO']>(
-        api,
+        initiatingApi,
         addonPaths.manualFile(operationId),
         { fileId: entry.fileId, action: 'skip' },
       );
@@ -152,7 +180,7 @@
     curseforgeKeyNotice = '';
     try {
       const status = await mutate<Schema['CurseForgeApiKeyStatusDTO']>(
-        api,
+        initiatingApi,
         '/v1/config/curseforge',
         { apiKey: curseforgeApiKey.trim() },
       );
@@ -307,6 +335,22 @@
     </div>
   {/if}
 </Sheet>
+
+{#if pendingSource && pendingEntry}
+  <StagedUploadSheet
+    api={initiatingApi}
+    purpose={pendingEntry.provider && pendingEntry.provider !== 'CurseForge'
+      ? 'modpack-unresolved-file'
+      : 'curseforge-manual-file'}
+    source={pendingSource}
+    completionStage="installing"
+    onComplete={bindManualFile}
+    onClose={() => {
+      pendingSource = undefined;
+      pendingEntry = undefined;
+    }}
+  />
+{/if}
 
 <style>
   .explain {

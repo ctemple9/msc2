@@ -1,5 +1,7 @@
 # Windows MSI baseline and refinement review
 
+> Privacy cleanup (2026-10-08): personal account paths and captured network addresses in this record have been replaced with examples. Substitute your own paths and addresses when following commands; example values are not the original observations.
+
 Recorded 2026-10-07 in P16.44. Source baseline: `8af559be`.
 Static inspection is complete; Cameron confirmed the artifact identification.
 Physical verification remains pending. No installer was launched or package extracted.
@@ -8,7 +10,7 @@ Physical verification remains pending. No installer was launched or package extr
 
 | Field | Observed value |
 |---|---|
-| Local path | `C:\Users\Cameron\Downloads\msc2-0.1.15-windows-x86_64.msi` |
+| Local path | `C:\Users\example\Downloads\msc2-0.1.15-windows-x86_64.msi` |
 | File size | 14,225,408 bytes |
 | SHA-256 | `1952d89bb5538f2487e5563135619dfe063aee395edfe5effe107e4aa247ffc2` |
 | Product/version | MSC 2 / 0.1.15 |
@@ -379,7 +381,7 @@ publication. The exact unsigned candidate replaces the prior bytes at the build 
 | Field | Observed value |
 |---|---|
 | Build path | `clients/desktop-web/src-tauri/target/release/bundle/msi/MSC 2_0.1.23_x64_en-US.msi` |
-| Review copy | `C:\Users\Cameron\Downloads\msc2-p16.47-windows-x86_64.msi` |
+| Review copy | `C:\Users\example\Downloads\msc2-p16.47-windows-x86_64.msi` |
 | Bytes | 19,152,896 |
 | SHA-256 | `8d2e3a3f6db651c704f00a0add6eb8c35441119d21c3616b55fe163c404e8a08` |
 | Embedded x64 lifecycle DLL | 292,352 bytes; SHA-256 `a68c58b0959d5b02d1993e8baf619185480e2001b5b34adeb10b3b749c66eece` |
@@ -553,7 +555,7 @@ removal, service mutation, tests, tags or publication are agent verification.
 
 ### Exact P16.48 candidate and build evidence
 
-- Review copy: `C:\Users\Cameron\Downloads\msc2-p16.48-windows-x86_64.msi`.
+- Review copy: `C:\Users\example\Downloads\msc2-p16.48-windows-x86_64.msi`.
 - Product version: **0.1.23**; unsigned MSI; **19,156,992 bytes**.
 - MSI SHA-256: `f4b4a12fdd17a33584f1dbca503691c2f380e219d899501ab408c0a781c317bc`.
 - Embedded lifecycle DLL: **295,936 bytes**, SHA-256
@@ -632,7 +634,7 @@ Use the P16.49 candidate for remaining P16.48 repair/removal acceptance.
 
 ### Exact candidate and checks
 
-- Review copy: `C:\Users\Cameron\Downloads\msc2-p16.49-windows-x86_64.msi`.
+- Review copy: `C:\Users\example\Downloads\msc2-p16.49-windows-x86_64.msi`.
 - Product version: **0.1.23**; unsigned local MSI; **19,431,424 bytes**.
 - MSI SHA-256: `83fd1b0f9b32e56e6cb6453b072ca585e4d61c81ae1c7ae57b6441fe1e26be5e`.
 - Embedded lifecycle DLL SHA-256: `bccd3fa6de8e9685bec91a0aee16ccea32ad36ce5719381b5b286e9373d6bd29`.
@@ -681,7 +683,7 @@ Physical acceptance remains pending. P16.50 has not been started.
 ## P16.50 — Consolidated owner acceptance and independent review handoff
 
 **Status:** Packet prepared; physical acceptance and independent review pending.
-**Candidate:** `C:\Users\Cameron\Downloads\msc2-p16.49-windows-x86_64.msi`.
+**Candidate:** `C:\Users\example\Downloads\msc2-p16.49-windows-x86_64.msi`.
 **Source:** `7f07f36f0c206a37c733f4d61788d16b93f9a41d` (P16.49).
 **Version / size:** 0.1.23 / 19,431,424 bytes; unsigned local review MSI.
 **SHA-256:** `83fd1b0f9b32e56e6cb6453b072ca585e4d61c81ae1c7ae57b6441fe1e26be5e`.
@@ -793,7 +795,7 @@ No service/rollback logic, desktop or agent binary was changed. No extra runtime
 installation or release workflow gate was added. Direct helper builds for MSI
 must use the same flag; `cargo build` alone still selects the default linkage.
 
-- Retry copy: `C:\Users\Cameron\Downloads\msc2-p16.51-windows-x86_64.msi`.
+- Retry copy: `C:\Users\example\Downloads\msc2-p16.51-windows-x86_64.msi`.
 - Product version: 0.1.23; unsigned local MSI; 19,521,536 bytes.
 - MSI SHA-256: `57bd665eb122987a5c2150a5586506c59f37fbb2bb1f23fdc0ce7d5fcc2a303b`.
 - Embedded helper SHA-256: `0dc2e438a214c174a6d0976b2c970f4d92202b259fdf8db8c662586f569ae2a3`.
@@ -849,7 +851,7 @@ these packages. See [Rust runtime linkage](https://doc.rust-lang.org/reference/l
 
 ### Exact retry candidate
 
-- Review copy: `C:\Users\Cameron\Downloads\msc2-p16.52-windows-x86_64.msi`.
+- Review copy: `C:\Users\example\Downloads\msc2-p16.52-windows-x86_64.msi`.
 - Version: 0.1.23; unsigned local MSI; 19,742,720 bytes.
 - MSI SHA-256: `59bd0445260b6206001d069f6c9845ccc1d03ede2d3a313f2af105dc58ac7859`.
 - Embedded lifecycle DLL SHA-256: `b25d93b5ed294a449949d90f995a496d266fe5c58f8379be51daaea75e800743`.
@@ -940,7 +942,7 @@ as separate cases. The original preparation delay remains open.
 
 ### Exact P16.53 candidate and checks
 
-- Review copy: `C:\Users\Cameron\Downloads\msc2-p16.53-windows-x86_64.msi`.
+- Review copy: `C:\Users\example\Downloads\msc2-p16.53-windows-x86_64.msi`.
 - Version: 0.1.23; unsigned local MSI; 19,746,816 bytes.
 - MSI SHA-256: `8515836fa62a3c5c12edaca3cc5b67814b16789d48a26d09bf2ac545f3afdad6`.
 - Packaged desktop SHA-256: `26b549bc3f912ec4f2c868683dc4fd7c2f09b5f4adba3a7500b9c50d3f159399`.
@@ -993,7 +995,7 @@ service logon, signed update recovery and independent review remain open.
 
 ### Exact P16.54 candidate and checks
 
-- Review copy: `C:\Users\Cameron\Downloads\msc2-p16.54-windows-x86_64.msi`.
+- Review copy: `C:\Users\example\Downloads\msc2-p16.54-windows-x86_64.msi`.
 - Version: 0.1.23; unsigned local MSI; 19,746,816 bytes.
 - MSI SHA-256: `054a0da809b008cd51904c8b6cc1a827c815e2e6e49020a11b054265371cb2cf`.
 - Packaged desktop SHA-256: `f189df7834bb2b693cdf04b979929a9f9dcbf4a3a846daced3e4ffa361cb485d`.
@@ -1027,7 +1029,7 @@ UserExit is disabled. Read-only package extraction confirms the staged binaries
 are included and the desktop retains Windows GUI subsystem 2.
 
 Local unsigned candidate:
-`C:\Users\Cameron\Downloads\msc2-0.1.23-windows-x86_64-local.msi`
+`C:\Users\example\Downloads\msc2-0.1.23-windows-x86_64-local.msi`
 SHA256 `36b18c2c46f322aca89cf0f0caae206d57a2ec774fc273ea9c51c13271a094e7`.
 Build, Rust formatting/agent Clippy and package inspection passed with existing
 warnings. No live removal, test suites or publication were run. Cancel-before-
@@ -1057,7 +1059,7 @@ protected targets, worker reports and existing cancellation routing. It is an
 implementation audit, not an independent phase review or a physical gate PASS.
 
 Rebuilt unsigned local candidate:
-`C:\Users\Cameron\Downloads\msc2-0.1.23-windows-x86_64-local.msi`
+`C:\Users\example\Downloads\msc2-0.1.23-windows-x86_64-local.msi`
 SHA256 `517d868341057542f275756cdc2db4951959fac3cc54d88d6386bd2c42783f13`.
 Rust formatting/Clippy, PowerShell parsing, authorized regression, MSI build and
 read-only embedded-file/UI table inspection passed with existing warnings.

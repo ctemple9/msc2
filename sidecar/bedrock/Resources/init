@@ -9,9 +9,8 @@ busybox mount -t tmpfs tmpfs /run
 echo ""
 echo "[appliance] MSC BDS appliance init starting"
 
-# VZ's virtio-fs share preserves numeric ownership. The root helper therefore
-# supplies the installing user's UID/GID on the kernel command line and BDS
-# drops to that identity before it opens the shared server directory.
+# Host ownership is enforced by the user-owned VM worker. Also drop the guest
+# process identity; missing or invalid IDs must never launch BDS as root.
 MSC_UID=0
 MSC_GID=0
 for parameter in $(busybox cat /proc/cmdline); do
@@ -21,8 +20,16 @@ for parameter in $(busybox cat /proc/cmdline); do
   esac
 done
 case "$MSC_UID:$MSC_GID" in
-  ''|*[!0-9:]*|*:|:*|0:*) MSC_UID=0; MSC_GID=0 ;;
+  ''|*[!0-9:]*|*:|:*|0:*|*:0)
+    echo "[appliance] ERROR: invalid Bedrock file-owner identity"
+    busybox poweroff -f
+    exit 1 ;;
 esac
+if ! [ "$MSC_UID" -gt 0 ] || ! [ "$MSC_GID" -gt 0 ]; then
+  echo "[appliance] ERROR: Bedrock must not run with root identity"
+  busybox poweroff -f
+  exit 1
+fi
 
 busybox ip link set lo up
 # NIC is eth0 here (no systemd/udev predictable-naming).
@@ -69,14 +76,10 @@ if [ -n "$BDS_DIR" ]; then
   export SSL_CERT_DIR=/etc/ssl/certs
   export CURL_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
   echo "[appliance] launching BDS from $BDS_DIR (stdin/stdout = console)..."
-  if [ "$MSC_UID" -gt 0 ]; then
     # This appliance's BusyBox setpriv only manages capabilities. chpst is
     # the compiled-in applet that can set the numeric identity without
     # requiring a guest user database entry.
     busybox chpst -u "$MSC_UID:$MSC_GID" "$BDS_DIR/bedrock_server"
-  else
-    "$BDS_DIR/bedrock_server"
-  fi
   echo "[appliance] BDS exited — powering off"
   busybox poweroff -f
 else

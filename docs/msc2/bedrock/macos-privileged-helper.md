@@ -1,6 +1,6 @@
 # macOS Bedrock privileged helper contract
 
-**Status:** Owner-approved on 2026-09-23 under D-007 and D-025
+**Status:** Owner-approved on 2026-09-23 under D-007 and D-025; worker split approved 2026-10-13 (P16.71).
 
 **Scope:** Intel macOS Virtualization.framework Bedrock backend only
 
@@ -29,8 +29,20 @@ work as root.
 | Component | OS identity | Owns |
 |---|---|---|
 | Rust MSC agent | Installing user | Configuration, API, operations, server catalog, policy, diagnostics, and supervision |
-| Swift Bedrock helper | Root LaunchDaemon with no `UserName` | One VZ VM session and that session's TCP/UDP host relays |
-| BDS guest process | Installing user's configured numeric UID/GID at the shared-folder boundary | Bedrock server files written through the shared directory |
+| Swift Bedrock helper | Root LaunchDaemon with no `UserName`; effective root retained | Supervises one VM worker and owns that session's TCP/UDP host relays |
+| Swift VM worker | Installing user's real/effective UID/GID | VZ VM and its shared-directory filesystem writes |
+| BDS guest process | Installing user's configured numeric UID/GID | Bedrock guest process; host ownership is enforced by the VM worker |
+
+The helper sets its real UID/GID to the installing account before starting
+threads, retains effective root for relays, and sets supplementary groups to
+that account's groups. `posix_spawn` with `POSIX_SPAWN_RESETIDS` launches the
+same fixed installed sidecar as `--vm-worker`; the child refuses root or mixed
+real/effective credentials. Only protocol stdin/stdout and helper stderr are
+inherited. The worker has no listening management socket and no host relays.
+The root supervisor validates each server path before forwarding provision.
+EOF stops the child VM; the supervisor waits for process exit before reporting
+termination. Generation checks prevent an old exit callback from stopping a
+later worker. Guest identity validation has no root fallback.
 
 The helper is a mechanism behind the agent, not a second server manager. It has
 no public API, user accounts, bearer tokens, scheduling, or independent server
@@ -156,6 +168,16 @@ backups owned as though the installing user had run BDS directly. Guest writes
 must therefore use or map the configured installing UID/GID at the shared-folder
 boundary. Root-owned files appearing inside a server directory are a failed
 invariant, not cleanup work for the agent.
+
+Apple performs shared-folder writes using the host effective identity and
+ignores guest requests to change host UID/GID. P16.71 therefore enforces this
+at the user-owned VM worker, not solely through guest `chpst`. Existing affected
+worlds are preserved. With servers and the agent stopped, an administrator can
+explicitly repair one known server directory using `sudo chown -R -P USER:GROUP
+"/absolute/path/to/that/server"`; substitute the installing account and verified
+server path. Start the agent afterward to reconcile its pending activation.
+Never remove transaction manifests to bypass recovery or repeat conversion
+when a saved converted slot already exists.
 
 The helper may write its own root-owned service logs and transient runtime state
 only outside server roots. It never writes backup archives, edits

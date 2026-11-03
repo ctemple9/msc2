@@ -1,5 +1,5 @@
 See `../README.md`. **Populated by P6.3** with two real backup zips (one per
-MSC 1-managed Java server) from Cameron's live MSC 1 install — the actual
+MSC 1-managed Java server) from the owner's live MSC 1 install — the actual
 `.zip`/`.meta.json` bytes are git-ignored (`.gitignore` in this directory),
 since they carry real per-player NBT data; `manifest.json` (committed)
 records their source, hashes, and why. See "P6.3 real evidence collected"
@@ -28,13 +28,13 @@ up here standing in for the real thing.
 ## P6.3 real evidence collected (2026-08-13)
 
 An initial search found no real backup `.zip` anywhere on this machine (see
-`../worlds/README.md`'s matching section for the full search). Cameron then
+`../worlds/README.md`'s matching section for the full search). the owner then
 generated two, for real, in the real app: MSC 1's **Back Up** action
 (server editor → Backups tab → "Back Up" under Manual Actions), run against
-both `campack` and `paper`, 2026-08-13 22:29.
+both `modded-sample` and `paper`, 2026-08-13 22:29.
 
 - `Paper_manual_20260813-222932.zip` + `.meta.json` (565,734 bytes)
-- `campack_manual_20260813-222917.zip` + `.meta.json` (11,269,354 bytes)
+- `modded-sample_manual_20260813-222917.zip` + `.meta.json` (11,269,354 bytes)
 
 Both are real `AppViewModel.createBackupForSelectedServer(isAutomatic: false)`
 output — same production code path a user's own manual backup takes, not a
@@ -50,7 +50,7 @@ matching section for the full command and what it runs) restores the real
 `Paper_manual_20260813-222932.zip` backup here through the real
 `backups::restore_backup` into a temporary root — never touching this
 directory itself — and validates both real backup `.zip`s' archive safety.
-`campack_manual_20260813-222917.zip` (~11MB) is exercised by the
+`modded-sample_manual_20260813-222917.zip` (~11MB) is exercised by the
 archive-safety check but not restored, matching the write-path-stays-small
 split `../worlds/README.md` records.
 

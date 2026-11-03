@@ -35,7 +35,7 @@ use serde_json::{Map, Value};
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::fs;
-use std::io::{self, Read, Write};
+use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
 use zip::write::SimpleFileOptions;
@@ -303,6 +303,37 @@ fn io_error(path: &Path, error: io::Error) -> TransferExportError {
     }
 }
 
+struct TransferArchive<W: Write + io::Seek> {
+    zip: ZipWriter<W>,
+    entries: u64,
+    bytes: u64,
+}
+impl<W: Write + io::Seek> std::ops::Deref for TransferArchive<W> {
+    type Target = ZipWriter<W>;
+    fn deref(&self) -> &Self::Target {
+        &self.zip
+    }
+}
+impl<W: Write + io::Seek> std::ops::DerefMut for TransferArchive<W> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.zip
+    }
+}
+impl<W: Write + io::Seek> TransferArchive<W> {
+    fn record(&mut self, bytes: u64) -> Result<(), TransferExportError> {
+        self.entries += 1;
+        self.bytes = self.bytes.saturating_add(bytes);
+        if self.entries > msc_infrastructure::archive::MAX_ARCHIVE_ENTRIES
+            || self.bytes > msc_infrastructure::archive::MAX_TOTAL_UNCOMPRESSED_BYTES
+        {
+            return Err(TransferExportError::Zip(
+                "Transfer archive resource limit exceeded.".into(),
+            ));
+        }
+        Ok(())
+    }
+}
+
 /// Ports `exportServerTransfer(to:)`. Stages every server's bundled files
 /// straight into the zip (no separate on-disk staging directory — MSC 1
 /// stages to a temp folder only because it shells out to `/usr/bin/zip`
@@ -318,7 +349,11 @@ pub fn export_server_transfer<W: Write + io::Seek>(
     request: &TransferExportRequest,
     writer: W,
 ) -> Result<TransferManifest, TransferExportError> {
-    let mut zip = ZipWriter::new(writer);
+    let mut zip = TransferArchive {
+        zip: ZipWriter::new(writer),
+        entries: 0,
+        bytes: 0,
+    };
     let mut used_folder_names = HashSet::new();
     let mut entries = Vec::with_capacity(request.servers.len());
 
@@ -338,14 +373,15 @@ pub fn export_server_transfer<W: Write + io::Seek>(
     let manifest_json = serde_json::to_vec_pretty(&manifest.encode())
         .map_err(|e| TransferExportError::Zip(e.to_string()))?;
     add_file_entry(&mut zip, "manifest.json", &manifest_json)?;
-    zip.finish()
+    zip.zip
+        .finish()
         .map_err(|e| TransferExportError::Zip(e.to_string()))?;
 
     Ok(manifest)
 }
 
 fn export_one_server<W: Write + io::Seek>(
-    zip: &mut ZipWriter<W>,
+    zip: &mut TransferArchive<W>,
     input: &TransferExportServerInput,
     used_folder_names: &mut HashSet<String>,
 ) -> Result<TransferServerEntry, TransferExportError> {
@@ -369,8 +405,7 @@ fn export_one_server<W: Write + io::Seek>(
     if is_java && !server.paper_jar_path.trim().is_empty() {
         let jar_path = PathBuf::from(&server.paper_jar_path);
         if jar_path.is_file() {
-            let bytes = fs::read(&jar_path).map_err(|e| io_error(&jar_path, e))?;
-            add_file_entry(zip, &format!("{prefix}/paper.jar"), &bytes)?;
+            add_disk_entry(zip, &format!("{prefix}/paper.jar"), &jar_path)?;
             bundled_paper_jar = true;
         }
     }
@@ -427,6 +462,12 @@ fn export_one_server<W: Write + io::Seek>(
             }
             let name = entry.file_name().to_string_lossy().into_owned();
             if is_allowlisted_config_extension(&name) {
+                if config_files.len() as u64 >= msc_infrastructure::archive::MAX_ARCHIVE_ENTRIES {
+                    return Err(io_error(
+                        &server_dir,
+                        io::Error::other("too many server configuration files"),
+                    ));
+                }
                 config_files.push(name);
             }
         }
@@ -436,8 +477,7 @@ fn export_one_server<W: Write + io::Seek>(
         add_directory_entry(zip, &format!("{prefix}/configs"))?;
         for name in &config_files {
             let path = server_dir.join(name);
-            let bytes = fs::read(&path).map_err(|e| io_error(&path, e))?;
-            add_file_entry(zip, &format!("{prefix}/configs/{name}"), &bytes)?;
+            add_disk_entry(zip, &format!("{prefix}/configs/{name}"), &path)?;
         }
     }
 
@@ -543,25 +583,27 @@ fn read_properties_map(path: &Path) -> HashMap<String, String> {
 }
 
 fn add_directory_entry<W: Write + io::Seek>(
-    zip: &mut ZipWriter<W>,
+    zip: &mut TransferArchive<W>,
     name: &str,
 ) -> Result<(), TransferExportError> {
     if !is_safe_zip_entry_name(name) {
         return Err(TransferExportError::UnsafeEntryName(name.to_string()));
     }
+    zip.record(0)?;
     let opts = SimpleFileOptions::default().unix_permissions(0o755);
     zip.add_directory(format!("{name}/"), opts)
         .map_err(|e| TransferExportError::Zip(e.to_string()))
 }
 
 fn add_file_entry<W: Write + io::Seek>(
-    zip: &mut ZipWriter<W>,
+    zip: &mut TransferArchive<W>,
     name: &str,
     bytes: &[u8],
 ) -> Result<(), TransferExportError> {
     if !is_safe_zip_entry_name(name) {
         return Err(TransferExportError::UnsafeEntryName(name.to_string()));
     }
+    zip.record(bytes.len() as u64)?;
     let opts = SimpleFileOptions::default()
         .compression_method(CompressionMethod::Deflated)
         .unix_permissions(0o644);
@@ -576,35 +618,75 @@ fn add_file_entry<W: Write + io::Seek>(
 /// entry for `disk_dir` itself (so a subdirectory that happens to be
 /// empty — a fresh `plugins/` folder, say — still round-trips as an empty
 /// directory rather than vanishing from the archive entirely). Entries are
-/// written in sorted-by-name order for deterministic output; MSC 1's own
-/// `zip -r` has no such guarantee (directory-listing order is unspecified),
-/// so this is a Rust-side improvement, not a parity requirement.
+/// enumerated through controlled handles without collecting a directory-wide
+/// list. ZIP entry ordering is not part of the transfer format contract.
 fn add_dir_recursive<W: Write + io::Seek>(
-    zip: &mut ZipWriter<W>,
+    zip: &mut TransferArchive<W>,
     disk_dir: &Path,
     zip_prefix: &str,
 ) -> Result<(), TransferExportError> {
     add_directory_entry(zip, zip_prefix)?;
-    let mut entries: Vec<_> = fs::read_dir(disk_dir)
-        .map_err(|e| io_error(disk_dir, e))?
-        .collect::<Result<_, io::Error>>()
-        .map_err(|e| io_error(disk_dir, e))?;
-    entries.sort_by_key(|e| e.file_name());
-    for entry in entries {
-        let path = entry.path();
-        let name = entry.file_name().to_string_lossy().into_owned();
-        let zip_path = format!("{zip_prefix}/{name}");
-        let file_type = entry.file_type().map_err(|e| io_error(&path, e))?;
-        if file_type.is_dir() {
-            add_dir_recursive(zip, &path, &zip_path)?;
-        } else if file_type.is_file() {
-            let bytes = fs::read(&path).map_err(|e| io_error(&path, e))?;
-            add_file_entry(zip, &zip_path, &bytes)?;
-        }
-        // Symlinks in a source server directory are neither bundled nor
-        // rejected by MSC 1's shelled-out `zip -r` (it follows them); no
-        // fixture exercises one, so this port leaves them untouched too
-        // rather than inventing new source-side policy.
+    let root =
+        msc_infrastructure::source_tree::open(disk_dir, true).map_err(|e| io_error(disk_dir, e))?;
+    msc_infrastructure::source_tree::walk(
+        &root,
+        disk_dir,
+        &|| false,
+        &mut |relative, file, directory| {
+            let name = format!(
+                "{zip_prefix}/{}",
+                relative.to_string_lossy().replace('\\', "/")
+            );
+            if directory {
+                add_directory_entry(zip, &name).map_err(|e| io::Error::other(e.to_string()))?;
+            } else {
+                zip.record(file.metadata()?.len())
+                    .map_err(|e| io::Error::other(e.to_string()))?;
+                let options = SimpleFileOptions::default()
+                    .compression_method(CompressionMethod::Deflated)
+                    .unix_permissions(0o644);
+                zip.start_file(name, options).map_err(io::Error::other)?;
+                let size = file.metadata()?.len();
+                if io::copy(&mut std::io::Read::take(file, size + 1), &mut zip.zip)? != size {
+                    return Err(io::Error::other("server source changed during export"));
+                }
+            }
+            Ok(())
+        },
+    )
+    .map_err(|e| io_error(disk_dir, e))?;
+    Ok(())
+}
+fn add_disk_entry<W: Write + io::Seek>(
+    zip: &mut TransferArchive<W>,
+    name: &str,
+    path: &Path,
+) -> Result<(), TransferExportError> {
+    let mut file =
+        msc_infrastructure::source_tree::open(path, false).map_err(|e| io_error(path, e))?;
+    let before =
+        msc_infrastructure::source_tree::fingerprint(&file).map_err(|e| io_error(path, e))?;
+    zip.record(file.metadata().map_err(|e| io_error(path, e))?.len())?;
+    let options = SimpleFileOptions::default()
+        .compression_method(CompressionMethod::Deflated)
+        .unix_permissions(0o644);
+    zip.start_file(name, options)
+        .map_err(|e| TransferExportError::Zip(e.to_string()))?;
+    let size = file.metadata().map_err(|e| io_error(path, e))?.len();
+    let copied = io::copy(&mut std::io::Read::take(&mut file, size + 1), &mut zip.zip)
+        .map_err(|e| io_error(path, e))?;
+    if copied != size {
+        return Err(io_error(
+            path,
+            io::Error::other("server source changed during export"),
+        ));
+    }
+    if msc_infrastructure::source_tree::fingerprint(&file).map_err(|e| io_error(path, e))? != before
+    {
+        return Err(io_error(
+            path,
+            io::Error::other("server source changed during export"),
+        ));
     }
     Ok(())
 }
@@ -712,6 +794,14 @@ fn inspect_transfer_package_inner(
     existing_java_ports: &[i64],
     existing_bedrock_ports: &[i64],
 ) -> Result<TransferInspection, TransferInspectError> {
+    msc_infrastructure::archive::validate_archive_safety(package_path).map_err(
+        |error| match error {
+            msc_infrastructure::archive::ArchiveError::UnsafeEntry(name) => {
+                TransferInspectError::UnsafeEntry(name)
+            }
+            error => TransferInspectError::OpenPackage(error.to_string()),
+        },
+    )?;
     fs::create_dir_all(staging_root)
         .map_err(|e| TransferInspectError::OpenPackage(e.to_string()))?;
 
@@ -742,16 +832,27 @@ fn inspect_transfer_package_inner(
             fs::create_dir_all(parent)
                 .map_err(|e| TransferInspectError::OpenPackage(e.to_string()))?;
         }
-        let mut bytes = Vec::new();
-        entry
-            .read_to_end(&mut bytes)
+        let mut output = fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&dest)
             .map_err(|e| TransferInspectError::OpenPackage(e.to_string()))?;
-        fs::write(&dest, &bytes).map_err(|e| TransferInspectError::OpenPackage(e.to_string()))?;
+        io::copy(&mut entry, &mut output)
+            .map_err(|e| TransferInspectError::OpenPackage(e.to_string()))?;
     }
 
     let manifest_path = staging_root.join("manifest.json");
     if !manifest_path.is_file() {
         return Err(TransferInspectError::MissingManifest);
+    }
+    if fs::metadata(&manifest_path)
+        .map_err(|e| TransferInspectError::Decode(e.to_string()))?
+        .len()
+        > 16 * 1024 * 1024
+    {
+        return Err(TransferInspectError::Decode(
+            "Transfer manifest exceeds metadata limit.".into(),
+        ));
     }
     let manifest_bytes =
         fs::read(&manifest_path).map_err(|e| TransferInspectError::Decode(e.to_string()))?;
@@ -1096,11 +1197,10 @@ fn extract_zip_into(zip_path: &Path, dest_root: &Path) {
         if let Some(parent) = dest.parent() {
             let _ = fs::create_dir_all(parent);
         }
-        let mut bytes = Vec::new();
-        if entry.read_to_end(&mut bytes).is_err() {
+        let Ok(mut output) = fs::File::create(&dest) else {
             return;
-        }
-        if fs::write(&dest, &bytes).is_err() {
+        };
+        if io::copy(&mut entry, &mut output).is_err() {
             return;
         }
     }

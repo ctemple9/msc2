@@ -1,5 +1,5 @@
 //! `CapabilitiesDTO` — `capability-model.md` §3's `GET /v1/capabilities`
-//! response shape, confirmed by Cameron Temple 2026-07-31.
+//! response shape, confirmed by the owner 2026-07-31.
 //!
 //! Deliberately independent of `msc_domain::capability`, for the same
 //! module-boundary reason `operation.rs` gives: the domain crate carries
@@ -20,7 +20,7 @@ pub enum HostOsDto {
 }
 
 /// D-019's nine-category permission vocabulary (still **Proposed**,
-/// pending Cameron's confirmation) — P2.1's validation against all 88
+/// pending the owner's confirmation) — P2.1's validation against all 88
 /// baseline routes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -267,6 +267,18 @@ pub struct RelativeTimeCapabilityDto {
 /// wire response gains version-aware world settings.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CapabilitiesResponseDto {
+    #[serde(
+        rename = "storageInventory",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub storage_inventory: Option<super::StorageInventoryCapabilityDto>,
+    #[serde(
+        rename = "nativeTransfers",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub native_transfers: Option<NativeTransfersDto>,
     #[serde(flatten)]
     pub base: CapabilitiesDto,
     #[serde(
@@ -281,4 +293,16 @@ pub struct CapabilitiesResponseDto {
         skip_serializing_if = "Option::is_none"
     )]
     pub world_settings: Option<WorldSettingsCapabilitiesDto>,
+}
+
+/// Protocol support is independent of the app release version.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NativeTransfersDto {
+    #[serde(default)]
+    pub creation_context: bool,
+    pub protocol: u32,
+    pub stream_upload: bool,
+    pub local_handoff: bool,
+    pub server_archive: bool,
 }

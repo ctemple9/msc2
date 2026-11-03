@@ -36,8 +36,42 @@ pub async fn capabilities(
     Query(query): Query<CapabilitiesQuery>,
     Extension(credential): Extension<AuthenticatedCredential>,
     Extension(networking): Extension<NetworkingState>,
+    Extension(staging): Extension<super::worlds::StagingStore>,
 ) -> Json<CapabilitiesResponseDto> {
-    capabilities_for_query(credential, networking, Query(query)).await
+    let permitted = credential
+        .permissions
+        .contains(&msc_api::dto::PermissionCategoryDto::Fleet)
+        || credential
+            .permissions
+            .contains(&msc_api::dto::PermissionCategoryDto::Admin)
+        || credential
+            .permissions
+            .contains(&msc_api::dto::PermissionCategoryDto::Worlds)
+        || credential
+            .permissions
+            .contains(&msc_api::dto::PermissionCategoryDto::Addons);
+    let available = permitted
+        && staging
+            .native
+            .ensure_root(networking.lifecycle.servers_root())
+            .await;
+    let mut result = capabilities_for_query(credential, networking, Query(query)).await;
+    if permitted {
+        result.0.native_transfers = Some(msc_api::dto::NativeTransfersDto {
+            protocol: 1,
+            creation_context: available,
+            // Omission means an older agent. Explicit false prevents a newer
+            // client from bypassing unavailable native staging via fallback.
+            stream_upload: available,
+            local_handoff: available
+                && staging
+                    .native
+                    .local_handoff
+                    .load(std::sync::atomic::Ordering::Acquire),
+            server_archive: available,
+        });
+    }
+    result
 }
 
 async fn capabilities_for_query(
@@ -116,6 +150,16 @@ async fn capabilities_for_query(
     });
 
     Json(CapabilitiesResponseDto {
+        storage_inventory: credential
+            .permissions
+            .contains(&msc_api::dto::PermissionCategoryDto::Admin)
+            .then_some(msc_api::dto::StorageInventoryCapabilityDto {
+                protocol: 1,
+                scan: true,
+                cache_cleanup: true,
+                server_data_cleanup: true,
+            }),
+        native_transfers: None,
         player_actions: Some(true),
         base: CapabilitiesDto {
             agent_version: env!("CARGO_PKG_VERSION").to_string(),

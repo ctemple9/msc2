@@ -149,28 +149,6 @@ fn cross_play_paper_transport() -> FakeTransport {
         )
 }
 
-fn purpur_transport() -> FakeTransport {
-    FakeTransport::new()
-        .with(
-            "https://api.purpurmc.org/v2/purpur",
-            br#"{"versions":["1.20.1","1.21.4"]}"#.to_vec(),
-        )
-        .with(
-            "https://api.purpurmc.org/v2/purpur/1.21.4",
-            br#"{"builds":{"latest":"2"}}"#.to_vec(),
-        )
-        // P7.35: purpur_download_version now fetches this per-build
-        // metadata hop for its published md5 before downloading.
-        .with(
-            "https://api.purpurmc.org/v2/purpur/1.21.4/latest",
-            br#"{"md5":"1ad2b5ba90cdb6b1e82ff4a6f0bfaf4a"}"#.to_vec(),
-        )
-        .with(
-            "https://api.purpurmc.org/v2/purpur/1.21.4/latest/download",
-            b"FAKE-PURPUR-JAR".to_vec(),
-        )
-}
-
 fn fabric_transport() -> FakeTransport {
     FakeTransport::new()
         .with(

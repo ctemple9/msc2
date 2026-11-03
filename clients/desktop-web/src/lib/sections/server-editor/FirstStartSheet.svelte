@@ -300,6 +300,27 @@
       await finishComplete();
       return;
     }
+    if (
+      operation.result?.firstStartPass1Complete !== true &&
+      operation.result?.firstStartPass1Complete !== 'true'
+    ) {
+      // A world left by an earlier attempt makes the agent use an ordinary
+      // start, which succeeds at Ready while Paper is still running.
+      phase = 'stopping';
+      statusLine = 'The server is ready. Stopping it before connection setup…';
+      const current = await api.get<Schema['RemoteAPIStatus']>(serverEditorPaths.status);
+      if (current.running) await mutate<Schema['SimpleResult']>(api, fleetMutationPaths.stop);
+      const stopped = await waitForRunningState(
+        () => api!.get<Schema['RemoteAPIStatus']>(serverEditorPaths.status),
+        false,
+        { timeoutMs: 30_000 },
+      );
+      if (stopped.running) {
+        serverRunning = true;
+        failWithMessage(new Error('The server is still stopping. Initiation cannot continue yet.'));
+        return;
+      }
+    }
     await prepareTransportSetup();
   }
 

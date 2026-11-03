@@ -2,7 +2,7 @@
 
 > Owner amendment (2026-10-06, D-042): modded map repair/import and private Minecraft client capture are retired. The standard Java and Bedrock saved-terrain maps remain supported. Earlier repair-plan or capture acceptance requirements are withdrawn rather than satisfied.
 
-**Revision:** 1.7 · **Date:** 2026-09-28
+**Revision:** 1.9 · **Date:** 2026-10-30
 **Status:** **Execution document — Proposed, not owner-approved.**
 
 **This document is deliberately separate from the vision.** `msc2-product.md` and `msc2-engineering.md` describe the destination, its guarantees, and its architecture. This document describes a *route*, and routes change. Nothing here constrains the vision; if a phase order proves wrong, this file changes and the vision does not.
@@ -178,13 +178,12 @@ first-class client, and optional Tailscale may provide remote access for the
 desktop app or desktop browser without becoming a requirement for ordinary MSC
 use. Historical phase records and MSC 1 audit evidence remain unchanged.
 
-### Phase 13 — Full-screen terminal client (retired)
+### Phase 13 — Original full-screen terminal client (retired)
 
-The planned full-screen terminal client is retired by D-034. There is no Phase
-13 implementation gate and no later full-screen client release promise. The retained terminal
-surface is the scriptable CLI, including interactive command confirmations;
-the agent API, WebSocket channels, and headless installation story remain in
-scope for the supported desktop, browser, and CLI clients.
+The original Phase 13 terminal client was retired by D-034; that phase's
+implementation and gate remain historical. D-043 later restored a redesigned,
+host-local terminal client as Phase 22. The agent API, WebSocket channels, and
+headless installation story remain shared with desktop and CLI.
 
 ### Phase 14 — Operational refinements
 
@@ -318,3 +317,89 @@ MSC 1 must remain runnable and buildable throughout as the compatibility oracle 
 | Console history bound — lines, bytes, or time? | Phase 4, and D-021 memory bounds |
 | Self-update mechanics for app + agent + sidecar as a set | Phase 11 |
 | Is the permission category vocabulary correct across all 87 routes? | Phase 2 contract freeze |
+
+## Phase 20 — Faster native file imports and uploads (owner-requested plan, October 16)
+
+**State:** P20.1–P20.10 implemented, accepted and archived at Cameron’s
+October 17 instruction in [the archive](rolling-plan-archive.md#phase-20--faster-native-file-imports-and-uploads).
+Independent gate review and measurement limitations remain in
+[pending acceptance](pending-acceptance.md); the detailed contract is
+[Native file imports and uploads](uploads/native-transfer-plan.md). This is a
+performance correction to supported import flows, preserving behavior and
+source safety. The complete paired-agent server transfer/resume plan stays in
+[deferred work](deferred-work.md).
+
+**Exit gate:** Native transfer keeps source bytes out of webview IPC, reuses
+connections, resolves credentials/service readiness once per transfer, retains
+bounded memory independent of file size, and receives/hashes remote streams
+without a compulsory final full-file hash reread. Verified local inputs avoid
+an upload round trip, with safe private staging and cross-volume fallback.
+Supported world/modpack/server inputs retain validation, data preservation,
+permission/cancellation and older-agent behavior. Progress distinguishes byte
+transfer from validation/import. Cameron records before/after stage times,
+throughput and peak memory for the approximately 8 GB world and representative
+pack/server sources; unavailable platform/network cases remain explicit. No
+instant-import or unmeasured speed claim. Independent review and owner physical
+acceptance remain required; no test or CI/release gate is added by this plan.
+
+
+## Phase 21 — Storage inventory and management
+
+**State:** P21.1–P21.37 implementation steps were closed and
+[archived](rolling-plan-archive.md#phase-21--storage-inventory-and-management)
+at Cameron's October 17 direction after he accepted the Storage management UI.
+P21.29 failed owner verification and was corrected by P21.30. P21.8's matching
+local candidate predates later corrections; it is not acceptance evidence for
+them. Representative physical and cross-platform acceptance and the other
+agent's gate review remain pending. See the [contract](storage/contract.md),
+[static sketches](storage/screens.md) and
+[acceptance record](storage/acceptance.md).
+
+**Exit gate:** Settings → Storage supports saved-computer overview → computer →
+category/server → separate removal review on supported desktop platforms and
+paired agents. Known owned roots have disjoint, explained accounting; unreadable
+or unverified coverage is partial/unknown. Capacity is per volume, logical and
+allocated sizes stay distinct, and hard-link/clone limits never become a promise
+of freed space. Headless agents report their own footprint; local desktop
+measurement remains available with its agent offline. Dated offline results are
+viewable, and bounded cancellable scans do not block server management or
+automatically contact all hosts. Stable host/root/item identities prevent stale
+results or actions from reaching a different computer.
+
+Cleanup revalidates exact selections, permissions, ownership, changed sources and
+live references at execution. It protects active staging/maps/tools, credentials,
+current/rollback installations and unrecognized data; it reuses Phase 20 owners
+and existing backup/world/server deletion rules and confirmations. Reviews stay
+within one computer/category, with separate world/server consequences. Failed,
+interrupted or cancelled work reports per-item partial outcomes truthfully.
+Cameron records representative local/remote/offline, multi-volume, large-server,
+active-operation and destructive acceptance using disposable data before the
+other agent reviews this gate. Static specification or step statuses do not
+close it. No automatic deletion, continuous deep scan, new CI/release gate or
+automatically authorized tests.
+
+## Phase 22 — Restored full-screen terminal client
+
+**State:** Cameron accepted the current TUI on 2026-10-30. Its implementation
+records are archived in `rolling-plan-archive.md`. The original October 26
+direction under D-043 restored the host-local client; the Phase 22 exception
+below describes how that incremental work was carried out.
+
+**Workflow exception:** Phase 22 has no separate Plan/Read stage and no
+prewritten step list. Each implementation conversation records only the step
+actually performed, including its files, behavior, owner-run verification,
+batch limit, and commit. Cameron verifies each step; an agent other than the
+implementer reviews the completed phase when he asks for that review. This
+exception changes neither the ban on agent-run tests without a specific owner
+request nor the build-only beta publication policy.
+
+**Product boundary:** `msc tui` runs on macOS, Windows, or Linux on the agent
+host, including through SSH. It shares the agent API, local authorization, and
+service controls with the existing `msc` CLI; one-shot commands remain
+scriptable. The TUI does not serve a browser page or directly pair with a
+remote host. Its accepted scope includes the server-management screens,
+Handbook, interactive Router Guide, and console tools; onboarding is omitted.
+
+**Acceptance:** Cameron confirmed the current TUI is accepted on 2026-10-30.
+That acceptance closes the Phase 22 implementation work; it does not by itself
+assert release packaging or row-by-row parity in the client-capability matrix.

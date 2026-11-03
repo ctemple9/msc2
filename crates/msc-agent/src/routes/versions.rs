@@ -7,6 +7,8 @@
 //! java_runtime_detection, java_runtime_install}`.
 
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::mpsc;
 use std::time::Duration;
 
 use axum::extract::rejection::JsonRejection;
@@ -767,34 +769,39 @@ fn change_version_error_code(error: &ChangeVersionError) -> &'static str {
 
 // ---------- GET /v1/java-runtimes ----------
 
-pub async fn java_runtimes(State(state): State<LifecycleRoutesState>) -> Response {
+pub(super) fn java_runtime_search_roots() -> Vec<String> {
     let home_dir = agent_home_dir();
     let host = current_host_os();
-    let configured_path = state.app_config_snapshot().java_path;
-    let detected = tokio::task::spawn_blocking(move || {
-        let mut roots = vec![runtimes_root().to_string_lossy().into_owned()];
-        // The desktop service uses Roaming through MSC2_DATA_DIR, while
-        // runtimes installed by an earlier/default agent live under Local.
-        // Discover both so Repair does not hide already installed Windows JDKs.
-        if host == HostOs::Windows {
-            // SCM services may lack the interactive user's LOCALAPPDATA.
-            // The desktop installer explicitly records HOME for this user.
-            roots.push(
-                home_dir
-                    .join("AppData/Local/MSC2/runtimes")
-                    .to_string_lossy()
-                    .into_owned(),
-            );
-            if let Some(local_app_data) = std::env::var_os("LOCALAPPDATA")
-                && !local_app_data.is_empty()
-            {
-                let local_runtimes = PathBuf::from(local_app_data).join("MSC2").join("runtimes");
-                if local_runtimes != runtimes_root() {
-                    roots.push(local_runtimes.to_string_lossy().into_owned());
-                }
+    let mut roots = vec![runtimes_root().to_string_lossy().into_owned()];
+    // The desktop service uses Roaming through MSC2_DATA_DIR, while
+    // runtimes installed by an earlier/default agent live under Local.
+    // Discover both so Repair does not hide already installed Windows JDKs.
+    if host == HostOs::Windows {
+        // SCM services may lack the interactive user's LOCALAPPDATA.
+        // The desktop installer explicitly records HOME for this user.
+        roots.push(
+            home_dir
+                .join("AppData/Local/MSC2/runtimes")
+                .to_string_lossy()
+                .into_owned(),
+        );
+        if let Some(local_app_data) = std::env::var_os("LOCALAPPDATA")
+            && !local_app_data.is_empty()
+        {
+            let local_runtimes = PathBuf::from(local_app_data).join("MSC2").join("runtimes");
+            if local_runtimes != runtimes_root() {
+                roots.push(local_runtimes.to_string_lossy().into_owned());
             }
         }
-        roots.extend(default_java_runtime_search_roots(host, &home_dir));
+    }
+    roots.extend(default_java_runtime_search_roots(host, &home_dir));
+    roots
+}
+
+pub async fn java_runtimes(State(state): State<LifecycleRoutesState>) -> Response {
+    let configured_path = state.app_config_snapshot().java_path;
+    let detected = tokio::task::spawn_blocking(move || {
+        let roots = java_runtime_search_roots();
         let mut detected =
             java_runtime_detection::detect_installed_java_runtimes(&StdFileSystem, &roots);
 
@@ -826,19 +833,73 @@ pub async fn java_runtimes(State(state): State<LifecycleRoutesState>) -> Respons
     // mechanism the required-major guard itself runs against the
     // *configured* runtime, applied here to every *discovered* one.
     let supervisor = state.process_supervisor();
-    let runtimes = tokio::task::spawn_blocking(move || {
-        detected
-            .into_iter()
-            .map(|runtime| with_probed_major_version(supervisor, runtime))
-            .collect::<Vec<_>>()
-    })
-    .await
-    .unwrap_or_default();
+    let runtimes =
+        tokio::task::spawn_blocking(move || probe_java_runtime_versions(supervisor, detected))
+            .await
+            .unwrap_or_default();
 
     axum::Json(JavaRuntimesResponseDto {
         runtimes: runtimes.into_iter().map(detected_runtime_to_dto).collect(),
     })
     .into_response()
+}
+
+/// Check a small number of installed runtimes at once. Each Java check can
+/// take up to ten seconds, so doing them serially makes their worst-case
+/// delays add together. Four workers reduce that wait without launching an
+/// unbounded number of Java processes on the host.
+fn probe_java_runtime_versions(
+    supervisor: &'static (dyn msc_infrastructure::process::ProcessSupervisor + Send + Sync),
+    detected: Vec<DetectedJavaRuntime>,
+) -> Vec<DetectedJavaRuntime> {
+    const MAX_PARALLEL_PROBES: usize = 4;
+
+    if detected.len() <= 1 {
+        return detected
+            .into_iter()
+            .map(|runtime| with_probed_major_version(supervisor, runtime))
+            .collect();
+    }
+
+    let next = AtomicUsize::new(0);
+    let (sender, receiver) = mpsc::channel();
+    let worker_count = detected.len().min(MAX_PARALLEL_PROBES);
+
+    std::thread::scope(|scope| {
+        for _ in 0..worker_count {
+            let sender = sender.clone();
+            let detected = &detected;
+            let next = &next;
+            scope.spawn(move || {
+                loop {
+                    let index = next.fetch_add(1, Ordering::Relaxed);
+                    let Some(runtime) = detected.get(index) else {
+                        break;
+                    };
+                    let probed = with_probed_major_version(supervisor, runtime.clone());
+                    if sender.send((index, probed)).is_err() {
+                        break;
+                    }
+                }
+            });
+        }
+    });
+    drop(sender);
+
+    // Put results back in discovery order so the endpoint keeps its stable
+    // response ordering even when probes finish at different times.
+    let mut probed: Vec<Option<DetectedJavaRuntime>> = std::iter::repeat_with(|| None)
+        .take(detected.len())
+        .collect();
+    for (index, runtime) in receiver {
+        probed[index] = Some(runtime);
+    }
+
+    probed
+        .into_iter()
+        .enumerate()
+        .map(|(index, runtime)| runtime.unwrap_or_else(|| detected[index].clone()))
+        .collect()
 }
 
 /// A probe failure (spawn error, unparseable banner) leaves the path-

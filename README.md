@@ -15,62 +15,49 @@ MSC 2 puts as much of that as possible into guided controls and explains the
 rest as you go, so you can learn what you need without having to master
 everything first.
 
-## Current release and support
+The terminal options are the scriptable `msc` commands and the keyboard-driven
+`msc tui` interface. The TUI runs on the computer hosting the agent, including
+in an SSH session to that computer; it does not connect directly to another
+host.
 
-The latest published build is [MSC 2 v0.1.22](https://github.com/ctemple9/msc2/releases/tag/v0.1.22),
-an unsigned prerelease. There is no stable release yet. Download the
-platform-specific installer or archive from that release page and verify its
-entry in `SHA256SUMS` before installing. The Phase 16 acceptance record
-(P16.29) is still open; this prerelease has not passed the full physical
-release acceptance gate.
+## Download and install
 
-v0.1.22 fixes headless Linux service status and routine CLI control, and
-accepts modern Java datapack metadata such as Tectonic 3.0.29 for Minecraft 26.3.
+Download [MSC 2 v0.1.43](https://github.com/ctemple9/msc2/releases/tag/v0.1.43)
+and choose the file for your computer. The desktop app includes the agent.
 
-The next candidate, v0.1.23, fixes headless updates omitting terrain helpers and
-prepares Java map dependencies automatically on the server host. The first map
-launch can recover a missing Vantage renderer and downloads verified Minecraft
-textures for the saved world's version; later launches reuse the cache. Renderer
-failures now identify the affected dependency and retain diagnostics in agent
-logs. Publication uses the existing build-only release workflow.
+- **Mac:** Open the `.dmg` and drag MSC 2 to Applications.
+- **Windows:** Open the `.msi` and follow the installer.
+- **Linux:** Install the `.deb` or `.rpm` with your package manager.
+- **Headless host:** Download its archive and follow the included
+  `HEADLESS-INSTALL.md`.
 
-| Installation | Published platform and architecture | Supported control surface |
-|---|---|---|
-| Desktop app | macOS Intel (`x86_64`) and Apple Silicon (`aarch64`); Windows 64-bit (`x86_64`); Linux 64-bit (`x86_64`) as `.deb` and `.rpm` | Tauri desktop app |
-| Headless agent | macOS Intel (`x86_64`) and Apple Silicon (`aarch64`); Windows 64-bit (`x86_64`); Linux 64-bit (`x86_64`) | CLI in a local terminal or SSH shell on the host; remote Tauri desktop app |
+Update the macOS or Windows desktop app from its built-in updater. Update Linux
+packages with `apt` or `dnf`. For a headless install, run `msc update check`,
+then `msc update install --release-id 0.1.43`.
 
-The published v0.1.16 bytes predate the approved browser-client retirement
-and may contain historical browser assets. v0.1.17 was tagged but never
-published. v0.1.18 is the first published browser-free release; MSC no
-longer supports browser management or promises a browser installation type.
+### What is in the download?
 
-The Linux minimum is Debian 12 (Bookworm), or another distribution with
-`systemd` 250 or newer. Linux `.deb` and `.rpm` desktop packages are built for
-x86_64; the `.deb` is for Debian/Ubuntu systems and the `.rpm` is for Fedora
-and other RPM-based systems. No Linux arm64 artifact is published. The
-macOS and Windows operating-system version minimums are not stated in the
-current release contract. Apple Silicon Macs can manage Java servers locally
-and remote hosts, but local Bedrock requires an Intel Mac.
+The v0.1.43 download includes the desktop app, host-local CLI and full-screen
+`msc tui`, saved-terrain maps, and the server-management features below.
+The TUI runs locally on the agent host or through an SSH login to it.
 
-The published installers and archives are not publisher-signed: macOS is not
-Developer ID signed or notarized, Windows has no Authenticode signature, and
-Linux packages are not distributed through a signed MSC package repository. The signed update
-manifest verifies update metadata and is not a publisher signature on the
-installers. The release page publishes checksums; a checksum confirms the
-download matches those published bytes, not who published them.
+Desktop builds also include a Minecraft-style helmet in the system bar while
+the local agent runs, including after the desktop window closes. Use the local
+Agent page to show or hide it. See the [indicator guide](docs/msc2/agent-indicator.md).
 
-Desktop app updates use the signed in-app update flow on macOS and Windows;
-Linux desktop packages remain managed by `apt` or `dnf`. Standalone headless
-archives use `msc update check` and `msc update install`; package-managed Linux
-installations remain with their package manager. The client/agent compatibility
-mechanism refuses clients below the agent's minimum supported version, but
-the project has not set a numeric version window such as N-3. Keep clients and
-agents current.
+## Start your first server
 
-Security fixes are currently promised only for the latest stable release, as
-described in [SECURITY.md](SECURITY.md). Since the published builds are prereleases and no
-stable release has been published, no release currently qualifies for that
-security-support policy.
+1. Open MSC 2, or use `msc` or `msc tui` on a headless host. The desktop app can
+   connect to a headless agent from another computer.
+2. Choose **Add Server**.
+3. Choose **Java** or **Bedrock**, then select the Minecraft version and server
+   software.
+4. Configure the world and connection method.
+5. Create and start the server.
+6. Complete the EULA and connection setup when MSC 2 asks you to.
+
+For a first Java server, **Paper** is a good default. For a first Bedrock
+server, choose **Bedrock Dedicated Server**.
 
 ## What MSC 2 does
 
@@ -131,8 +118,7 @@ live player tracking is available, you can see players moving, fly to them,
 or follow them as they explore.
 
 The map shows terrain Minecraft has generated and saved. Flying around the
-map does not generate new chunks in the game. This feature is in the current
-development build; it is not included in the published v0.1.18 release.
+map does not generate new chunks in the game.
 
 ### Handles mods, plugins, datapacks, and modpacks
 
@@ -142,7 +128,7 @@ versions and loaders, resolves dependencies, and keeps client-only mods off
 the server when it can identify them.
 
 Java datapacks can be added during server creation or to a stopped world.
-v0.1.22 accepts both legacy `pack_format` metadata and modern
+The current release accepts both legacy `pack_format` metadata and modern
 `min_format`/`max_format` ranges, including Tectonic 3.0.29 for Minecraft 26.3.
 Adding a terrain-generation datapack affects newly generated chunks; it does
 not rebuild terrain already saved in the world.
@@ -199,13 +185,17 @@ MSC 2 has one part that runs your servers and several ways to control it.
 - **The CLI** gives you task commands from a local terminal or an SSH login
   shell on the agent host. It authenticates as the installing OS account;
   remote host selection stays in the desktop app.
+- **The TUI** gives you a full-screen, keyboard-driven control surface on the
+  agent host, either in its local terminal or through SSH. It shares the CLI's
+  host-local authorization and agent API; use the desktop app to manage a
+  different host remotely.
 
 The server keeps running when you close the desktop app or sign out. The app
 is a control panel; it is not the thing keeping Minecraft alive.
 
 ## A simple way to think about it
 
-If you are new to servers, there are two computers to think about:
+If you are new to MSC 2, there are two computers to think about:
 
 1. The **host** is the computer that runs the Minecraft world. It can sit in a
    closet with the lid closed and no monitor attached.
@@ -215,85 +205,6 @@ If you are new to servers, there are two computers to think about:
 They can be the same computer. They can also be different computers. The
 players' consoles, phones, and gaming PCs are separate again: they connect to
 the Minecraft server but do not need MSC 2 installed.
-
-## Download and install
-
-Choose the installation that matches how you want to use MSC 2. The desktop
-app already includes the MSC 2 agent; you do not need to download both.
-
-- Use the **desktop app** when you want a graphical interface on the server
-  computer.
-- Use the **headless agent** when the server computer has no monitor or desktop
-  environment. Manage it from another computer with the desktop app or CLI.
-### macOS desktop — Intel and Apple Silicon Macs
-
-Download the matching macOS disk image from the [v0.1.22 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.22), open it, and drag MSC 2 into your Applications folder. Intel Macs include the local Bedrock runtime. Apple Silicon Macs include the app and Java runtime support, but no local Bedrock VM; Bedrock servers can still be managed on a compatible remote host.
-
-### Windows desktop — 64-bit Windows
-
-Download the Windows `.msi` installer from the [v0.1.22 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.22) and follow the installation prompts.
-
-### Debian or Ubuntu desktop
-
-Download the Linux `.deb` package from the [v0.1.22 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.22), then install it with:
-
-~~~sh
-sudo apt install ./msc2-0.1.22-linux-x86_64.deb
-~~~
-
-### Fedora or other RPM-based Linux
-
-Download the Linux `.rpm` package from the [v0.1.22 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.22), then install it with:
-
-~~~sh
-sudo dnf install ./msc2-0.1.22-linux-x86_64.rpm
-~~~
-
-### Headless agent — macOS, Windows, and Linux
-
-Standalone headless archives are published for all three supported desktop
-platforms. They contain the same `msc` agent/CLI binary, with `msc.exe` on
-Windows. The archive's `HEADLESS-INSTALL.md` describes the platform-specific
-command location, PATH ownership, upgrade/uninstall boundary, and the separate
-operating-system service installation.
-
-The headless agent exposes its authenticated API and local CLI. Use `msc`
-from a terminal on that host or from an SSH login as the account that
-installed the agent. A Tauri desktop app can manage the host remotely through
-desktop pairing; the CLI does not select another host.
-
-Each standalone headless archive includes a platform command installer and
-uninstaller. macOS archives contain `install.sh` and `uninstall.sh`, Windows
-archives contain `install.ps1` and `uninstall.ps1`, and Linux archives contain
-`install.sh` and `uninstall.sh` plus the systemd definitions they need. These
-installers put the `msc` command on PATH; service registration remains a
-separate operating-system action. The release artifact contract is recorded in
-[`headless-installation.md`](docs/msc2/clients/headless-installation.md).
-
-### Updating a headless installation
-
-Signed releases can be checked and staged locally from the agent binary:
-
-~~~sh
-msc update check
-msc update install --release-id 0.1.22
-~~~
-
-The install command asks for a second confirmation. Pass `--yes` for
-automation, and add `--json` when a script needs machine-readable output.
-
-## Start your first server
-
-1. Open MSC 2, or connect to the headless agent from another computer.
-2. Choose **Add Server**.
-3. Choose **Java** or **Bedrock**, then select the Minecraft version and server
-   software.
-4. Configure the world and connection method.
-5. Create and start the server.
-6. Complete the EULA and connection setup when MSC 2 asks you to.
-
-For a first Java server, **Paper** is a good default. For a first Bedrock
-server, choose **Bedrock Dedicated Server**.
 
 ## New here?
 
@@ -363,7 +274,7 @@ MSC 2 uses and builds on projects maintained by other people:
 | [Geyser](https://github.com/GeyserMC/Geyser) | Lets Bedrock players join a Java server |
 | [Floodgate](https://github.com/GeyserMC/Floodgate) | Lets Bedrock players join without a Java account |
 | [Chunker](https://github.com/HiveGamesOSS/Chunker) | Converts worlds between Java and Bedrock |
-| [Vantage](https://github.com/thoughts-on-things/vantage-mc) | The embedded 3D world viewer and Java terrain renderer |
+| [Vantage](https://github.com/thoughts-on-things/vantage-mc) | The embedded 3D world viewer and shared saved-terrain renderer |
 | [bedrock-world](https://github.com/BE-Community-Dev/bedrock-world) | Reads saved Bedrock chunks for MSC's terrain exporter |
 | [bedrock-block-model](https://github.com/BE-Community-Dev/bedrock-block-model) | Resolves Bedrock block shapes and textures |
 | [Xboxbroadcast](https://github.com/MCXboxBroadcast/Broadcaster) | Lets players on Bedrock editions find your server from their Friends tab |
@@ -373,9 +284,9 @@ MSC 2 uses and builds on projects maintained by other people:
 | [Adoptium Temurin](https://adoptium.net) | The Java runtime that Java servers need |
 | [Mojang & Microsoft](https://www.minecraft.net) | Minecraft itself and the Bedrock Dedicated Server |
 
-MSC 2 uses Vantage's viewer and builds its own Bedrock terrain exporter and
-server integration around it. Thank you to the Vantage and Bedrock community
-contributors for making that work possible.
+MSC 2 uses Vantage's viewer and converts saved Bedrock terrain into private
+renderer input through its own server integration. Thank you to the Vantage and
+Bedrock community contributors for making that work possible.
 
 If I forgot to credit your project, that's on me. Let me know and I'll address that; thank you to everyone who helped maintain the projects above.
 
@@ -384,3 +295,56 @@ If I forgot to credit your project, that's on me. Let me know and I'll address t
 **Rust** · **Tauri** · **Svelte** · **Swift**
 
 Swift is used for the macOS Bedrock runtime.
+
+## Current release and support
+
+The latest published build is [MSC 2 v0.1.43](https://github.com/ctemple9/msc2/releases/tag/v0.1.43),
+a prerelease. There is no stable release yet. Download the
+platform-specific installer or archive from that release page and verify its
+entry in `SHA256SUMS` before installing. The Phase 16 acceptance record
+(P16.29) is still open; this prerelease has not passed the full physical
+release acceptance gate.
+
+Read the [v0.1.43 release notes](docs/msc2/release/v0.1.43.md) for the latest
+fixes and the [release history](docs/msc2/release/) for earlier changes. On
+Intel macOS, use **Repair agent** after installing the updated app to register
+its matching agent and Bedrock helper before the next Bedrock start. Existing
+root-owned Bedrock data still requires a one-time ownership repair.
+
+**macOS 0.1.25/0.1.26:** stop the Minecraft server, quit MSC 2, manually install
+v0.1.42 from its disk image, and repair the agent once. The older updater's helper
+contains the rollback bug; subsequent updates can use the corrected updater.
+
+| Installation | Published platform and architecture | Supported control surface |
+|---|---|---|
+| Desktop app | macOS Intel (`x86_64`) and Apple Silicon (`aarch64`); Windows 64-bit (`x86_64`); Linux 64-bit (`x86_64`) as `.deb` and `.rpm` | Tauri desktop app |
+| Headless agent | macOS Intel (`x86_64`) and Apple Silicon (`aarch64`); Windows 64-bit (`x86_64`); Linux 64-bit (`x86_64`) | CLI in a local terminal or SSH shell on the host; remote Tauri desktop app |
+
+The Linux minimum is Debian 12 (Bookworm), or another distribution with
+`systemd` 250 or newer. Linux `.deb` and `.rpm` desktop packages are built for
+x86_64; the `.deb` is for Debian/Ubuntu systems and the `.rpm` is for Fedora
+and other RPM-based systems. No Linux arm64 artifact is published. The
+macOS and Windows operating-system version minimums are not stated in the
+current release contract. Apple Silicon Macs can manage Java servers locally
+and remote hosts, but local Bedrock requires an Intel Mac.
+
+The macOS desktop apps are Developer ID signed, and the distributed disk images
+are notarized and stapled. Windows has no Authenticode
+signature, and Linux packages are not distributed through a signed
+MSC package repository. Standalone headless archives are unsigned. The signed update
+manifest verifies update metadata and is not a publisher signature on the
+installers. The release page publishes checksums; a checksum confirms the
+download matches those published bytes, not who published them.
+
+Desktop app updates use the signed in-app update flow on macOS and Windows;
+Linux desktop packages remain managed by `apt` or `dnf`. Standalone headless
+archives use `msc update check` and `msc update install`; package-managed Linux
+installations remain with their package manager. The client/agent compatibility
+mechanism refuses clients below the agent's minimum supported version, but
+the project has not set a numeric version window such as N-3. Keep clients and
+agents current.
+
+Security fixes are currently promised only for the latest stable release, as
+described in [SECURITY.md](SECURITY.md). Since the published builds are prereleases and no
+stable release has been published, no release currently qualifies for that
+security-support policy.

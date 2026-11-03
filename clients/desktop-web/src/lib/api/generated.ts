@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: 7d34d902ee27ff5c9246e2d4f591fd0e2926c85708d15f971a73b11043f768da
+// Contract SHA-256: c955a91883906b2a0400683fc293e37a3a69de76069c63e1bf03ac3ffb77b1d3
 
 export interface paths {
   '/v1/active-server': {
@@ -2790,13 +2790,165 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    get?: never;
+    /** Read pending reset recovery */
+    get: operations['getHostResetStatus'];
     put?: never;
     /**
      * Reset this host's MSC state
      * @description Host-scoped, administrator-only reset. The request has no host selector: it always acts on the host serving it. The operation revokes all existing credentials, rotates the host identity, clears host setup/configuration, and either preserves the managed server tree (configuration) or removes it (everything). The route never installs or uninstalls an operating-system service; a local desktop owns that separate action.
      */
     post: operations['resetHost'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/host/reset/cancel': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Durably cancel pending reset deletion
+     * @description Stops at the next individual file boundary. Already removed files cannot be restored. Identity finalization cannot be cancelled. Does not revoke credentials or uninstall the service.
+     */
+    post: operations['cancelHostReset'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/host/reset/result/{token}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Read one reset completion receipt
+     * @description The random completionToken returned to the initiating administrator is the sole read capability. This endpoint survives reset credential revocation and exposes only a state; invalid or superseded tokens return 404.
+     */
+    get: operations['getHostResetCompletion'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/host/storage/candidates': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Reviewed host storage candidates */
+    get: {
+      parameters: {
+        query: {
+          action: string;
+          category: string;
+        };
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Storage review or result */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['StorageCandidatesDTO'];
+          };
+        };
+        /** @description Storage action refused */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage action refused */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage action refused */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage action refused */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage action refused */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage action refused */
+        429: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage action refused */
+        500: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage action refused */
+        503: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -2823,6 +2975,334 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/v1/host/storage/cleanups': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Reviewed host storage cleanups */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          'application/json': components['schemas']['StorageReviewedCleanupRequestDTO'];
+        };
+      };
+      responses: {
+        /** @description Storage review or result */
+        202: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              hostId: string;
+              operationId: string;
+            } & {
+              [key: string]: unknown;
+            };
+          };
+        };
+        /** @description Storage action refused */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage action refused */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage action refused */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage action refused */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage action refused */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage action refused */
+        429: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage action refused */
+        500: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage action refused */
+        503: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/host/storage/cleanups/{id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Reviewed host storage cleanups/{id} */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Storage review or result */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['StorageReviewedResultDTO'];
+          };
+        };
+        /** @description Storage action refused */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage action refused */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage action refused */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage action refused */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage action refused */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage action refused */
+        429: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage action refused */
+        500: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage action refused */
+        503: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/host/storage/inventory': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read cached host inventory; never starts a scan */
+    get: {
+      parameters: {
+        query?: {
+          cursor?: string;
+        };
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Read cached host inventory; never starts a scan */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['StorageInventoryDTO'];
+          };
+        };
+        /** @description Storage operation refused or unavailable */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage operation refused or unavailable */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage operation refused or unavailable */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage operation refused or unavailable */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage operation refused or unavailable */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage operation refused or unavailable */
+        500: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage operation refused or unavailable */
+        503: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/v1/host/storage/preview': {
     parameters: {
       query?: never;
@@ -2837,6 +3317,323 @@ export interface paths {
      * @description Administrator-only and host-scoped, including remote hosts. Does not delete worlds, backups, components, settings or credentials. Active leases, live terrain helper references, symlinks and unrecognized directories are retained. Cleanup tokens are credential-bound, one-use and expire after five minutes; candidates are rechecked at deletion. Sizes are logical bytes, not a filesystem allocation guarantee. Scope is MSC-owned map-staging only.
      */
     post: operations['previewStorageCleanup'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/host/storage/reviews': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Reviewed host storage reviews */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          'application/json': components['schemas']['StorageReviewRequestDTO'];
+        };
+      };
+      responses: {
+        /** @description Storage review or result */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['StorageReviewDTO'];
+          };
+        };
+        /** @description Storage action refused */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage action refused */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage action refused */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage action refused */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage action refused */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage action refused */
+        429: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage action refused */
+        500: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage action refused */
+        503: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/host/storage/scans': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Start a bounded explicit storage scan */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Start a bounded explicit storage scan */
+        202: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              hostId: string;
+              operationId: string;
+            } & {
+              [key: string]: unknown;
+            };
+          };
+        };
+        /** @description Storage operation refused or unavailable */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage operation refused or unavailable */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage operation refused or unavailable */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage operation refused or unavailable */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage operation refused or unavailable */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage operation refused or unavailable */
+        500: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage operation refused or unavailable */
+        503: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/host/storage/scans/{id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read host storage scan progress */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Read host storage scan progress */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['StorageScanDTO'];
+          };
+        };
+        /** @description Storage operation refused or unavailable */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage operation refused or unavailable */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage operation refused or unavailable */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage operation refused or unavailable */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage operation refused or unavailable */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage operation refused or unavailable */
+        500: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage operation refused or unavailable */
+        503: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -5435,7 +6232,8 @@ export interface paths {
     get: operations['downloadStagedBytes'];
     put?: never;
     post?: never;
-    delete?: never;
+    /** Cancel an owned staged export and confirm deletion */
+    delete: operations['cancelStagedDownload'];
     options?: never;
     head?: never;
     patch?: never;
@@ -5487,6 +6285,57 @@ export interface paths {
     /** Append one bounded chunk to a modpack or world archive upload */
     put: operations['uploadStagedChunk'];
     post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/staged-uploads/{id}/status': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Inspect the initiating owner’s native upload and cleanup outcome */
+    get: operations['nativeUploadStatus'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/staged-uploads/{id}/stream': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /** Receive a bounded native stream and incrementally verify SHA-256 */
+    put: operations['receiveNativeUpload'];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/staged-uploads/stream': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Admit an authenticated exact-length native upload */
+    post: operations['beginNativeUpload'];
     delete?: never;
     options?: never;
     head?: never;
@@ -6465,6 +7314,41 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/v1/worlds/map/pre-render': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Estimate saved tile work, disk budget and current pre-render operation */
+    get: operations['getWorldMapPreRender'];
+    put?: never;
+    /** Start or resume explicit saved terrain tile pre-render */
+    post: operations['startWorldMapPreRender'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/worlds/map/pre-render/cancel': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Cancel a map pre-render while keeping completed tiles */
+    post: operations['cancelWorldMapPreRender'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/v1/worlds/map/refresh': {
     parameters: {
       query?: never;
@@ -7122,6 +8006,7 @@ export interface components {
       };
       /** @enum {string} */
       hostOs: 'macos' | 'linux' | 'windows';
+      nativeTransfers?: components['schemas']['NativeTransfersDTO'];
       /** @description The calling token's granted categories, per D-019's nine-bucket vocabulary (Proposed). */
       permissions: (
         | 'serverControl'
@@ -7155,6 +8040,7 @@ export interface components {
       } & {
         [key: string]: unknown;
       };
+      storageInventory?: components['schemas']['StorageInventoryCapabilityDTO'];
       /** @description Optional active or create-time context for native world settings. Omitted when no server context was selected. */
       worldSettings?: components['schemas']['WorldSettingsCapabilitiesDTO'];
     } & {
@@ -7663,13 +8549,15 @@ export interface components {
     } & {
       [key: string]: unknown;
     };
-    /** @description The last reliable response may be returned under the old credential. Poll the operation when the agent remains reachable; otherwise follow the state-specific recovery path. */
+    /** @description Reset admitted. Acceptance is not completion; poll the narrow completion receipt, which survives credential revocation. */
     HostResetAcceptedDTO: {
       /**
        * @description Truthful post-admission state: the agent will restart, remains installed but requires fresh pairing, or cannot be reached to report completion.
        * @enum {string}
        */
       agentState: 'restarting' | 'needs_pairing' | 'unavailable';
+      /** @description Random capability for reading only this reset outcome after credentials are revoked. Keep private. */
+      completionToken?: string;
       /** @description The pre-reset agent host identity, for client-side correlation only. */
       hostId: string;
       message: string;
@@ -7677,6 +8565,12 @@ export interface components {
       mode: 'configuration' | 'everything';
       /** @description Journaled reset operation ID. */
       operationId: string;
+    } & {
+      [key: string]: unknown;
+    };
+    HostResetCompletionDTO: {
+      /** @enum {string} */
+      state: 'running' | 'succeeded' | 'failed' | 'cancelled';
     } & {
       [key: string]: unknown;
     };
@@ -7689,6 +8583,15 @@ export interface components {
        * @enum {string}
        */
       mode: 'configuration' | 'everything';
+    } & {
+      [key: string]: unknown;
+    };
+    HostResetStatusDTO: {
+      canCancel: boolean;
+      message: string;
+      mode: string | null;
+      /** @enum {string} */
+      state: 'idle' | 'pending' | 'blocked' | 'cancelled';
     } & {
       [key: string]: unknown;
     };
@@ -7883,6 +8786,82 @@ export interface components {
     } & {
       [key: string]: unknown;
     };
+    /** @description Protocol 1 supports bounded streamUpload. localHandoff is true only while the private installing-user Unix descriptor endpoint is available. P20.5 serverArchive enables raw ZIP, generated server-folder TAR, local folder descriptor and MSC-transfer staging/import plus SHA-256 verified streamed downloads. Remote and Windows folders generate an exact-length uncompressed TAR directly into the bounded native stream; no complete source archive is written on the desktop. Omission means an older agent; explicit false means unavailable. Permission and staging recovery dependent. */
+    NativeTransfersDTO: {
+      /**
+       * @description P20.6: supports explicit creation-time world/add-on/modpack inputs without an existing server. Missing/false requires an agent update for these native inputs.
+       * @default false
+       */
+      creationContext: boolean;
+      localHandoff: boolean;
+      /** @enum {integer} */
+      protocol: 1;
+      serverArchive: boolean;
+      streamUpload: boolean;
+    } & {
+      [key: string]: unknown;
+    };
+    NativeUploadBeginRequestDTO: {
+      /**
+       * @description P20.6: explicit creation-time source context. Request may omit targetServerId only for world-import, addon-local-file or modpack-archive; cannot combine with an existing target or pending-file binding.
+       * @default false
+       */
+      creationContext: boolean;
+      /** @description Exact length, within purpose ceiling; for pending files must equal the provider size. Raw server folders use exact total regular-file bytes and require the private local descriptor endpoint; archives use exact archive length. */
+      expectedBytes: number;
+      expectedSha256?: string | null;
+      fileId?: string | null;
+      /** @description Original basename, at most 255 UTF-8 bytes; no path/control syntax, trailing dot/space, Windows device basename or reserved Windows filename character. Required for add-ons and pending manual files. */
+      fileName?: string | null;
+      operationId?: string | null;
+      /** @enum {string} */
+      purpose:
+        | 'world-import'
+        | 'active-world-replace'
+        | 'world-thumbnail'
+        | 'modpack-archive'
+        | 'addon-local-file'
+        | 'curseforge-manual-file'
+        | 'modpack-unresolved-file'
+        | 'raw-server-archive'
+        | 'raw-server-folder'
+        | 'msc-transfer-archive';
+      /** @description Required for existing-server world import, active-world replacement, thumbnail and local add-on inputs. Optional for modpacks and pending operation files; forbidden for server archive/folder/MSC-transfer sources. World-import/addon-local-file/modpack-archive may instead set creationContext=true before server creation, with no target or pending-file binding. Existing targets must match the selected server at admission and redemption. */
+      targetServerId?: string | null;
+    } & {
+      [key: string]: unknown;
+    };
+    NativeUploadBeginResultDTO: {
+      expiresAt: string;
+      maxBytes: number;
+      /** @enum {integer} */
+      protocol: 1;
+      stagedUploadId: string;
+      streamPath: string;
+      uploadPath: string;
+    } & {
+      [key: string]: unknown;
+    };
+    NativeUploadStatusDTO: {
+      cleanupError?: string;
+      expectedBytes: number;
+      expiresAt: string;
+      receivedBytes: number;
+      stagedUploadId: string;
+      /** @enum {string} */
+      state:
+        | 'admitted'
+        | 'receiving'
+        | 'verifying'
+        | 'ready'
+        | 'redeemed'
+        | 'cancelling'
+        | 'cancelled'
+        | 'failed'
+        | 'cleanup-failed';
+    } & {
+      [key: string]: unknown;
+    };
     NotificationEventDTO: {
       body: string;
       helpId?: string | null;
@@ -7946,7 +8925,7 @@ export interface components {
     } & {
       [key: string]: unknown;
     };
-    /** @description P2.8's resolution of helpid-contract.md SS4's open item: PerformanceSnapshotDTO's bare scalars wrap into {value, helpId} (option b) rather than a separate static client-side name->helpId map (option a) -- consistent with every other helpId-bearing DTO in this contract attaching the pointer directly on the field's own object, at the cost of a DTO-shape change from the baseline. Proposed, pending Cameron's confirmation. */
+    /** @description P2.8's resolution of helpid-contract.md SS4's open item: PerformanceSnapshotDTO's bare scalars wrap into {value, helpId} (option b) rather than a separate static client-side name->helpId map (option a) -- consistent with every other helpId-bearing DTO in this contract attaching the pointer directly on the field's own object, at the cost of a DTO-shape change from the baseline. Proposed, pending the owner's confirmation. */
     PerformanceMetricNumberDTO: {
       helpId?: string | null;
       value: number;
@@ -8133,6 +9112,7 @@ export interface components {
       [key: string]: unknown;
     };
     PlayitStatusResponseDTO: {
+      agentId?: string;
       bedrockAddress?: string;
       hasSecretKey: boolean;
       isRunning: boolean;
@@ -8141,6 +9121,9 @@ export interface components {
       playitEnabled: boolean;
       serverName: string;
       serverType: string;
+      usesBedrockTunnel?: boolean;
+      usesJavaTunnel?: boolean;
+      usesVoiceTunnel?: boolean;
       voiceAddress?: string;
       voiceChatEnabled: boolean;
     } & {
@@ -8669,8 +9652,10 @@ export interface components {
       maxPlayers?: number;
       port?: number;
       serverType?: string;
-      /** @description Required for scan/importExisting/importTransfer; omitted for rescan, which scans the configured servers root. */
+      /** @description Agent-local source for scan/importExisting/importTransfer, mutually exclusive with stagedUploadId; omitted for rescan. */
       sourcePath?: string;
+      /** @description P20.5: verified native raw-server-archive/raw-server-folder or msc-transfer-archive. Mutually exclusive with sourcePath. scan leases the input; import redeems it once. Existing agent-local sourcePath remains supported. */
+      stagedUploadId?: string;
       transferMode?: string;
     } & {
       [key: string]: unknown;
@@ -8940,6 +9925,26 @@ export interface components {
     } & {
       [key: string]: unknown;
     };
+    StorageCandidateDTO: {
+      consequences: string[];
+      displayPath: string | null;
+      id: string;
+      label: string;
+      logicalBytes: number | null;
+      reason: string;
+      removable: boolean;
+      serverId: string | null;
+    } & {
+      [key: string]: unknown;
+    };
+    StorageCandidatesDTO: {
+      action: string;
+      category: string;
+      hostId: string;
+      items: components['schemas']['StorageCandidateDTO'][];
+    } & {
+      [key: string]: unknown;
+    };
     StorageCleanupEntryDTO: {
       id: string;
       path: string;
@@ -8970,6 +9975,144 @@ export interface components {
       /** Format: int64 */
       removedBytes: number;
       retained: string[];
+    } & {
+      [key: string]: unknown;
+    };
+    StorageInventoryCapabilityDTO: {
+      cacheCleanup: boolean;
+      protocol: number;
+      scan: boolean;
+      serverDataCleanup: boolean;
+    } & {
+      [key: string]: unknown;
+    };
+    StorageInventoryDTO: {
+      historical: boolean;
+      hostId: string;
+      nextCursor: string | null;
+      protocol: number;
+      snapshot: components['schemas']['StorageSnapshotDTO'];
+      totalItems: number;
+    } & {
+      [key: string]: unknown;
+    };
+    StorageIssueDTO: {
+      reason: string;
+      rootId: string | null;
+    } & {
+      [key: string]: unknown;
+    };
+    StorageItemDTO: {
+      absent: boolean;
+      allocatedBytes: number | null;
+      category: string;
+      displayPath: string | null;
+      domainId: string | null;
+      group: string;
+      hasHardLinks: boolean;
+      id: string;
+      label: string;
+      logicalBytes: number;
+      partial: boolean;
+      physicalRootId: string;
+      protection: string;
+      rootId: string;
+      serverId: string | null;
+      sharedReferences: number;
+      volumeId: string | null;
+    } & {
+      [key: string]: unknown;
+    };
+    StorageOutcomeDTO: {
+      id: string;
+      label: string;
+      message: string;
+      removedLogicalBytes: number | null;
+      state: string;
+    } & {
+      [key: string]: unknown;
+    };
+    StorageProgressDTO: {
+      entries: number;
+      logicalBytesVisited: number;
+      rootsCompleted: number;
+    } & {
+      [key: string]: unknown;
+    };
+    StorageReviewDTO: {
+      action: string;
+      category: string;
+      confirmation: string;
+      expiresInSeconds: number;
+      hostId: string;
+      items: components['schemas']['StorageCandidateDTO'][];
+      previewToken: string;
+    } & {
+      [key: string]: unknown;
+    };
+    StorageReviewedCleanupRequestDTO: {
+      confirmation: string;
+      hostId: string;
+      previewToken: string;
+    } & {
+      [key: string]: unknown;
+    };
+    StorageReviewedResultDTO: {
+      availableBytes: number | null;
+      hostId: string;
+      items: components['schemas']['StorageOutcomeDTO'][];
+      observedAt: number;
+      operationId: string;
+      state: string;
+      volumes: components['schemas']['StorageVolumeDTO'][];
+    } & {
+      [key: string]: unknown;
+    };
+    StorageReviewRequestDTO: {
+      action: string;
+      category: string;
+      hostId: string;
+      itemIds: string[];
+    } & {
+      [key: string]: unknown;
+    };
+    StorageScanDTO: {
+      hostId: string;
+      message: string | null;
+      operationId: string;
+      progress: components['schemas']['StorageProgressDTO'];
+      snapshotId: string | null;
+      state: string;
+    } & {
+      [key: string]: unknown;
+    };
+    StorageSnapshotDTO: {
+      allocatedBytes: number | null;
+      cancelled: boolean;
+      completedAt: number;
+      generation: string;
+      hostId: string;
+      id: string;
+      issues: components['schemas']['StorageIssueDTO'][];
+      items: components['schemas']['StorageItemDTO'][];
+      logicalBytes: number;
+      partial: boolean;
+      progress: components['schemas']['StorageProgressDTO'];
+      rootIdentity: string;
+      schemaVersion: number;
+      startedAt: number;
+      volumes: components['schemas']['StorageVolumeDTO'][];
+    } & {
+      [key: string]: unknown;
+    };
+    StorageVolumeDTO: {
+      availableBytes: number | null;
+      id: string;
+      label: string;
+      observedAt: number;
+      physicalId: string;
+      problem: string | null;
+      totalBytes: number | null;
     } & {
       [key: string]: unknown;
     };
@@ -9276,6 +10419,29 @@ export interface components {
       serverId: string | null;
       source: string;
       status: string;
+    } & {
+      [key: string]: unknown;
+    };
+    WorldMapPreRenderCancelRequestDTO: {
+      dimension: string;
+    } & {
+      [key: string]: unknown;
+    };
+    WorldMapPreRenderEstimateDTO: {
+      cachedBytes: number;
+      cachedTiles: number;
+      estimatedTotalBytes: number;
+      maxBudgetMib: number;
+      operation: components['schemas']['OperationDTO'];
+      operationId: string | null;
+      suggestedBudgetMib: number;
+      totalTiles: number;
+    } & {
+      [key: string]: unknown;
+    };
+    WorldMapPreRenderStartRequestDTO: {
+      cacheBudgetMib: number;
+      dimension: string;
     } & {
       [key: string]: unknown;
     };
@@ -9938,6 +11104,26 @@ export interface operations {
       };
     };
   };
+  getHostResetStatus: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Recovery state and last failure. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HostResetStatusDTO'];
+        };
+      };
+    };
+  };
   resetHost: {
     parameters: {
       query?: never;
@@ -9995,6 +11181,64 @@ export interface operations {
         content: {
           'application/json': components['schemas']['ErrorDTO'];
         };
+      };
+    };
+  };
+  cancelHostReset: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Cancellation recorded; recovery state returned. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HostResetStatusDTO'];
+        };
+      };
+      /** @description Reset is finalizing; cancellation is too late. */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+    };
+  };
+  getHostResetCompletion: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        token: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Outcome of the admitted reset. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HostResetCompletionDTO'];
+        };
+      };
+      /** @description Unknown or superseded completion token. */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
       };
     };
   };
@@ -10523,6 +11767,10 @@ export interface operations {
       /** @description Staged file bytes */
       200: {
         headers: {
+          /** @description Exact archive byte count. */
+          'Content-Length'?: number;
+          /** @description SHA-256 of the prepared archive; native receivers verify before replacing their destination. */
+          'X-MSC-SHA256'?: string;
           [name: string]: unknown;
         };
         content: {
@@ -10537,6 +11785,38 @@ export interface operations {
         content: {
           'application/json': components['schemas']['ErrorDTO'];
         };
+      };
+    };
+  };
+  cancelStagedDownload: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Deletion confirmed, including a bounded recent completion record. */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Unknown ownership or cleanup cannot be confirmed, including after restart. */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Deletion failed; private path remains accounted for and cleanup can be retried. */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
       };
     };
   };
@@ -10689,6 +11969,288 @@ export interface operations {
       };
       /** @description Expired, incomplete, wrong-purpose, or invalid offset upload */
       409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+    };
+  };
+  nativeUploadStatus: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Owner-only state without filesystem paths or credentials */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['NativeUploadStatusDTO'];
+        };
+      };
+      /** @description Unauthenticated */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+      /** @description Unknown upload or different owner */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+    };
+  };
+  receiveNativeUpload: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Exactly the admitted expectedBytes; no Transfer-Encoding or compressed body. */
+        'Content-Length': number;
+      };
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/octet-stream': string;
+      };
+    };
+    responses: {
+      /** @description Exact size/digest checked and file synced; ready for a separate importer */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['StagedUploadCompleteResultDTO'];
+        };
+      };
+      /** @description Invalid metadata or stream headers */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+      /** @description Unauthenticated */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+      /** @description Permission denied */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+      /** @description Unknown upload or different owner */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+      /** @description 120 seconds without byte progress or flush completion */
+      408: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+      /** @description State, target, pending-file, length or digest mismatch */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+      /** @description Purpose or stream byte ceiling exceeded */
+      413: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+      /** @description Admission or active-writer capacity reached */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+      /** @description Write, sync or cleanup failure */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+      /** @description Native staging recovery unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+      /** @description Insufficient staging space */
+      507: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+    };
+  };
+  beginNativeUpload: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['NativeUploadBeginRequestDTO'];
+      };
+    };
+    responses: {
+      /** @description Private native slot admitted */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['NativeUploadBeginResultDTO'];
+        };
+      };
+      /** @description Invalid metadata or stream headers */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+      /** @description Unauthenticated */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+      /** @description Permission denied */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+      /** @description Unknown upload or different owner */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+      /** @description State, target, pending-file, length or digest mismatch */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+      /** @description Purpose or stream byte ceiling exceeded */
+      413: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+      /** @description Admission or active-writer capacity reached */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+      /** @description Write, sync or cleanup failure */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+      /** @description Native staging recovery unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+      /** @description Insufficient staging space */
+      507: {
         headers: {
           [name: string]: unknown;
         };
@@ -11514,6 +13076,129 @@ export interface operations {
       };
       /** @description Worlds permission required */
       403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  getWorldMapPreRender: {
+    parameters: {
+      query: {
+        dimension: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Estimate and current progress */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['WorldMapPreRenderEstimateDTO'];
+        };
+      };
+      /** @description Worlds permission required */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description No active saved terrain */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Renderer unavailable */
+      502: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  startWorldMapPreRender: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['WorldMapPreRenderStartRequestDTO'];
+      };
+    };
+    responses: {
+      /** @description Long-running operation started */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            operationId: string;
+          } & {
+            [key: string]: unknown;
+          };
+        };
+      };
+      /** @description Worlds permission required */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Another pre-render is running or budget/storage is insufficient */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  cancelWorldMapPreRender: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['WorldMapPreRenderCancelRequestDTO'];
+      };
+    };
+    responses: {
+      /** @description Cancellation requested */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['OperationDTO'];
+        };
+      };
+      /** @description Worlds permission required */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description No pre-render job for this world and dimension */
+      404: {
         headers: {
           [name: string]: unknown;
         };

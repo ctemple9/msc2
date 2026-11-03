@@ -59,7 +59,9 @@ impl OperationsState {
         dir: impl Into<PathBuf>,
         servers_root: Option<PathBuf>,
     ) -> Self {
-        let mut operations = LifecycleOperations::new(fs, dir);
+        let mut operations = LifecycleOperations::new(fs, dir).with_host_reset_config(
+            msc_infrastructure::config_repository::default_app_config_path(),
+        );
         if let Some(servers_root) = servers_root {
             operations = operations.with_servers_root(servers_root);
         }

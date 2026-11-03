@@ -29,6 +29,8 @@ mod local_cli_macos;
 #[cfg(target_os = "windows")]
 #[path = "auth/local_cli_windows.rs"]
 mod local_cli_windows;
+#[path = "auth/local_watch.rs"]
+mod local_watch;
 
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::ffi::OsString;
@@ -593,6 +595,28 @@ impl AuthState {
             })
     }
 
+    pub(crate) fn stream_retains_permissions(&self, identity: &StreamAuthentication) -> bool {
+        let registry = self.inner.registry.lock().unwrap();
+        if let Some(record) = registry.get(&identity.credential.credential_id) {
+            return !record.revoked
+                && record
+                    .expires_at
+                    .is_none_or(|expiry| SystemTime::now() < expiry)
+                && identity
+                    .credential
+                    .permissions
+                    .iter()
+                    .all(|permission| record.permissions.contains(permission));
+        }
+        drop(registry);
+        self.inner
+            .local_cli_credentials
+            .lock()
+            .unwrap()
+            .get(&identity.credential.credential_id)
+            .is_some_and(|record| Instant::now() < record.expires_at)
+    }
+
     /// Migrates a P5.8 legacy owner token into the Phase 4 credential
     /// model: `None` if `LEGACY_OWNER_TOKEN_SECRET_KEY` is absent or blank
     /// (nothing to migrate — including the common case where an earlier
@@ -907,6 +931,23 @@ impl AuthState {
         }
     }
 
+    #[cfg(unix)]
+    pub(crate) fn authenticate_local_source(
+        &self,
+        host: &str,
+        token: &str,
+    ) -> Option<AuthenticatedCredential> {
+        if self.agent_host_id().ok().as_deref() != Some(host) {
+            return None;
+        }
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            axum::http::header::AUTHORIZATION,
+            format!("Bearer {token}").parse().ok()?,
+        );
+        self.try_authenticate(&headers).ok()
+    }
+
     #[allow(dead_code)]
     pub(crate) fn bearer_is_authenticated(&self, headers: &HeaderMap, client_key: &str) -> bool {
         self.authenticate_headers(headers, client_key).is_ok()
@@ -1018,6 +1059,27 @@ pub(crate) async fn require_management_auth(
 
     match auth.authenticate_headers(request.headers(), "unknown-client") {
         Ok(credential) => {
+            let path = request.uri().path().trim_start_matches("/v1");
+            let read_only = matches!(
+                *request.method(),
+                axum::http::Method::GET | axum::http::Method::HEAD | axum::http::Method::OPTIONS
+            );
+            let reset_control = path == "/host/reset"
+                || path == "/host/reset/cancel"
+                || (path.starts_with("/operations/") && path.ends_with("/cancel"));
+            if !read_only
+                && !reset_control
+                && msc_application::host_reset::blocks_mutation(
+                    &msc_infrastructure::fs::StdFileSystem,
+                    &msc_infrastructure::config_repository::default_app_config_path(),
+                )
+            {
+                return error_response(
+                    axum::http::StatusCode::CONFLICT,
+                    "host_reset_pending",
+                    "Host reset recovery is pending. Open Settings > Reset to retry or cancel before making changes.",
+                );
+            }
             request.extensions_mut().insert(credential.clone());
             request.extensions_mut().insert(StreamAuthentication {
                 credential: credential.clone(),
@@ -1379,10 +1441,6 @@ fn internal_error(message: String) -> Response {
         "internal_error",
         &format!("Authentication store error: {message}"),
     )
-}
-
-pub(crate) fn forbidden(code: &str, message: &str) -> Response {
-    error_response(StatusCode::FORBIDDEN, code, message)
 }
 
 pub(crate) fn constant_time_eq(left: &str, right: &str) -> bool {
@@ -1762,8 +1820,8 @@ mod tests {
     #[test]
     fn auth_production_store_registry_defaults_to_durable_app_data() {
         let path = default_registry_path_from_env(|key| match key {
-            "HOME" => Some(OsString::from("/Users/cameron")),
-            "USERPROFILE" => Some(OsString::from(r"C:\Users\cameron")),
+            "HOME" => Some(OsString::from("/Users/example")),
+            "USERPROFILE" => Some(OsString::from(r"C:\Users\example")),
             _ => None,
         });
 

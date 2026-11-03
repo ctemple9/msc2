@@ -1,13 +1,20 @@
 import { isTauri } from '@tauri-apps/api/core';
 import type { FetchLike } from '../api/client';
 import { desktopCredentialAdapter, type TransportCredentialAdapter } from '../api/auth';
-import { DesktopSessionAuth, loadTauriDesktopCredentialBridge } from '../auth/desktop';
+import {
+  DesktopSessionAuth,
+  loadTauriDesktopCredentialBridge,
+  loadTauriNativeFileUploader,
+  loadTauriNativeFileDownloader,
+} from '../auth/desktop';
 import { loadTauriPlatform } from './tauri';
 import type {
   AgentReadiness,
   AgentServiceAction,
   AgentServiceStatus,
   PlatformAdapter,
+  NativeFileUploader,
+  NativeFileDownloader,
 } from './types';
 
 export const LOCAL_AGENT_ORIGIN = 'http://127.0.0.1:48001';
@@ -16,6 +23,8 @@ export interface AgentTransport {
   readonly baseUrl: string;
   readonly hostId: string;
   readonly fetchImpl?: FetchLike;
+  readonly nativeFileUploader?: NativeFileUploader;
+  readonly nativeFileDownloader?: NativeFileDownloader;
   readonly credentialAdapter: TransportCredentialAdapter;
 }
 
@@ -23,6 +32,8 @@ export interface AgentPreparationPlatform {
   readonly kind: PlatformAdapter['kind'];
   agentHealthCheck(): Promise<boolean>;
   agentServiceStatus(): Promise<AgentServiceStatus>;
+  agentIndicatorEnabled?(): Promise<boolean>;
+  setAgentIndicatorEnabled?(enabled: boolean): Promise<void>;
   manageAgentService(action: AgentServiceAction): Promise<AgentServiceStatus>;
 }
 
@@ -87,6 +98,8 @@ export async function createAgentTransport(hostId: string): Promise<AgentTranspo
     baseUrl: configuredBaseUrl ?? LOCAL_AGENT_ORIGIN,
     hostId: authenticatedHostId,
     fetchImpl: auth.fetchForHost(authenticatedHostId),
+    nativeFileUploader: await loadTauriNativeFileUploader(),
+    nativeFileDownloader: await loadTauriNativeFileDownloader(),
     credentialAdapter: desktopCredentialAdapter(),
   };
 }

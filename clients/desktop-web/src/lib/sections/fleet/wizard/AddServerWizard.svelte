@@ -53,6 +53,8 @@
   import { ApiError } from '../../../api/client';
   import { dispatchOnboardingAnchorAction, onboardingAnchor } from '../../../help/tourAnchors';
   import type { Schema, ScreenApi } from '../../shared/types';
+  import { discardUpload } from '../../shared/upload-source';
+  import { reportTransferFailure } from '../../shared/transfer-notices';
   import { errorMessage } from '../../shared/types';
   import { serverEditorPaths } from '../../server-editor/model';
   import {
@@ -84,13 +86,22 @@
 
   let path: WizardPath = 'importExisting';
   let currentStep = 1;
+  let contentElement: HTMLDivElement;
+  let scrollStep = currentStep;
+  $: if (scrollStep !== currentStep) {
+    scrollStep = currentStep;
+    if (contentElement) contentElement.scrollTop = 0;
+  }
   let draft = defaultWizardDraft();
 
   let displayName = '';
   let isCreating = false;
+  let transferBusy = false;
   let statusMessage = '';
+  let cleanupError = '';
   let createSucceeded = false;
   let createWarnings: string[] = [];
+  let completedApi: ScreenApi | undefined;
   let modpackSummary: ModpackCreationSummary | undefined;
   let showModpackSummary = false;
   let showJavaRecovery = false;
@@ -118,6 +129,16 @@
   });
 
   onDestroy(() => {
+    const staged = draft.stagedServerSource;
+    if (staged && !isCreating && !createSucceeded)
+      void discardUpload(staged.api, staged.stagedUploadId).catch((error) =>
+        reportTransferFailure(staged.api, error),
+      );
+    if (!isCreating)
+      for (const input of draft.stagedInputs ?? [])
+        void discardUpload(input.api, input.id).catch((error) =>
+          reportTransferFailure(input.api, error),
+        );
     tourServerContext.set(null);
     tourServerCreated.set(false);
     tourJavaSelectionPending.set(false);
@@ -214,6 +235,30 @@
     };
   }
 
+  async function closeWizard(): Promise<void> {
+    cleanupError = '';
+    const staged = draft.stagedServerSource;
+    if (staged && !createSucceeded) {
+      try {
+        await staged.api?.delete?.(`/v1/staged-uploads/${staged.stagedUploadId}`);
+        draft = { ...draft, stagedServerSource: undefined };
+      } catch (error) {
+        cleanupError = `Agent cleanup could not be confirmed: ${errorMessage(error)}`;
+        return;
+      }
+    }
+    for (const input of draft.stagedInputs ?? []) {
+      try {
+        await discardUpload(input.api, input.id);
+      } catch (error) {
+        cleanupError = `Agent cleanup could not be confirmed: ${errorMessage(error)}`;
+        return;
+      }
+    }
+    draft.stagedInputs = [];
+    onClose();
+  }
+
   function backStep(): void {
     if (currentStep > 1) currentStep -= 1;
   }
@@ -226,18 +271,23 @@
     }
     isCreating = true;
     statusMessage =
-      path === 'importExisting' && !showModpack ? 'Importing server…' : 'Creating server…';
+      path === 'importExisting' && !showModpack
+        ? 'Installing server in storage: extracting or copying files…'
+        : 'Creating server…';
+    const initiatingApi = api?.snapshot?.() ?? api;
     const onProgress = (line: string) => (statusMessage = line);
     try {
       let createdPackSummary: ModpackCreationSummary | undefined;
       if (path === 'importExisting' && !showModpack) {
-        const result = await importServerFromDraft(api, draft, displayName, onProgress);
+        const result = await importServerFromDraft(initiatingApi, draft, displayName, onProgress);
         createWarnings = result.warnings;
       } else {
-        const result = await createServerFromDraft(api, draft, displayName, onProgress);
+        const result = await createServerFromDraft(initiatingApi, draft, displayName, onProgress);
         createWarnings = result.warnings;
         createdPackSummary = result.modpackSummary;
       }
+      if (initiatingApi?.isCurrent?.() === false) return;
+      completedApi = draft.uploadApi ?? initiatingApi;
       modpackSummary = createdPackSummary;
       createSucceeded = true;
       tourServerCreated.set(true);
@@ -414,9 +464,10 @@
 <Sheet
   title="Add Server"
   size="lg"
-  onClose={isCreating || showJavaRecovery || showJavaSelection || showJavaInstall
+  height="740px"
+  onClose={isCreating || transferBusy || showJavaRecovery || showJavaSelection || showJavaInstall
     ? undefined
-    : onClose}
+    : closeWizard}
 >
   <div class="wizard" use:onboardingAnchor={'ob_wizard_sheet'}>
     <div class="steps" role="list" aria-label="Add Server progress">
@@ -438,7 +489,7 @@
       {/each}
     </div>
 
-    <div class="content">
+    <div class="content" bind:this={contentElement}>
       {#if currentStep === 1}
         <div class="intro">
           <h2>How do you want to add this server?</h2>
@@ -474,7 +525,12 @@
       {:else if currentStep === 2 && path === 'fresh'}
         <ConfigureStep {api} bind:draft />
       {:else if currentStep === 2 && (path === 'importExisting' || path === 'modpack')}
-        <UploadStep {api} bind:draft onScanned={handleImportScanned} />
+        <UploadStep
+          {api}
+          bind:draft
+          onTransferBusy={(busy) => (transferBusy = busy)}
+          onScanned={handleImportScanned}
+        />
       {:else if currentStep === 3 && path === 'fresh'}
         <NetworkStep bind:draft />
       {:else if currentStep === 3 && showModpack}
@@ -505,13 +561,16 @@
       {/if}
     </div>
 
+    {#if cleanupError}<p class="selection-explain warn" role="alert">{cleanupError}</p>{/if}
     <div class="footer">
       {#if !createSucceeded && currentStep > 1}
-        <Button variant="secondary" onclick={backStep} disabled={isCreating}>Back</Button>
+        <Button variant="secondary" onclick={backStep} disabled={isCreating || transferBusy}
+          >Back</Button
+        >
       {/if}
       <div class="spacer"></div>
       {#if createSucceeded}
-        <Button variant="primary" onclick={onClose}>Done</Button>
+        <Button variant="primary" onclick={closeWizard}>Done</Button>
       {:else if isConfirmStep}
         <Button
           variant="primary"
@@ -538,7 +597,7 @@
 
 {#if showModpackSummary && modpackSummary}
   <ModpackCreationSummarySheet
-    {api}
+    api={completedApi ?? api}
     bind:summary={modpackSummary}
     onClose={() => (showModpackSummary = false)}
   />
@@ -631,6 +690,8 @@
     display: flex;
     flex-direction: column;
     gap: 20px;
+    height: 100%;
+    min-height: 0;
   }
 
   /* Step counter -- shape kept from the oracle's chips, color stripped to
@@ -689,7 +750,14 @@
     display: flex;
     flex-direction: column;
     gap: 18px;
-    min-height: 260px;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    scrollbar-width: none;
+  }
+  .content::-webkit-scrollbar {
+    display: none;
+    width: 0;
   }
   .intro {
     display: flex;
@@ -758,6 +826,7 @@
     gap: 8px;
     padding-top: 14px;
     border-top: 1px solid var(--msc2-hairline-subtle);
+    flex-shrink: 0;
   }
   .spacer {
     flex: 1;

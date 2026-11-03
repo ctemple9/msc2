@@ -1,6 +1,6 @@
 [package]
 name = "msc-agent"
-version = "0.1.23"
+version = "0.1.43"
 edition = "2024"
 
 [[bin]]
@@ -16,8 +16,9 @@ axum = { version = "0.7", features = ["ws"] }
 futures-util = "0.3"
 fs2 = "0.4"
 tokio-tungstenite = "0.24"
-tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "time", "sync", "fs", "signal"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "time", "sync", "fs", "signal", "process"] }
 clap = { version = "4", features = ["derive"] }
+crossterm = "0.29"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 base64 = "0.22"

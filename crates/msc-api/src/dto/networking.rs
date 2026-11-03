@@ -8,10 +8,14 @@ pub struct PlayitStatusDto {
     pub playit_enabled: bool,
     pub is_running: bool,
     pub has_secret_key: bool,
+    pub agent_id: Option<String>,
     pub java_address: Option<String>,
     pub bedrock_address: Option<String>,
     pub voice_address: Option<String>,
     pub voice_chat_enabled: bool,
+    pub uses_java_tunnel: bool,
+    pub uses_bedrock_tunnel: bool,
+    pub uses_voice_tunnel: bool,
     pub note: Option<String>,
 }
 
@@ -31,6 +35,8 @@ pub struct PlayitActionResultDto {
 pub struct PlayitSetupRequestDto {
     pub email: String,
     pub password: String,
+    #[serde(default)]
+    pub account_only: bool,
 }
 
 /// Admission response for the native Playit setup operation. The operation
@@ -201,6 +207,8 @@ pub struct BroadcastStatusDto {
     pub bedrock_broadcast_running: bool,
     /// True after MCXboxBroadcast has established its Xbox LIVE session.
     pub authenticated: bool,
+    #[serde(default)]
+    pub has_saved_auth: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub gamertag: Option<String>,
 }

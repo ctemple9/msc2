@@ -24,6 +24,7 @@
   import type { Schema, ScreenProps } from '../shared/types';
   import type { RemoteDesktopPairingResult } from '../../auth/desktop';
   import { formatConnectionFailure } from '../../hosts/connection-errors';
+  import { createServiceStatusMonitor } from './service-status';
 
   export let api: ScreenProps['api'] = undefined;
   export let readiness: AgentReadiness = 'starting';
@@ -101,9 +102,18 @@
   let remoteView: 'new' | 'saved' | undefined;
   let editingHostId: HostId | undefined;
   let openingServerId = '';
-  let statusRequest = 0;
-  let inspectedHostId: string | undefined;
-  let refreshedReadyHostId: string | undefined;
+  let serviceError = '';
+  const serviceMonitor = createServiceStatusMonitor(
+    async () => (await getPlatform()).agentServiceStatus(),
+    (nextStatus) => {
+      status = nextStatus;
+      serviceError = '';
+    },
+    (error) => {
+      status = undefined;
+      serviceError = formatConnectionFailure(error, 'msc-agent');
+    },
+  );
   let removeHostId = '';
   let removeHostLabel = '';
 
@@ -112,7 +122,7 @@
   $: isLoopbackHost = loopbackHost(hostBaseUrl);
   $: isLocalDesktopHost = isDesktopShell && isLocalHost;
   $: isCurrentLocalAgent = isLocalHost && (isLocalDesktopHost || isLoopbackHost);
-  $: serviceState = status?.state ?? 'checking';
+  $: serviceState = serviceError ? 'unavailable' : (status?.state ?? 'checking');
   $: savedHosts = hosts.filter((host) => host.id !== LOCAL_HOST_ID);
   $: editingHost = editingHostId ? savedHosts.find((host) => host.id === editingHostId) : undefined;
 
@@ -168,6 +178,7 @@
   }
 
   onDestroy(() => {
+    serviceMonitor.dispose();
     statsGeneration += 1;
     clearInterval(statsTimer);
   });
@@ -215,54 +226,25 @@
     }
   }
 
-  $: {
-    if (!isLocalDesktopHost || !active) {
-      inspectedHostId = undefined;
-      status = undefined;
-      refreshedReadyHostId = undefined;
-    } else if (inspectedHostId !== hostId) {
-      inspectedHostId = hostId;
-      status = undefined;
-      refreshedReadyHostId = undefined;
-      void refresh();
-    }
-  }
-
-  // Reconnect changes the parent readiness state without remounting this
-  // screen. Re-read the OS service once when that connection becomes ready so
-  // the service card cannot keep the result from before reconnect.
-  $: if (!isLocalDesktopHost || !active || readiness !== 'ready') {
-    refreshedReadyHostId = undefined;
-  } else if (refreshedReadyHostId !== hostId) {
-    refreshedReadyHostId = hostId;
-    void refresh();
-  }
-
-  async function refresh(): Promise<void> {
-    if (!isLocalDesktopHost || busy) return;
-    const requestedHostId = hostId;
-    const request = ++statusRequest;
-    try {
-      const nextStatus = await (await getPlatform()).agentServiceStatus();
-      if (request === statusRequest && active && isLocalDesktopHost && hostId === requestedHostId)
-        status = nextStatus;
-    } catch (error) {
-      if (request === statusRequest && active && isLocalDesktopHost && hostId === requestedHostId) {
-        errorMessage = formatConnectionFailure(error, 'msc-agent');
-      }
-    }
+  $: serviceMonitor.configure(
+    isLocalDesktopHost && active && !busy ? `${hostId}:${readiness}` : undefined,
+  );
+  $: if (!isLocalDesktopHost || !active) {
+    status = undefined;
+    serviceError = '';
   }
 
   async function manage(action: AgentServiceAction): Promise<void> {
     if (busy || !isLocalDesktopHost) return;
     busy = true;
-    statusRequest += 1;
+    serviceMonitor.configure(undefined);
     const requestedHostId = hostId;
     errorMessage = '';
     try {
       const nextStatus = await (await getPlatform()).manageAgentService(action);
-      if (!isLocalDesktopHost || hostId !== requestedHostId) return;
+      if (!active || !isLocalDesktopHost || hostId !== requestedHostId) return;
       status = nextStatus;
+      serviceError = '';
       // Re-run the parent connection flow after every service change. A stop
       // must also clear the selected host's server snapshot immediately.
       await onAgentRetry?.();
@@ -439,17 +421,30 @@
             </p>
             <div class="actions">
               <Button
-                variant={status?.state === 'running' ? 'secondary' : 'start'}
+                variant={status?.state === 'stopped' ? 'start' : 'secondary'}
                 disabled={busy || !status || status.state === 'unavailable'}
                 onclick={() => void manage(status?.state === 'running' ? 'stop' : 'start')}
               >
-                {busy ? 'Working…' : status?.state === 'running' ? 'Stop agent' : 'Start agent'}
+                {busy
+                  ? 'Working…'
+                  : serviceError || status?.state === 'unavailable'
+                    ? 'Status unavailable'
+                    : !status
+                      ? 'Checking…'
+                      : status.state === 'running'
+                        ? 'Stop agent'
+                        : 'Start agent'}
               </Button>
               <Button disabled={busy || !status} onclick={() => void manage('repair')}
                 >Repair agent</Button
               >
+              <Button disabled={busy} onclick={() => void serviceMonitor.refresh()}
+                >Refresh status</Button
+              >
             </div>
-            <p class="small-detail">{status?.detail ?? 'Checking the local agent service…'}</p>
+            <p class="small-detail" role="status">
+              {serviceError || status?.detail || 'Checking the local agent service…'}
+            </p>
           {/if}
         {:else}
           <p class="detail">

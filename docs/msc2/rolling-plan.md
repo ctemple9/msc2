@@ -2,6 +2,19 @@
 
 Implemented steps awaiting verification were marked Done and moved to [the archive](rolling-plan-archive.md) at Cameron's direction on 2026-10-08. Planned work, pending publications and independent phase acceptance remain below.
 
+### P12.253 — Keep the Agent page's local service status current
+
+**Status:** Implemented; awaiting Cameron's verification. Owner reported the connected Windows agent remaining at checking with no Stop agent action.
+**Files:** `clients/desktop-web/src/lib/sections/setup/AgentSetupSection.svelte`, `service-status.ts`, `clients/desktop-web/tests/agent-install/service-status.test.ts`, this plan.
+**What:** Replace one-shot service checks with a visible-page monitor. Refresh on activation, reconnect and after service actions, then five seconds after each completed query. Reject stale replies across page/host changes and service mutations. A failed check shows unavailable and its actual error; a ten-second timeout replaces indefinite checking without piling up native requests. Reopening while an earlier native query is stuck also gets a bounded unavailable state. Stop polling while hidden, remote or busy; dispose timers on destruction. Offer Refresh status and label unknown service state Checking/Status unavailable instead of Start agent. Use existing button and detail styles after reading antiAIslop.md.
+**Verify:** `npm --prefix clients/desktop-web run check`
+**Batch:** P12.253 only.
+**Commit:** `P12.253: refresh local agent service status`
+
+**Evidence and checks:** Read-only Windows `sc.exe queryex com.ctemple.msc2.agent` confirmed RUNNING, STOPPABLE, PID 5448. Source exposed one-shot refresh with no retry and an unset status on failure, explaining how the page can stay at checking; the screenshot alone does not establish the original native query's exact failure. Frontend type-check and production build passed with existing warnings outside changed files. Rust formatting and agent Clippy passed with existing warnings. No service mutations, test execution, release or installation performed.
+
+**Essential tests:** Three deterministic monitor cases protect recovery after a rejected query, bounded display/no overlapping native queries during a hung request including hide/reopen, and stale-result rejection/polling shutdown when hidden. Deferred promises and fake timers avoid real service access, arbitrary waiting or environment assumptions; expected total runtime under one second. Existing source-only screen assertions did not exercise asynchronous service status behavior. Tests added but not run.
+
 ### P12.252 — Persist server Java selections and deduplicate Windows runtimes
 
 **Status:** Implemented; awaiting Cameron's verification. Owner approved per-server Java ownership on 2026-11-03 after Java 25 selected during Paper creation reverted to the host's Java 21.

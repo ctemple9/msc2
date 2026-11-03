@@ -35,6 +35,15 @@ This table is the quick map; detailed steps and historical findings are linked f
 
 ## Current work
 
+### P23.26 — Recover v0.1.42 with the Apple Silicon ticket-transport workaround
+
+**Status:** awaiting Cameron verification; recovery publication pending
+**Files:** `.github/workflows/release.yml`; `.github/workflows/release-recovery.yml`; `docs/msc2/rolling-plan.md`
+**What:** v0.1.42 Apple Silicon passed notarization but exhausted all three staple attempts with the same -1005 CloudKit transport error. Extend the documented UDP-443 workaround to both macOS runners. Add a manually invoked, fixed-v0.1.42 build-only recovery workflow: check out the unchanged release tag, build only Apple Silicon with the workaround, wait for original run 41551215711, require its Intel/Windows/Linux artifacts to be successful and from the same source commit, and combine those artifacts with the recovered Apple Silicon build. Retain nine-asset assembly, checksums, signing, Gatekeeper, ticket validation and signed update metadata. Do not move the tag or rebuild successful platforms. This avoids another full-release attempt; expected Apple Silicon rebuild time is about 15–20 minutes. No test suites or unrelated gates added.
+**Verify:** `gh release view v0.1.42 --json url,isPrerelease,assets` — require complete downloads and signed metadata; owner map verification remains separate.
+**Batch:** solo
+**Commit:** `P23.26: recover apple silicon release ticket transport`
+
 ### P23.25 — Use GitHub's Intel Apple-ticket transport workaround and release v0.1.42
 
 **Status:** awaiting Cameron verification; publication pending

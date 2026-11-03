@@ -1,0 +1,516 @@
+name: Recover v0.1.42 Apple Silicon release
+
+on:
+  workflow_dispatch:
+
+# One-time recovery: build the missing Apple Silicon payload from the unchanged
+# release tag, then combine it with this run's verified Intel/Windows/Linux assets.
+env:
+  RELEASE_TAG: v0.1.42
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: beta-release-recovery-v0.1.42
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build ${{ matrix.platform }}
+    runs-on: ${{ matrix.os }}
+    env:
+      MSC2_RELEASE_PUBLIC_KEY_HEX: ${{ vars.MSC2_RELEASE_PUBLIC_KEY_HEX }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-aarch64
+            os: macos-15
+            toolchain: 1.97.1
+            rust-target: aarch64-apple-darwin
+            tauri-bundles: dmg
+            installer-extension: dmg
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: v0.1.42
+
+      - name: Install Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22.23.1'
+          cache: npm
+          cache-dependency-path: clients/desktop-web/package-lock.json
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # v1
+        with:
+          toolchain: ${{ matrix.toolchain }}
+          targets: ${{ matrix.rust-target }}
+
+      # Tag caches cannot be shared with later tags. A build-only dispatch on
+      # main seeds the default-branch cache, which subsequent releases can read.
+      - name: Restore Rust build dependencies
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          shared-key: release-${{ matrix.platform }}
+          cache-bin: false
+          workspaces: |
+            . -> target
+            clients/desktop-web/src-tauri -> target
+            tools/world-map-proof -> target
+            packaging/windows/lifecycle-helper -> target
+
+      - name: Install Linux Tauri dependencies
+        if: matrix.platform == 'linux-x86_64'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes \
+            build-essential \
+            libappindicator3-dev \
+            librsvg2-dev \
+            libwebkit2gtk-4.1-dev \
+            patchelf \
+            rpm
+
+      - name: Install shared client dependencies
+        working-directory: clients/desktop-web
+        run: npm ci
+
+      - name: Build the desktop frontend
+        working-directory: clients/desktop-web
+        run: |
+          npm run build
+
+      - name: Resolve and validate release identity
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          agent_version="$(awk -F'"' '/^[[:space:]]*version[[:space:]]*=/ { print $2; exit }' crates/msc-agent/Cargo.toml)"
+          package_version="$(node -p "require('./clients/desktop-web/package.json').version")"
+          tauri_version="$(node -p "require('./clients/desktop-web/src-tauri/tauri.conf.json').version")"
+          shell_version="$(awk -F'"' '/^[[:space:]]*version[[:space:]]*=/ { print $2; exit }' clients/desktop-web/src-tauri/Cargo.toml)"
+          bundle_version="$(sed -n "s/^[[:space:]]*version: '\([^']*\)',$/\1/p" clients/desktop-web/src/lib/bundle-identity.ts | head -n 1)"
+          test -n "$agent_version"
+          test "$agent_version" = "$package_version"
+          test "$agent_version" = "$tauri_version"
+          test "$agent_version" = "$shell_version"
+          test "$agent_version" = "$bundle_version"
+          test "${#MSC2_RELEASE_PUBLIC_KEY_HEX}" -eq 64
+          [[ "$MSC2_RELEASE_PUBLIC_KEY_HEX" =~ ^[0-9A-Fa-f]{64}$ ]]
+
+          if [[ -n "$RELEASE_TAG" ]]; then
+            test "${RELEASE_TAG}" = "v${agent_version}" || {
+              echo "tag ${RELEASE_TAG} does not match source version v${agent_version}" >&2
+              exit 1
+            }
+          fi
+
+          echo "RELEASE_VERSION=$agent_version" >> "$GITHUB_ENV"
+          echo "release version: $agent_version"
+
+      - name: Build release agent and CLI
+        run: cargo --locked build --release --target "${{ matrix.rust-target }}" -p msc-agent
+
+      # macOS hosted runners can drop Apple's HTTP/3 ticket requests. Blocking
+      # QUIC makes stapler use HTTPS over TCP; signing checks remain required.
+      # Upstream workaround: https://github.com/actions/runner-images/issues/14924
+      - name: Use TCP for Apple ticket requests on macOS
+        if: startsWith(matrix.platform, 'macos-')
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          echo "block return out quick proto udp from any to any port 443" | sudo pfctl -f -
+          sudo pfctl -E
+
+      - name: Prepare macOS signing and notarization credentials
+        if: startsWith(matrix.platform, 'macos-')
+        shell: bash
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ vars.APPLE_SIGNING_IDENTITY }}
+          APPLE_API_KEY: ${{ vars.APPLE_API_KEY }}
+          APPLE_API_ISSUER: ${{ vars.APPLE_API_ISSUER }}
+          APPLE_API_KEY_P8_BASE64: ${{ secrets.APPLE_API_KEY_P8_BASE64 }}
+          MACOS_KEYCHAIN_PASSWORD: ${{ secrets.MACOS_KEYCHAIN_PASSWORD }}
+        run: |
+          set -Eeuo pipefail
+          for name in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY \
+            APPLE_API_KEY APPLE_API_ISSUER APPLE_API_KEY_P8_BASE64 MACOS_KEYCHAIN_PASSWORD; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "$name must be configured before building macOS releases" >&2
+              exit 1
+            fi
+          done
+
+          keychain_path="$RUNNER_TEMP/msc2-signing.keychain-db"
+          certificate_path="$RUNNER_TEMP/msc2-signing-certificate.p12"
+          api_key_path="$RUNNER_TEMP/AuthKey_${APPLE_API_KEY}.p8"
+          printf '%s' "$APPLE_CERTIFICATE" | /usr/bin/base64 -D > "$certificate_path"
+          printf '%s' "$APPLE_API_KEY_P8_BASE64" | /usr/bin/base64 -D > "$api_key_path"
+          chmod 600 "$certificate_path" "$api_key_path"
+
+          security create-keychain -p "$MACOS_KEYCHAIN_PASSWORD" "$keychain_path"
+          security set-keychain-settings -lut 21600 "$keychain_path"
+          security unlock-keychain -p "$MACOS_KEYCHAIN_PASSWORD" "$keychain_path"
+          security default-keychain -d user -s "$keychain_path"
+          security import "$certificate_path" -k "$keychain_path" \
+            -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list \
+            -S apple-tool:,apple:,codesign: -s -k "$MACOS_KEYCHAIN_PASSWORD" "$keychain_path"
+          security find-identity -v -p codesigning "$keychain_path" |
+            grep -Fq "$APPLE_SIGNING_IDENTITY" || {
+              echo "configured Developer ID identity is not in the imported certificate" >&2
+              exit 1
+            }
+
+          echo "APPLE_API_KEY_PATH=$api_key_path" >> "$GITHUB_ENV"
+
+      - name: Stage the matching Tauri agent payload
+        if: matrix.platform != 'windows-x86_64'
+        working-directory: clients/desktop-web
+        run: npm run prepare:agent:release -- --target=${{ matrix.rust-target }}
+
+      - name: Stage the matching Tauri agent payload on Windows
+        if: matrix.platform == 'windows-x86_64'
+        shell: pwsh
+        run: ./tools/release/stage-windows-agent.ps1 -WorkspaceRoot $env:GITHUB_WORKSPACE -TargetTriple "${{ matrix.rust-target }}"
+
+      - name: Sign bundled macOS helpers
+        if: startsWith(matrix.platform, 'macos-')
+        shell: bash
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ vars.APPLE_SIGNING_IDENTITY }}
+        run: bash tools/release/sign-macos-agent-resources.sh "${{ matrix.platform }}"
+
+      - name: Prepare the Windows bundle icon
+        if: matrix.platform == 'windows-x86_64'
+        shell: pwsh
+        run: python tools/release/prepare-windows-icon.py $env:GITHUB_WORKSPACE
+
+      - name: Build and notarize macOS Tauri installer
+        if: startsWith(matrix.platform, 'macos-')
+        working-directory: clients/desktop-web
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ vars.APPLE_SIGNING_IDENTITY }}
+          APPLE_API_KEY: ${{ vars.APPLE_API_KEY }}
+          APPLE_API_ISSUER: ${{ vars.APPLE_API_ISSUER }}
+          APPLE_API_KEY_PATH: ${{ runner.temp }}/AuthKey_${{ vars.APPLE_API_KEY }}.p8
+          TAURI_BUNDLER_DMG_IGNORE_CI: 'true'
+        run: npm exec tauri build -- --bundles "${{ matrix.tauri-bundles }}" --config '{"build":{"beforeBuildCommand":""}}'
+
+      - name: Notarize and staple macOS disk image
+        if: startsWith(matrix.platform, 'macos-')
+        shell: bash
+        env:
+          APPLE_API_KEY: ${{ vars.APPLE_API_KEY }}
+          APPLE_API_ISSUER: ${{ vars.APPLE_API_ISSUER }}
+        run: |
+          set -Eeuo pipefail
+          bundle_dir="clients/desktop-web/src-tauri/target/release/bundle/dmg"
+          dmg="$(find "$bundle_dir" -maxdepth 1 -type f -name '*.dmg' -print -quit)"
+          test -n "$dmg" || { echo "Tauri disk image is missing" >&2; exit 1; }
+          result="$(xcrun notarytool submit "$dmg" \
+            --key "$APPLE_API_KEY_PATH" --key-id "$APPLE_API_KEY" \
+            --issuer "$APPLE_API_ISSUER" --wait --output-format json)"
+          printf '%s\n' "$result" | python3 -c '
+          import json, sys
+          result = json.load(sys.stdin)
+          print("Disk image notarization:", result.get("status"), result.get("id"))
+          if result.get("status") != "Accepted":
+              sys.exit(1)
+          '
+          # Apple can accept the submission before its ticket lookup loses
+          # the connection. Retry that transport failure, not signing errors.
+          stapler_attempt=1
+          while true; do
+            if stapler_output="$(xcrun stapler staple "$dmg" 2>&1)"; then
+              printf '%s\n' "$stapler_output"
+              break
+            else
+              stapler_status=$?
+              printf '%s\n' "$stapler_output" >&2
+              if (( stapler_attempt >= 3 )) || ! grep -Eqi 'Code=-1005|network connection was lost' <<< "$stapler_output"; then
+                exit "$stapler_status"
+              fi
+              echo "Apple ticket lookup lost its network connection; retrying stapling ($((stapler_attempt + 1))/3)." >&2
+              stapler_attempt=$((stapler_attempt + 1))
+              sleep 10
+            fi
+          done
+
+      - name: Verify macOS app signature and notarization
+        if: startsWith(matrix.platform, 'macos-')
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          bundle_dir="clients/desktop-web/src-tauri/target/release/bundle/dmg"
+          dmg="$(find "$bundle_dir" -maxdepth 1 -type f -name '*.dmg' -print -quit)"
+          test -n "$dmg" || { echo "Tauri disk image is missing" >&2; exit 1; }
+          mount_dir="$RUNNER_TEMP/msc2-release-dmg"
+          mkdir -p "$mount_dir"
+          trap 'hdiutil detach "$mount_dir" -quiet 2>/dev/null || true' EXIT
+          hdiutil attach -readonly -nobrowse -mountpoint "$mount_dir" "$dmg" >/dev/null
+          app_bundle="$(find "$mount_dir" -maxdepth 1 -type d -name '*.app' -print -quit)"
+          test -n "$app_bundle" || { echo "Tauri disk image contains no app" >&2; exit 1; }
+          codesign --verify --deep --strict --verbose=2 "$app_bundle"
+          spctl --assess --type execute --verbose=4 "$app_bundle"
+          stapler_attempt=1
+          while true; do
+            if stapler_output="$(xcrun stapler validate "$dmg" 2>&1)"; then
+              printf '%s\n' "$stapler_output"
+              break
+            else
+              stapler_status=$?
+              printf '%s\n' "$stapler_output" >&2
+              if (( stapler_attempt >= 3 )) || ! grep -Eqi 'Code=-1005|network connection was lost' <<< "$stapler_output"; then
+                exit "$stapler_status"
+              fi
+              echo "Apple ticket lookup lost its network connection; retrying stapler validation ($((stapler_attempt + 1))/3)." >&2
+              stapler_attempt=$((stapler_attempt + 1))
+              sleep 10
+            fi
+          done
+
+      - name: Build unsigned non-macOS Tauri installer
+        if: matrix.platform == 'linux-x86_64'
+        working-directory: clients/desktop-web
+        run: npm exec tauri build -- --bundles "${{ matrix.tauri-bundles }}" --no-sign --config '{"build":{"beforeBuildCommand":""}}'
+
+      - name: Build unsigned Tauri installer on Windows
+        if: matrix.platform == 'windows-x86_64'
+        working-directory: clients/desktop-web
+        shell: pwsh
+        run: |
+          npm exec tauri build -- --bundles "${{ matrix.tauri-bundles }}" --no-sign --config '{"build":{"beforeBuildCommand":""},"bundle":{"icon":["icons/icon.ico"]}}'
+
+      - name: Package Linux headless artifact
+        if: matrix.platform == 'linux-x86_64'
+        run: bash tools/release/build-linux-headless.sh target/release-artifacts
+
+      - name: Package macOS headless artifact
+        if: startsWith(matrix.platform, 'macos-')
+        run: bash tools/release/build-macos-headless.sh target/release-artifacts "${{ matrix.rust-target }}" "${{ matrix.platform }}"
+
+      - name: Package Windows headless artifact
+        if: matrix.platform == 'windows-x86_64'
+        shell: pwsh
+        run: ./tools/release/build-windows-headless.ps1 target/release-artifacts
+
+      - name: Collect platform-labeled Tauri installer
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mkdir -p target/release-artifacts
+          if [[ "${{ matrix.platform }}" == "linux-x86_64" ]]; then
+            for installer_extension in deb rpm; do
+              bundle_dir="clients/desktop-web/src-tauri/target/release/bundle/$installer_extension"
+              installer="$(find "$bundle_dir" -maxdepth 1 -type f -name "*.$installer_extension" -print -quit)"
+              test -n "$installer" || { echo "no Tauri installer found in $bundle_dir" >&2; exit 1; }
+              cp "$installer" "target/release-artifacts/msc2-${RELEASE_VERSION}-${{ matrix.platform }}.$installer_extension"
+            done
+          else
+            bundle_dir="clients/desktop-web/src-tauri/target/release/bundle/${{ matrix.installer-extension }}"
+            installer="$(find "$bundle_dir" -maxdepth 1 -type f -name "*.${{ matrix.installer-extension }}" -print -quit)"
+            test -n "$installer" || { echo "no Tauri installer found in $bundle_dir" >&2; exit 1; }
+            cp "$installer" "target/release-artifacts/msc2-${RELEASE_VERSION}-${{ matrix.platform }}.${{ matrix.installer-extension }}"
+          fi
+
+      - name: Record macOS signing evidence
+        if: startsWith(matrix.platform, 'macos-')
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          cat > target/release-artifacts/MACOS-SIGNING-NOTICE.txt <<EOF
+          MSC 2 beta candidate ${RELEASE_VERSION}
+          Platform: ${{ matrix.platform }}
+
+          The macOS desktop app is Developer ID signed and notarized by Apple.
+          The separate headless archive is not signed or notarized. Verify the
+          published checksum before use.
+          EOF
+
+      - name: Record unsigned beta evidence
+        if: matrix.platform == 'windows-x86_64' || matrix.platform == 'linux-x86_64'
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          cat > target/release-artifacts/UNSIGNED-BETA-NOTICE.txt <<EOF
+          MSC 2 beta candidate ${RELEASE_VERSION}
+          Platform: ${{ matrix.platform }}
+
+          This candidate has no release code signing or publisher identity.
+          The Tauri build used --no-sign.
+          Obtain this candidate from the intended release source and verify its
+          checksum before opening or installing it.
+          EOF
+
+      - name: Upload platform-labeled beta artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: beta-${{ matrix.platform }}-${{ env.RELEASE_VERSION }}
+          path: target/release-artifacts
+          if-no-files-found: error
+
+  publish:
+    name: Publish v0.1.42
+    if: needs.build.result == 'success'
+    needs: [build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: v0.1.42
+
+      - name: Wait for retained platform artifacts
+        timeout-minutes: 30
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          while [[ "$(gh run view 41551215711 --json status --jq .status)" != completed ]]; do
+            sleep 30
+          done
+          gh run view 41551215711 --json headSha,jobs > "$RUNNER_TEMP/retained-builds.json"
+          python3 - "$RUNNER_TEMP/retained-builds.json" "$(git rev-parse HEAD)" <<'PYTHON'
+          import json, sys
+          result = json.load(open(sys.argv[1]))
+          assert result['headSha'] == sys.argv[2], 'retained artifacts must use the same source'
+          jobs = {job['name']: job['conclusion'] for job in result['jobs']}
+          for platform in ['macos-x86_64', 'windows-x86_64', 'linux-x86_64']:
+              assert jobs.get('Build ' + platform) == 'success', platform + ' did not succeed'
+          PYTHON
+
+      - name: Download verified Intel Windows and Linux artifacts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          github-token: ${{ github.token }}
+          run-id: 41551215711
+          pattern: beta-*
+          path: target/release-downloads
+          merge-multiple: false
+
+      - name: Download successful platform artifacts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: beta-*
+          path: target/release-downloads
+          merge-multiple: false
+
+      - name: Assemble release assets
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mkdir -p target/release-assets
+          asset_count=0
+          while IFS= read -r -d '' source; do
+            filename="$(basename "$source")"
+            destination="target/release-assets/$filename"
+            test ! -e "$destination" || {
+              echo "duplicate release asset: $filename" >&2
+              exit 1
+            }
+            cp "$source" "$destination"
+            asset_count=$((asset_count + 1))
+          done < <(
+            find target/release-downloads -type f \( \
+              -name '*.dmg' -o \
+              -name '*.msi' -o \
+              -name '*.deb' -o \
+              -name '*.rpm' -o \
+              -name '*.tar.gz' -o \
+              -name '*.zip' \
+            \) -print0
+          )
+          test "$asset_count" -eq 9 || {
+            echo "expected nine desktop/headless release assets, found $asset_count" >&2
+            exit 1
+          }
+
+      - name: Generate and verify SHA-256 manifest
+        run: |
+          python3 tools/release/verify-artifact-manifest.py \
+            --manifest target/release-assets/SHA256SUMS \
+            --artifacts target/release-assets \
+            --write
+
+      - name: Prepare release notes
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          release_version="${RELEASE_TAG#v}"
+          if [[ -f "docs/msc2/release/v${release_version}.md" ]]; then
+            cp "docs/msc2/release/v${release_version}.md" target/release-assets/RELEASE-NOTES.md
+          else
+          cat > target/release-assets/RELEASE-NOTES.md <<EOF
+          # MSC 2 ${RELEASE_TAG}
+
+          This prerelease contains Intel and Apple Silicon macOS installers and
+          headless archives plus x86_64 Windows and Linux artifacts. Verify the
+          checksum file before use. The Apple Silicon macOS artifacts contain
+          no Bedrock VM sidecar; local Bedrock requires an Intel Mac.
+
+          Each standalone headless archive includes HEADLESS-INSTALL.md. It
+          defines the tri-platform msc/msc.exe command-install contract and
+          keeps PATH installation separate from local service registration.
+
+          This release includes the signed manifest and detached Ed25519
+          signature required for native in-app installation.
+          Release ID: ${release_version}
+          EOF
+          fi
+
+      - name: Publish signed update metadata when configured
+        shell: bash
+        env:
+          MSC2_RELEASE_SIGNING_KEY_HEX: ${{ secrets.MSC2_RELEASE_SIGNING_KEY_HEX }}
+          MSC2_RELEASE_PUBLIC_KEY_HEX: ${{ vars.MSC2_RELEASE_PUBLIC_KEY_HEX }}
+        run: |
+          set -Eeuo pipefail
+          release_version="${RELEASE_TAG#v}"
+          manifest="target/release-assets/msc2-update-manifest.json"
+          signature="target/release-assets/msc2-update-manifest.sig"
+          python3 -c 'import json; json.load(open("packaging/update-release-schema.json", encoding="utf-8"))'
+
+          test -n "${MSC2_RELEASE_SIGNING_KEY_HEX:-}" || {
+            echo "MSC2_RELEASE_SIGNING_KEY_HEX must be configured before publishing updates" >&2
+            exit 1
+          }
+          test "${#MSC2_RELEASE_PUBLIC_KEY_HEX}" -eq 64
+          [[ "$MSC2_RELEASE_PUBLIC_KEY_HEX" =~ ^[0-9A-Fa-f]{64}$ ]]
+          python3 tools/release/sign-update-manifest.py \
+            --artifacts target/release-assets \
+            --release-id "$release_version" \
+            --tag "$RELEASE_TAG" \
+            --api-major 1 \
+            --api-min-minor 0 \
+            --api-max-minor 0 \
+            --private-key-env MSC2_RELEASE_SIGNING_KEY_HEX \
+            --public-key-env MSC2_RELEASE_PUBLIC_KEY_HEX \
+            --manifest "$manifest" \
+            --signature "$signature"
+          test -s "$manifest"
+          test -s "$signature"
+          echo "signed update metadata prepared"
+
+      - name: Publish GitHub prerelease
+        uses: softprops/action-gh-release@da05d552573ad5aba039eaac05058a918a7bf631 # v2.2.2
+        with:
+          tag_name: v0.1.42
+          name: MSC 2 v0.1.42
+          prerelease: true
+          draft: false
+          generate_release_notes: false
+          body_path: target/release-assets/RELEASE-NOTES.md
+          fail_on_unmatched_files: true
+          files: target/release-assets/*

@@ -134,6 +134,17 @@ jobs:
       - name: Build release agent and CLI
         run: cargo --locked build --release --target "${{ matrix.rust-target }}" -p msc-agent
 
+      # Intel hosted runners drop Apple's HTTP/3 ticket requests. Blocking
+      # QUIC makes stapler use HTTPS over TCP; signing checks remain required.
+      # Upstream workaround: https://github.com/actions/runner-images/issues/14924
+      - name: Use TCP for Apple ticket requests on Intel macOS
+        if: matrix.platform == 'macos-x86_64'
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          echo "block return out quick proto udp from any to any port 443" | sudo pfctl -f -
+          sudo pfctl -E
+
       - name: Prepare macOS signing and notarization credentials
         if: startsWith(matrix.platform, 'macos-')
         shell: bash

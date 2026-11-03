@@ -35,6 +35,15 @@ This table is the quick map; detailed steps and historical findings are linked f
 
 ## Current work
 
+### P23.25 — Use GitHub's Intel Apple-ticket transport workaround and release v0.1.42
+
+**Status:** awaiting Cameron verification; publication pending
+**Files:** `.github/workflows/release.yml`; agent and desktop version manifests and lockfiles; `clients/desktop-web/src/lib/bundle-identity.ts`; `README.md`; `docs/msc2/release/v0.1.42.md`; `docs/msc2/rolling-plan.md`
+**What:** Both v0.1.41 Intel attempts passed signing, notarization, stapling and Gatekeeper, then exhausted ticket-validation retries with -1005. All other platforms passed. GitHub maintainers reproduced the Intel runner's broken HTTP/3 path in actions/runner-images#14924 and supply a packet-filter rule blocking outbound UDP 443, forcing Apple's tool to use working HTTPS over TCP. Apply their exact rule only on the ephemeral Intel hosted runner, before Tauri's app notarization as well as DMG operations. Preserve every signing and publication requirement and retain bounded retries. Publish a new immutable v0.1.42 tag including the renderer fix; do not move v0.1.41. Full rebuild cost is about 40 minutes; the documented transport workaround addresses the repeated failure, while Apple service availability remains external. No tests or additional gates.
+**Verify:** `gh release view v0.1.42 --json url,isPrerelease,assets` — confirm nine downloads, SHA256SUMS and signed update metadata after a successful workflow; Cameron verifies the map later.
+**Batch:** solo
+**Commit:** `P23.25: fix intel apple ticket transport and release v0.1.42`
+
 ### P23.24 — Prepare and publish v0.1.41
 
 **Status:** prepared; publication pending; physical verification deferred

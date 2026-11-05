@@ -171,3 +171,7 @@ GET,/v1/catalog/curseforge/search,searchCurseForgeCatalog,CurseForge Java catalo
 GET,/v1/catalog/curseforge/projects/{project_id},getCurseForgeProject,CurseForge project details,none,Implemented,Planned,Planned,P24.3 exact provider identity and distribution metadata
 GET,/v1/catalog/curseforge/projects/{project_id}/versions,getCurseForgeVersions,CurseForge release browsing,none,Implemented,Planned,Planned,P24.3 paginated release and manual-download status
 POST,/v1/catalog/modpacks/acquire,acquireCatalogModpack,Acquire exact provider modpack to staging,addons,Implemented,Planned,Planned,P24.3 both providers; pinned size/checksum streaming and owner-bound staged result
+POST,/v1/servers/{server_id}/content/install-review,reviewContentInstall,Review exact CurseForge installation and dependencies,addons,Implemented,Planned,Planned,P24.4 persisted owner/server baseline review; terminal UI pending
+POST,/v1/servers/{server_id}/content/install,applyContentInstall,Apply reviewed installation,addons,Implemented,Planned,Planned,P24.4 verified staging and stopped-server activation/recovery
+POST,/v1/servers/{server_id}/content/install-manual/admit,admitContentManualFile,Admit exact reviewed manual file,addons,Implemented,Planned,Planned,P24.4 exact size and owner/review/file binding
+POST,/v1/servers/{server_id}/content/install-manual/complete,completeContentManualFile,Verify reviewed manual file,addons,Implemented,Planned,Planned,P24.4 SHA1 and archive validation before staging

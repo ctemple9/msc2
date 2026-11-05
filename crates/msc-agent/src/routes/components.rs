@@ -1,6 +1,7 @@
 //! P8.24: add-on, catalog, client-export, modpack, and shared staging
 //! routes wired to the real Phase 8 application services.
 
+mod content_install;
 mod provider_catalog;
 pub(crate) mod storage_cleanup;
 
@@ -265,6 +266,22 @@ pub fn router(state: ComponentsRoutesState) -> Router {
         .route(
             "/staged-downloads/:id",
             get(download_staged_bytes).delete(cancel_staged_download),
+        )
+        .route(
+            "/servers/:server_id/content/install-review",
+            post(content_install::review),
+        )
+        .route(
+            "/servers/:server_id/content/install",
+            post(content_install::apply),
+        )
+        .route(
+            "/servers/:server_id/content/install-manual/admit",
+            post(content_install::manual_admission),
+        )
+        .route(
+            "/servers/:server_id/content/install-manual/complete",
+            post(content_install::manual_complete),
         )
         .route("/addons", get(get_addons))
         .route("/catalog/search", get(search_catalog))
@@ -853,6 +870,13 @@ pub async fn upload_staged_bytes(
             StatusCode::CONFLICT,
             "staged_upload_expired",
             "This staged upload has expired.",
+        );
+    }
+    if entry.provider_owner.is_some() && entry.complete {
+        return error_response(
+            StatusCode::CONFLICT,
+            "upload_complete",
+            "Verified provider uploads are immutable",
         );
     }
     if body.len() as u64 > entry.max_bytes {

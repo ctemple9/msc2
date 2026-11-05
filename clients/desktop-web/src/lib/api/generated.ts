@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: e421e45ae977edbd6b85014393c5b439be98264fd27bf1e22f47c39a0d747efb
+// Contract SHA-256: 196222bed1f222e2375ee0665f05ab15da1e7d7251b2fb1807190e774e4d7f4c
 
 export interface paths {
   '/v1/active-server': {
@@ -5318,6 +5318,74 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/v1/servers/{server_id}/content/install': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** @description Journaled reviewed installation. Missing manual files fail the operation without touching active content; admit/upload/complete each file then retry the review. */
+    post: operations['applyContentInstall'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/servers/{server_id}/content/install-manual/admit': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** @description Admit one owner-bound upload with the reviewed file exact size. Upload via returned uploadPath; do not supply a host path. */
+    post: operations['admitContentManualFile'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/servers/{server_id}/content/install-manual/complete': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** @description Verify exact reviewed file checksum and archive before moving to install staging. Does not activate server content. */
+    post: operations['completeContentManualFile'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/servers/{server_id}/content/install-review': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** @description Review exact CurseForge files and required dependencies. Bound to credential and stopped selected server; expires after 30 minutes. */
+    post: operations['reviewContentInstall'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/v1/servers/bedrock-transport': {
     parameters: {
       query?: never;
@@ -8403,6 +8471,51 @@ export interface components {
       packAcquisition: boolean;
       protocol: number;
       providers: string[];
+      reviewedInstalls?: string[];
+    } & {
+      [key: string]: unknown;
+    };
+    ContentInstallApplyDTO: {
+      reviewId: string;
+    } & {
+      [key: string]: unknown;
+    };
+    ContentInstallFileDTO: {
+      byteSize: number;
+      distributionAllowed: boolean | null;
+      fileName: string;
+      incompatibleProjects: string[];
+      manualDownloadRequired: boolean;
+      projectId: string;
+      requiredProjects: string[];
+      sha1: string;
+      title: string;
+      versionId: string;
+    } & {
+      [key: string]: unknown;
+    };
+    ContentInstallManualDTO: {
+      reviewId: string;
+      stagedUploadId?: string | null;
+      versionId: string;
+    } & {
+      [key: string]: unknown;
+    };
+    ContentInstallReviewDTO: {
+      collectionRevision: number;
+      files: components['schemas']['ContentInstallFileDTO'][];
+      provider: string;
+      reviewId: string;
+      serverId: string;
+      warnings: string[];
+    } & {
+      [key: string]: unknown;
+    };
+    ContentInstallReviewRequestDTO: {
+      projectId: number;
+      /** @enum {string} */
+      provider: 'curseforge';
+      versionId: number;
     } & {
       [key: string]: unknown;
     };
@@ -11908,6 +12021,170 @@ export interface operations {
         content: {
           'application/json': components['schemas']['ErrorDTO'];
         };
+      };
+    };
+  };
+  applyContentInstall: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        server_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ContentInstallApplyDTO'];
+      };
+    };
+    responses: {
+      /** @description Journaled reviewed installation. Missing manual files fail the operation without touching active content; admit/upload/complete each file then retry the review. */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['CatalogAcquireResultDTO'];
+        };
+      };
+      /** @description Add-ons permission required. */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Server selection/state/review or content changed; review again. */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  admitContentManualFile: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        server_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ContentInstallManualDTO'];
+      };
+    };
+    responses: {
+      /** @description Admit one owner-bound upload with the reviewed file exact size. Upload via returned uploadPath; do not supply a host path. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['StagedUploadBeginResultDTO'];
+        };
+      };
+      /** @description Add-ons permission required. */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Server selection/state/review or content changed; review again. */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  completeContentManualFile: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        server_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ContentInstallManualDTO'];
+      };
+    };
+    responses: {
+      /** @description Verify exact reviewed file checksum and archive before moving to install staging. Does not activate server content. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            success: boolean;
+          } & {
+            [key: string]: unknown;
+          };
+        };
+      };
+      /** @description Add-ons permission required. */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Server selection/state/review or content changed; review again. */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  reviewContentInstall: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        server_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ContentInstallReviewRequestDTO'];
+      };
+    };
+    responses: {
+      /** @description Review exact CurseForge files and required dependencies. Bound to credential and stopped selected server; expires after 30 minutes. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ContentInstallReviewDTO'];
+        };
+      };
+      /** @description Add-ons permission required. */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Server selection/state/review or content changed; review again. */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
       };
     };
   };

@@ -2081,6 +2081,20 @@ impl LifecycleRoutesState {
         // remain attached to the server across agent restarts.
         let cfg = self.app_config_snapshot();
         let saved = cfg.servers.iter().find(|server| server.id == registered.id);
+        if !self.status_snapshot().running
+            && let Some(saved) = saved
+        {
+            msc_application::content_install::recover_activation(saved).map_err(|message| {
+                let _ = self.inner.operations.fail(
+                    &operation_id,
+                    "content_recovery_failed",
+                    message.clone(),
+                );
+                LifecycleError::Process(format!(
+                    "Content recovery must finish before starting: {message}"
+                ))
+            })?;
+        }
         let configured_java_path = saved
             .and_then(|server| server.java_path.clone())
             .unwrap_or(cfg.java_path);

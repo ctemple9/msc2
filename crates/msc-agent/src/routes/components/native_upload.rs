@@ -151,11 +151,12 @@ impl UploadStore {
     }
     pub(crate) fn get_mut(&mut self, id: &str) -> Option<&mut StagedUpload> {
         // Existing PUT/chunk handlers must never append to a verified native file.
+        self.get(id)?;
         if self.native.contains_key(id)
             || self
                 .entries
                 .get(id)
-                .is_some_and(|entry| entry.provider_owner.is_some())
+                .is_some_and(|entry| entry.provider_owner.is_some() && entry.complete)
         {
             return None;
         }

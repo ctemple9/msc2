@@ -95,12 +95,14 @@ checks when no affected source has changed. New module paths are proposals.
 
 ### P24.4 — Resolve curseforge installs and dependencies
 
-**Status:** planned — not started
+**Status:** implemented — awaiting owner verification
 **Files:** crates/msc-application/src/{addons,addon_dependencies,curseforge_manual}.rs; crates/msc-agent/src/routes/components.rs; crates/msc-api/src/
 **What:** Wire provider-qualified installation and dependency review, pinned compatible files, cycles/conflicts and shared dependencies. Extend D-027 staged manual uploads to individual content and player content with exact expected identity; no automatic cross-provider substitution.
 **Verify:** `cargo check -p msc-agent`. Cameron also verifies the corresponding behavior scenarios in `addons/phase24-scope.md` and the P24.1 acceptance record.
 **Commit:** `P24.4: resolve curseforge installs and dependencies`
 **Batch:** A — autonomous foundations; no routine owner handoff
+
+**Implementation evidence:** Added explicit-server CurseForge review/apply/manual-admission/completion APIs with typed OpenAPI/generated clients and capability disclosure. Dependency review pins bounded compatible releases, required/shared/cyclic dependencies and known incompatibilities; owner/config/revision/byte baselines are persisted. Downloads and exact-size/manual SHA1 validation stage before stopped-server activation; a durable marker recovers failed/interrupted activation while preserving changed/pre-existing files. Startup refuses unresolved recovery. Identical installs preserve audience/optional settings. Three essential deterministic safety tests added for rejected manual bytes, metadata-save rollback and changed-file recovery (existing pack/manual tests do not cover this new transaction); expected <100 ms each, not run. Agent build/focused Clippy and frontend type-check passed (10 existing CSS warnings). Player-target consumption of shared review/staging remains in P24.7; no player-install capability is advertised here.
 
 ### P24.5 — Extend identification and updates across providers
 

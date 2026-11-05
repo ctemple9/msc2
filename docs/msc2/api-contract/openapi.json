@@ -53,6 +53,206 @@
     }
   },
   "paths": {
+    "/v1/servers/{server_id}/content/install-review": {
+      "post": {
+        "operationId": "reviewContentInstall",
+        "tags": [
+          "Content"
+        ],
+        "x-permission-category": "addons",
+        "description": "Review exact CurseForge files and required dependencies. Bound to credential and stopped selected server; expires after 30 minutes.",
+        "parameters": [
+          {
+            "name": "server_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContentInstallReviewRequestDTO"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Review exact CurseForge files and required dependencies. Bound to credential and stopped selected server; expires after 30 minutes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContentInstallReviewDTO"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Server selection/state/review or content changed; review again."
+          },
+          "403": {
+            "description": "Add-ons permission required."
+          }
+        }
+      }
+    },
+    "/v1/servers/{server_id}/content/install": {
+      "post": {
+        "operationId": "applyContentInstall",
+        "tags": [
+          "Content"
+        ],
+        "x-permission-category": "addons",
+        "description": "Journaled reviewed installation. Missing manual files fail the operation without touching active content; admit/upload/complete each file then retry the review.",
+        "parameters": [
+          {
+            "name": "server_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContentInstallApplyDTO"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Journaled reviewed installation. Missing manual files fail the operation without touching active content; admit/upload/complete each file then retry the review.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogAcquireResultDTO"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Server selection/state/review or content changed; review again."
+          },
+          "403": {
+            "description": "Add-ons permission required."
+          }
+        }
+      }
+    },
+    "/v1/servers/{server_id}/content/install-manual/admit": {
+      "post": {
+        "operationId": "admitContentManualFile",
+        "tags": [
+          "Content"
+        ],
+        "x-permission-category": "addons",
+        "description": "Admit one owner-bound upload with the reviewed file exact size. Upload via returned uploadPath; do not supply a host path.",
+        "parameters": [
+          {
+            "name": "server_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContentInstallManualDTO"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Admit one owner-bound upload with the reviewed file exact size. Upload via returned uploadPath; do not supply a host path.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StagedUploadBeginResultDTO"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Server selection/state/review or content changed; review again."
+          },
+          "403": {
+            "description": "Add-ons permission required."
+          }
+        }
+      }
+    },
+    "/v1/servers/{server_id}/content/install-manual/complete": {
+      "post": {
+        "operationId": "completeContentManualFile",
+        "tags": [
+          "Content"
+        ],
+        "x-permission-category": "addons",
+        "description": "Verify exact reviewed file checksum and archive before moving to install staging. Does not activate server content.",
+        "parameters": [
+          {
+            "name": "server_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContentInstallManualDTO"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Verify exact reviewed file checksum and archive before moving to install staging. Does not activate server content.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "success"
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Server selection/state/review or content changed; review again."
+          },
+          "403": {
+            "description": "Add-ons permission required."
+          }
+        }
+      }
+    },
     "/v1/catalog/curseforge/search": {
       "get": {
         "operationId": "searchCurseForgeCatalog",
@@ -8942,6 +9142,156 @@
   },
   "components": {
     "schemas": {
+      "ContentInstallReviewRequestDTO": {
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": "string",
+            "enum": [
+              "curseforge"
+            ]
+          },
+          "projectId": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "versionId": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "provider",
+          "projectId",
+          "versionId"
+        ],
+        "additionalProperties": false
+      },
+      "ContentInstallFileDTO": {
+        "type": "object",
+        "properties": {
+          "projectId": {
+            "type": "string"
+          },
+          "versionId": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "fileName": {
+            "type": "string"
+          },
+          "byteSize": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "sha1": {
+            "type": "string"
+          },
+          "manualDownloadRequired": {
+            "type": "boolean"
+          },
+          "distributionAllowed": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "requiredProjects": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "incompatibleProjects": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "projectId",
+          "versionId",
+          "title",
+          "fileName",
+          "byteSize",
+          "sha1",
+          "manualDownloadRequired",
+          "distributionAllowed",
+          "requiredProjects",
+          "incompatibleProjects"
+        ]
+      },
+      "ContentInstallReviewDTO": {
+        "type": "object",
+        "properties": {
+          "reviewId": {
+            "type": "string"
+          },
+          "serverId": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "collectionRevision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "files": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ContentInstallFileDTO"
+            }
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "reviewId",
+          "serverId",
+          "provider",
+          "collectionRevision",
+          "files",
+          "warnings"
+        ]
+      },
+      "ContentInstallApplyDTO": {
+        "type": "object",
+        "properties": {
+          "reviewId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "reviewId"
+        ],
+        "additionalProperties": false
+      },
+      "ContentInstallManualDTO": {
+        "type": "object",
+        "properties": {
+          "reviewId": {
+            "type": "string"
+          },
+          "versionId": {
+            "type": "string"
+          },
+          "stagedUploadId": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "reviewId",
+          "versionId"
+        ],
+        "additionalProperties": false
+      },
       "ProviderCatalogSearchDTO": {
         "type": "object",
         "properties": {
@@ -9096,6 +9446,12 @@
           },
           "packAcquisition": {
             "type": "boolean"
+          },
+          "reviewedInstalls": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         },
         "required": [

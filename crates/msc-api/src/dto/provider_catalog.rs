@@ -58,4 +58,54 @@ pub struct ContentCatalogCapabilityDto {
     pub protocol: u32,
     pub providers: Vec<String>,
     pub pack_acquisition: bool,
+    #[serde(default)]
+    pub reviewed_installs: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ContentInstallReviewRequestDto {
+    pub provider: String,
+    pub project_id: u64,
+    pub version_id: u64,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ContentInstallFileDto {
+    pub project_id: String,
+    pub version_id: String,
+    pub title: String,
+    pub file_name: String,
+    pub byte_size: u64,
+    pub sha1: String,
+    pub manual_download_required: bool,
+    pub distribution_allowed: Option<bool>,
+    pub required_projects: Vec<String>,
+    pub incompatible_projects: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ContentInstallReviewDto {
+    pub review_id: String,
+    pub server_id: String,
+    pub provider: String,
+    pub collection_revision: u64,
+    pub files: Vec<ContentInstallFileDto>,
+    pub warnings: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ContentInstallApplyDto {
+    pub review_id: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ContentInstallManualDto {
+    pub review_id: String,
+    pub version_id: String,
+    pub staged_upload_id: Option<String>,
 }

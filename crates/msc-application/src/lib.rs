@@ -14,6 +14,7 @@ pub mod bedrock_settings;
 pub mod bedrock_windows;
 pub mod client_export;
 pub mod commands;
+pub mod content_install;
 pub mod curseforge_manual;
 pub mod diagnostics;
 pub mod fleet;

@@ -36,3 +36,13 @@ API generation and Svelte check passed (10 existing unused-selector warnings).
 Live credentialed catalog/download, restricted file, cancellation/revocation,
 owner-only redemption, restart and physical platform acceptance remain pending.
 No test or release commands run.
+
+P24.4: reviewed individual CurseForge installation, dependency resolution, manual
+uploads and durable activation recovery implemented. Build and focused Clippy
+passed; generated API/frontend check passed with the same 10 CSS warnings.
+Three essential tests in `content_install_safety.rs` protect wrong-byte uploads,
+failed metadata-save rollback and owner-edited recovery files; controlled local
+inputs, no network/timing assumptions, expected <100 ms each. They were not run.
+Live provider installs, manual file admission, credential isolation/revocation,
+concurrent actions, restart/recovery and cross-platform behavior remain owner
+acceptance items. Player collection consumers are implemented in P24.7.

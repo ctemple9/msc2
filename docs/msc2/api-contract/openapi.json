@@ -53,6 +53,87 @@
     }
   },
   "paths": {
+    "/v1/catalog/modrinth/search": {
+      "get": {
+        "operationId": "searchModrinthContent",
+        "tags": [
+          "Catalog"
+        ],
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "mod",
+                "plugin",
+                "modpack",
+                "resourcepack",
+                "shader",
+                "datapack"
+              ]
+            }
+          },
+          {
+            "name": "gameVersion",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "loader",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "forge",
+                "neoforge",
+                "fabric",
+                "quilt"
+              ]
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Provider result; metadata does not guarantee compatibility or distribution permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderCatalogSearchDTO"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Provider authentication, category, availability or network failure"
+          }
+        },
+        "description": "Explicit-category Modrinth discovery without an active server. Modpacks remain unfiltered for compatibility review."
+      }
+    },
     "/v1/servers/{server_id}/content/export-destination": {
       "get": {
         "operationId": "getContentExportDestination",

@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: 6c38186969089ea465f301e820675ba4fdbcc0e5cb7cc4be03a5297258585b21
+// Contract SHA-256: 8b834f97b94d870ed17bce66e1e1921c93bdf314dd8daaa98523767c53d0857e
 
 export interface paths {
   '/v1/active-server': {
@@ -1081,6 +1081,23 @@ export interface paths {
     get?: never;
     put?: never;
     post: operations['acquireCatalogModpack'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/catalog/modrinth/search': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description Explicit-category Modrinth discovery without an active server. Modpacks remain unfiltered for compatibility review. */
+    get: operations['searchModrinthContent'];
+    put?: never;
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -12365,6 +12382,39 @@ export interface operations {
       };
       /** @description Staging capacity is busy */
       429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  searchModrinthContent: {
+    parameters: {
+      query?: {
+        gameVersion?: string;
+        kind?: 'mod' | 'plugin' | 'modpack' | 'resourcepack' | 'shader' | 'datapack';
+        loader?: 'forge' | 'neoforge' | 'fabric' | 'quilt';
+        offset?: number;
+        q?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Provider result; metadata does not guarantee compatibility or distribution permission. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ProviderCatalogSearchDTO'];
+        };
+      };
+      /** @description Provider authentication, category, availability or network failure */
+      502: {
         headers: {
           [name: string]: unknown;
         };

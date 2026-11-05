@@ -410,6 +410,10 @@ pub fn router(state: ComponentsRoutesState) -> Router {
         .route("/catalog/search", get(search_catalog))
         .route("/catalog/curseforge/search", get(provider_catalog::search))
         .route(
+            "/catalog/modrinth/search",
+            get(provider_catalog::modrinth_search),
+        )
+        .route(
             "/catalog/curseforge/projects/:project_id",
             get(provider_catalog::project),
         )

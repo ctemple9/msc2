@@ -475,3 +475,69 @@ pub(super) async fn acquire(
     )
         .into_response()
 }
+
+/// Explicit category discovery is independent of an active server. Packs stay
+/// unfiltered so clients can present the reviewed compatibility choices.
+pub(super) async fn modrinth_search(
+    Extension(_credential): Extension<AuthenticatedCredential>,
+    Query(query): Query<QueryDto>,
+) -> Response {
+    if !matches!(
+        query.kind.as_str(),
+        "mod" | "plugin" | "modpack" | "resourcepack" | "shader" | "datapack"
+    ) {
+        return invalid_body(
+            "invalid_content_kind",
+            "Choose a supported content category",
+        );
+    }
+    let result = tokio::task::spawn_blocking(move || {
+        let loaders: Vec<String> = if query.kind == "modpack" {
+            Vec::new()
+        } else {
+            query.loader.clone().into_iter().collect()
+        };
+        let search = provider::modrinth_search(
+            &HttpTransport::new(),
+            &query.q,
+            &query.kind,
+            &loaders,
+            if query.kind == "modpack" {
+                None
+            } else {
+                query.game_version.as_deref()
+            },
+            50,
+            query.offset,
+        )?;
+        Ok::<_, AddonProviderError>(ProviderCatalogSearchDto {
+            provider: "modrinth".into(),
+            offset: query.offset,
+            total_count: search.total_hits.try_into().unwrap_or(u32::MAX),
+            results: search
+                .hits
+                .into_iter()
+                .map(|hit| {
+                    let is_client_only = hit.is_client_only();
+                    CatalogItemDto {
+                        project_id: hit.project_id,
+                        slug: hit.slug,
+                        title: hit.title,
+                        description: hit.description,
+                        author: hit.author,
+                        downloads: hit.downloads,
+                        icon_url: hit.icon_url,
+                        is_client_only,
+                        project_type: query.kind.clone(),
+                    }
+                })
+                .collect(),
+        })
+    })
+    .await;
+    match result {
+        Ok(Ok(response)) => Json(response).into_response(),
+        Ok(Err(error)) => provider_error(error),
+        Err(_) => invalid_body("provider_unavailable", "Catalog worker stopped"),
+    }
+}

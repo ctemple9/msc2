@@ -270,12 +270,14 @@ checks when no affected source has changed. New module paths are proposals.
 
 ### P24.21 — Expose content and export operations in the cli
 
-**Status:** planned — not started
-**Files:** crates/msc-agent/src/cli/mod.rs; docs/msc2/client-capability-matrix.csv
+**Status:** implemented — awaiting owner verification
+**Files:** crates/msc-agent/src/cli/content.rs; cli/mod.rs; routes/components/provider_catalog.rs; routes/components.rs; API contract/generated client; docs/msc2/addons/phase24-cli.md; client-capability-matrix.csv
 **What:** Add both-provider catalog/detail/install/identification/update and pack selection, player management, recovery, conflict review, publication and local host export commands. Require explicit conflict/destination/incomplete choices, safe secret input and scriptable outputs; reflect actual capabilities.
 **Verify:** `cargo check -p msc-agent`. Cameron also verifies the corresponding behavior scenarios in `addons/phase24-scope.md` and the P24.1 acceptance record.
 **Commit:** `P24.21: expose content and export operations in the cli`
 **Batch:** A — autonomous foundations; no routine owner handoff
+
+**Implementation evidence:** Added named content search/inspect/acquire/get/request/stage-pack/export commands with explicit provider/server/release selection. Review, individual install/source/update, independent player changes, retained recovery, pack update/replacement/manual recovery and publication actions map to closed named routes; bounded JSON files/stdin carry per-item decisions and every mutation requires confirm. Admission actions optionally stream a local file, verify the purpose-bound route and request cleanup on failure. Capability discovery refuses unsupported mutation families; agent validation remains authoritative. Long work supports no-wait, JSON operation results and existing Ctrl-C cancellation. Host exports require explicit destination/overwrite/incomplete/mrpack choices. Added provider-category Modrinth discovery independent of active-server selection (legacy filtered routes unchanged); pack results remain unfiltered for compatibility review. Documented usable examples and body/flow requirements. Focused Clippy and frontend check passed (10 existing CSS warnings); built CLI content --help ran successfully. No tests added or run for command mapping; physical provider/auth/upload/conflict/export acceptance remains pending.
 
 ### P24.22 — Expose content and export operations in the tui
 

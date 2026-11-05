@@ -1,6 +1,7 @@
 //! CLI commands. API tasks use the same HTTP routes as the desktop client,
 //! with authorization obtained from this host's operating system.
 
+pub mod content;
 pub mod pairing;
 pub mod service;
 pub(crate) mod session;
@@ -171,6 +172,11 @@ pub enum Command {
     Broadcast {
         #[command(subcommand)]
         command: BroadcastCommand,
+    },
+    /// Browse providers and manage reviewed content/publications for an explicit server.
+    Content {
+        #[command(subcommand)]
+        command: content::ContentCommand,
     },
     /// Inspect components installed in the active server.
     Components,
@@ -1608,6 +1614,7 @@ pub async fn run(common: CommonArgs, command: Command) -> Result<(), CliError> {
         Command::Java { command } => run_java(common, command).await,
         Command::Doctor { command } => run_doctor(common, command).await,
         Command::Addon { command } => run_addon(common, command).await,
+        Command::Content { command } => content::run(common, command).await,
         Command::Modpack { command } => run_modpack(common, command).await,
         Command::Operation { command } => run_operation(common, command).await,
         Command::HostReset { command } => run_host_reset(common, command).await,

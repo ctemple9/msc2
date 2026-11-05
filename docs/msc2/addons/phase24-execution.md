@@ -126,14 +126,14 @@ commits per turn. Rolling-plan statuses and Git history remain the step record.
 
 | Field | Current value |
 |---|---|
-| Run state | executing — P24.18 implemented; autonomous execution active |
-| Current step | P24.21 |
-| Next action | Implement P24.21 scriptable CLI catalog/content/review/publication/export counterparts. Then P24.11 existing-server discovery; stop at its first runnable new surface. |
-| Last implementation commit | P24.18: save exports locally or on the selected host |
+| Run state | executing — P24.21 implemented; autonomous execution active |
+| Current step | P24.11 |
+| Next action | Implement P24.11 existing-server provider discovery; stop at the first runnable new provider detail/review surface. |
+| Last implementation commit | P24.21: expose content and export operations in the cli |
 | Pending UI review | none |
-| Candidate base commit / changed files | P24.18 committed; next slice P24.21 |
+| Candidate base commit / changed files | P24.21 committed; next slice P24.11 |
 | Owner approval evidence | none |
-| Checks and outcomes | P24.18 agent Clippy, native desktop check and API generation/frontend check passed; 10 existing CSS warnings plus SDK-discovery warnings. Essential host-save test source added, not run. P24.17 nested export Clippy/frontend checks passed; actual launcher acceptance pending. |
+| Checks and outcomes | P24.21 focused Clippy, API generation/frontend check passed (10 existing CSS warnings); built CLI content --help succeeded. No tests run. P24.18 native/agent checks passed; physical acceptance deferred. |
 | External prerequisites | owner screenshots for P24.20; usable provider key/content for live acceptance |
 | Deferred owner acceptance | all physical feature/platform scenarios |
 

@@ -1,6 +1,7 @@
 # Phase 24 — Modpack management and content exports
 
-**State:** planned, awaiting Cameron's Read. No implementation authorized by this plan.
+**State:** planned; autonomous workflow owner-authorized, implementation not started.
+**Execution:** [order and review checkpoints](phase24-execution.md).
 **Owner direction:** discussion and explicit answers, 2026-11-05.
 **Decision:** D-045. Implementation steps: [rolling plan](../rolling-plan.md).
 
@@ -187,12 +188,22 @@ in P24.1; do not narrow the owner's browsing scope silently.
 
 ## Verification and exit evidence
 
-Every step is solo, one commit, awaiting owner verification after implementation.
+The owner amended the solo workflow on 2026-11-05: routine steps continue
+autonomously in the execution protocol order, one commit per step, awaiting
+owner verification. New sheets/views stop for runnable owner review. This is
+a plan review and revision, not the independent phase-gate review.
 No tests are authorized by this plan. Use focused non-test builds/type checks;
 Rust changes also require formatting and relevant Clippy before committing.
 Any essential new test must state its concrete failure, coverage gap, controlled
 inputs and expected runtime before being added; Cameron alone authorizes its
 specific execution. No CI, release gates, tags or publication work here.
+
+Build/type-check evidence permits routine continuation, not owner acceptance.
+Start with the current imported-pack baseline so future provenance tracking
+does not mislabel existing files. Freeze snapshot content AND instruction asset
+versions: adding screenshots later must not silently change old publications.
+Package optional-but-inactive assets without modifying shared user options;
+launcher-specific limitations are explained, not hidden.
 
 The acceptance record will map each step to manual scenarios and observations:
 compatible/incompatible creation, both mismatch choices, both providers and local

@@ -72,7 +72,7 @@ Every entry records **Origin** (where the idea came from), **Approved by**, and 
 | D-042 | Retire modded map repair and private client capture | **Approved** | 2026-10-06 |
 | D-043 | Restore a host-local full-screen terminal client | **Approved** | 2026-10-26 |
 | D-044 | Server-specific Java selection; host default is fallback only | **Approved** | 2026-11-03 |
-| D-045 | Modpack discovery, player content and file exports | **Approved** product direction; implementation plan awaiting Read | 2026-11-05 |
+| D-045 | Modpack discovery, player content and file exports | **Approved** product direction and autonomous workflow | 2026-11-05 |
 
 ---
 
@@ -1463,10 +1463,19 @@ clearly incomplete exports while unresolved required content blocks complete
 publication. Initial guides cover Minecraft Launcher, Prism, Modrinth App,
 CurseForge App and SKlauncher with owner-provided screenshots.
 
+**Workflow amendment, owner-approved 2026-11-05.** Cameron requested autonomous
+execution instead of 24 individual prompts, with review stops for new sheets
+or views. A single execution request authorizes the ordered Phase 24 steps
+through each explicit review checkpoint. Routine owner verification may remain
+pending while implementation continues after permitted checks. One commit per
+step, explicit UI approval, final owner acceptance, independent gate review and
+test/release restrictions remain. See [execution protocol](addons/phase24-execution.md).
+This amendment changes workflow only; this plan revision does not begin code work.
+
 **Boundaries.** Existing no-hosted-backend and no-browser-management decisions
-remain. This does not authorize implementation, tests or release changes.
+remain. This does not authorize tests or release changes.
 [Phase 24 scope](addons/phase24-scope.md) separates the approved behavior from
-proposed engineering mechanisms; the step list awaits the owner's Read.
+proposed engineering mechanisms; the execution protocol records stop/resume rules.
 
 **Revisit if:** provider/launcher format or distribution restrictions make an
 agreed behavior impossible; explain the concrete limit before narrowing scope.

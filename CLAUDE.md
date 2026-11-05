@@ -50,9 +50,24 @@ step in `rolling-plan.md`, make one commit, and stop for Cameron's verification.
 The other agent reviews the phase when Cameron requests it. The test and
 release-workflow restrictions below still apply.
 
+**Phase 24 execution exception (owner-approved 2026-11-05):** Cameron
+requested autonomous continuation instead of one prompt per step. After a
+Phase 24 execution request, follow the explicit order and review stops in
+`docs/msc2/addons/phase24-execution.md`. Continue through routine steps after
+permitted checks, keeping one commit per step and owner verification pending.
+Stop with a runnable candidate for each new sheet/view (desktop or TUI), and
+wait for Cameron's explicit review before proceeding. Record approval and
+resume from the ledger; continuation prompts and elapsed time are not approval.
+Same-step check failures may be repaired and rechecked before continuing; never
+advance with a failed check. This overrides only Phase 24's per-conversation/solo
+batching limits, the immediate-failure handoff rule, and defers
+routine owner verification to checkpoints/final acceptance. It does not
+authorize tests, phase closure, release work, live destructive operations or
+unrelated changes. Plan revision alone does not start feature implementation.
+
 ## Modes
 
-Outside the Phase 22 exception above, every prompt names one of these. Do only the named mode.
+Outside the Phase 22 and Phase 24 exceptions above, every prompt names one of these. Do only the named mode.
 
 | Mode | You do |
 |---|---|

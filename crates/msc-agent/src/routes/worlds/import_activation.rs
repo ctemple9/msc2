@@ -181,6 +181,7 @@ pub async fn export(
             state.staging.downloads.lock().unwrap().insert(
                 id.clone(),
                 StagedDownload {
+                    required_permission: None,
                     owner: credential.credential_id.clone(),
                     expires_at_unix,
                     path: destination,

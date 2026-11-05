@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: 0dedd76b52a76f5762bae57fd4a0b41ff4dec8b54cdd749504b9e9a76e89d6b9
+// Contract SHA-256: e6ab350bc78f84a8e1277439fa3921a3d497f53190a421483d8f600f97fbdb24
 
 export interface paths {
   '/v1/active-server': {
@@ -5352,6 +5352,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/v1/servers/{server_id}/content/exports': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** @description Stream one selected audience from an immutable publication into a ZIP with README.html/README.txt; frozen instructions; manifest; and organized content folders. Optional inactive cosmetics are placed under optional-content and disabled JARs retain .disabled. Operation result includes stagedDownloadId; authenticated downloadPath; fileName; byteSize; publicationId; audience; complete; expiresAt. No live files/provider APIs are used. Download admission rechecks addons permission. */
+    post: operations['exportContentPublication'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/v1/servers/{server_id}/content/identify': {
     parameters: {
       query?: never;
@@ -8912,6 +8929,7 @@ export interface components {
     };
     ContentCatalogCapabilityDTO: {
       contentPublications?: boolean;
+      contentZipExports?: boolean;
       packAcquisition: boolean;
       playerContentManagement?: boolean;
       playerContentRecovery?: boolean;
@@ -9011,6 +9029,15 @@ export interface components {
     } & {
       [key: string]: unknown;
     };
+    ContentExportRequestDTO: {
+      /** @default false */
+      allowIncomplete: boolean;
+      /** @enum {string} */
+      audience: 'players' | 'server';
+      publicationId: string;
+    } & {
+      [key: string]: unknown;
+    };
     ContentIdentificationDTO: {
       items: components['schemas']['ContentIdentityDTO'][];
       note: string | null;
@@ -9077,6 +9104,7 @@ export interface components {
       [key: string]: unknown;
     };
     ContentPublicationDTO: {
+      archiveLayoutVersion: string;
       audiences: string[];
       /** Format: int64 */
       collectionRevision: number;
@@ -12986,6 +13014,39 @@ export interface operations {
         };
       };
       /** @description Content changed or review unavailable; refresh and review again. */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  exportContentPublication: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        server_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ContentExportRequestDTO'];
+      };
+    };
+    responses: {
+      /** @description Journaled ZIP generation accepted. Poll operation; transfer result is owner-bound and expires. */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['OperationAcceptedDTO'];
+        };
+      };
+      /** @description Publication/audience is unavailable; incomplete consent is missing; or source/destination/permission changed. */
       409: {
         headers: {
           [name: string]: unknown;

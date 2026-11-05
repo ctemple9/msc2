@@ -219,12 +219,14 @@ checks when no affected source has changed. New module paths are proposals.
 
 ### P24.16 — Generate reviewed player and server zip archives
 
-**Status:** planned — not started
-**Files:** crates/msc-application/src/client_export.rs; crates/msc-infrastructure/src/; crates/msc-agent/src/routes/components.rs
+**Status:** implemented — awaiting owner verification
+**Files:** crates/msc-application/src/content_archives.rs; content_publications.rs/content_management.rs/publication_review.rs/operations.rs; crates/msc-agent/src/routes/components/content_archives.rs and staging/download/router/capabilities; provider DTOs; OpenAPI/generated clients; tests/content_archive_safety.rs
 **What:** Stream snapshot ZIPs with audience-correct folders, manifest and instruction hooks. Include approved config/scripts and selected world-slot datapacks; exclude runtime/world/private files. Preflight space, reject unsafe paths/symlinks, avoid arbitrary config copying and make missing/restricted content conspicuous.
 **Verify:** `cargo check -p msc-agent`. Cameron also verifies the corresponding behavior scenarios in `addons/phase24-scope.md` and the P24.1 acceptance record.
 **Commit:** `P24.16: generate reviewed player and server zip archives`
 **Batch:** A — autonomous foundations; no routine owner handoff
+
+**Implementation evidence:** Added asynchronous explicit-publication/audience ZIP generation and authenticated staged file delivery. The builder reads registry-verified frozen files only, checks SHA1/SHA512 while streaming, preflights space, rejects collisions/symlinks/overwrite, writes README.html/README.txt plus audience-scoped manifest/instructions and reports partial-cleanup failures. Optional inactive shaders/resource packs are included under optional-content; disabled JARs stay disabled. `zip-v1` pins historical path/README behavior. Corrected disabled server add-on discovery/publication source handling and narrowed credential-name filtering so legitimate mod/resource names are not rejected by substrings; actual credential/player-list files remain excluded from reviewed config selections. Staged ZIPs carry an addons-permission requirement checked again at download admission; existing generic downloads retain their prior behavior. Content operation cancellation is classified as addons for its initiator, acknowledged separately from failure, and remaining cleanup concerns remain visible. Revalidates host/server/publication binding before transfer admission and never returns archive bytes as JSON or a public sharing endpoint. Focused agent Clippy and frontend check passed (10 existing CSS warnings); schema references resolve. Two essential local ZIP tests cover audience isolation/frozen bytes/HTML escaping/inactive cosmetics and deterministic cancellation cleanup; snapshot-only tests do not inspect ZIP output, expected <150 ms each, not run. Disk exhaustion, large archives, revocation/cancellation, transfers and physical platforms remain owner acceptance.
 
 ### P24.17 — Include optional launcher importable mrpack files
 

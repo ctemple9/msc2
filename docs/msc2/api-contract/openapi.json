@@ -53,6 +53,51 @@
     }
   },
   "paths": {
+    "/v1/servers/{server_id}/content/exports": {
+      "post": {
+        "operationId": "exportContentPublication",
+        "tags": [
+          "Content"
+        ],
+        "description": "Stream one selected audience from an immutable publication into a ZIP with README.html/README.txt; frozen instructions; manifest; and organized content folders. Optional inactive cosmetics are placed under optional-content and disabled JARs retain .disabled. Operation result includes stagedDownloadId; authenticated downloadPath; fileName; byteSize; publicationId; audience; complete; expiresAt. No live files/provider APIs are used. Download admission rechecks addons permission.",
+        "parameters": [
+          {
+            "name": "server_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContentExportRequestDTO"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Journaled ZIP generation accepted. Poll operation; transfer result is owner-bound and expires.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationAcceptedDTO"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Publication/audience is unavailable; incomplete consent is missing; or source/destination/permission changed."
+          }
+        },
+        "x-permission-category": "addons"
+      }
+    },
     "/v1/servers/{server_id}/content/publication-reviews": {
       "post": {
         "operationId": "reviewContentPublication",
@@ -10357,6 +10402,29 @@
   },
   "components": {
     "schemas": {
+      "ContentExportRequestDTO": {
+        "type": "object",
+        "properties": {
+          "publicationId": {
+            "type": "string"
+          },
+          "audience": {
+            "type": "string",
+            "enum": [
+              "players",
+              "server"
+            ]
+          },
+          "allowIncomplete": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        "required": [
+          "publicationId",
+          "audience"
+        ]
+      },
       "PublicationApprovalDTO": {
         "type": "object",
         "properties": {
@@ -10682,6 +10750,7 @@
       "ContentPublicationDTO": {
         "type": "object",
         "properties": {
+          "archiveLayoutVersion": { "type": "string" },
           "schemaVersion": {
             "type": "integer"
           },
@@ -10779,6 +10848,7 @@
           }
         },
         "required": [
+          "archiveLayoutVersion",
           "schemaVersion",
           "id",
           "serverId",
@@ -12084,6 +12154,7 @@
       "ContentCatalogCapabilityDTO": {
         "type": "object",
         "properties": {
+          "contentZipExports": { "type": "boolean" },
           "contentPublications": { "type": "boolean" },
           "reviewedPackReplacement": { "type": "boolean" },
           "reviewedPackUpdates": { "type": "boolean" },

@@ -456,6 +456,7 @@ pub(crate) struct StagedUpload {
 
 #[derive(Debug, Clone)]
 pub(crate) struct StagedDownload {
+    pub(crate) required_permission: Option<PermissionCategoryDto>,
     pub(crate) owner: String,
     pub(crate) expires_at_unix: u64,
     pub(crate) path: PathBuf,

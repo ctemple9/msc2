@@ -76,6 +76,8 @@ pub struct ContentCatalogCapabilityDto {
     pub reviewed_pack_replacement: bool,
     #[serde(default)]
     pub content_publications: bool,
+    #[serde(default)]
+    pub content_zip_exports: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -329,4 +331,13 @@ pub struct PublishContentDto {
     pub review_id: String,
     #[serde(default)]
     pub incomplete_consent: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ContentExportRequestDto {
+    pub publication_id: String,
+    pub audience: String,
+    #[serde(default)]
+    pub allow_incomplete: bool,
 }

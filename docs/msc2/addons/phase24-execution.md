@@ -126,14 +126,14 @@ commits per turn. Rolling-plan statuses and Git history remain the step record.
 
 | Field | Current value |
 |---|---|
-| Run state | executing — P24.15 implemented; autonomous goal active |
-| Current step | P24.16 |
-| Next action | Implement streaming Player/Server ZIP export from frozen publications with manifest, truthful frozen instruction assets and no runtime/world/private content. Then P24.17 .mrpack, P24.18 saving and P24.21 CLI before the first UI checkpoint. Continue without routine handoff. |
-| Last implementation commit | P24.15: publish immutable dated content revisions |
+| Run state | executing — P24.16 implemented; autonomous goal active |
+| Current step | P24.17 |
+| Next action | Implement optional nested .mrpack from the exact same frozen publication/audience, with pinned game/loader metadata and eligible bytes. Explain unsupported plugin/server bundles explicitly; then continue saving and CLI foundations. No UI checkpoint yet. |
+| Last implementation commit | P24.16: generate reviewed player and server zip archives |
 | Pending UI review | none |
-| Candidate base commit / changed files | P24.15 committed; next slice P24.16 |
+| Candidate base commit / changed files | P24.16 committed; next slice P24.17 |
 | Owner approval evidence | none |
-| Checks and outcomes | P24.15 focused agent Clippy passed; API generation/frontend check passed (10 existing CSS warnings); schema references resolve. Three essential publication safety tests added, not run. Text-v1 guides explicitly lack owner screenshots; P24.20 acceptance remains open. |
+| Checks and outcomes | P24.16 focused agent Clippy passed; API generation/frontend check passed (10 existing CSS warnings); schema references resolve. Two essential archive tests added, not run. Export layout zip-v1 and frozen text-v1 guides are pinned; screenshots remain P24.20. |
 | External prerequisites | owner screenshots for P24.20; usable provider key/content for live acceptance |
 | Deferred owner acceptance | all physical feature/platform scenarios |
 

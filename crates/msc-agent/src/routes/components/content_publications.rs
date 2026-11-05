@@ -104,6 +104,9 @@ pub(super) async fn review(
                 return Err("Server or permission changed during review".into());
             }
             service::load(&fresh, &review.id, &credential.credential_id)?;
+            if cancelled() {
+                return Err("Publication review cancelled or permission revoked".into());
+            }
             Ok::<_, String>(review.id)
         })();
         match result {
@@ -117,7 +120,12 @@ pub(super) async fn review(
                 );
             }
             Err(error) => {
-                let _ = operations.fail(&operation, "publication_review_failed", error);
+                if cancel() {
+                    let _ = operations
+                        .cancel(&operation, &format!("Content operation cancelled: {error}"));
+                } else {
+                    let _ = operations.fail(&operation, "publication_review_failed", error);
+                }
             }
         }
     });
@@ -263,7 +271,12 @@ pub(super) async fn publish(
                 let _ = operations.succeed(&operation, "Dated content publication frozen", result);
             }
             Err(error) => {
-                let _ = operations.fail(&operation, "publication_failed", error);
+                if cancel() {
+                    let _ = operations
+                        .cancel(&operation, &format!("Content operation cancelled: {error}"));
+                } else {
+                    let _ = operations.fail(&operation, "publication_failed", error);
+                }
             }
         }
     });

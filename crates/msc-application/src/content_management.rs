@@ -48,25 +48,41 @@ pub fn content_path(path: &str) -> Result<(), String> {
     ) {
         return Err("Choose a supported content folder".into());
     }
-    if matches!(folder, "mods" | "plugins") && (name.contains('/') || !name.ends_with(".jar")) {
+    if matches!(folder, "mods" | "plugins")
+        && (name.contains('/') || !(name.ends_with(".jar") || name.ends_with(".jar.disabled")))
+    {
         return Err("Mods and plugins must be individual JAR files".into());
     }
-    let lower = path.to_ascii_lowercase();
-    if [
-        "token",
-        "credential",
-        "secret",
-        "password",
-        "private_key",
-        ".pem",
-        ".key",
-        "session",
-        "account",
-    ]
-    .iter()
-    .any(|word| lower.contains(word))
+    let filename = path.rsplit('/').next().unwrap_or("").to_ascii_lowercase();
+    let stem = filename
+        .rsplit_once('.')
+        .map_or(filename.as_str(), |(stem, _)| stem);
+    if matches!(folder, "config" | "scripts" | "kubejs" | "defaultconfigs")
+        && (matches!(
+            stem,
+            "token"
+                | "tokens"
+                | "credential"
+                | "credentials"
+                | "secret"
+                | "secrets"
+                | "password"
+                | "passwords"
+                | "private_key"
+                | "session"
+                | "accounts"
+                | "launcher_accounts"
+                | "usercache"
+                | "whitelist"
+                | "ops"
+                | "banned-players"
+                | "banned-ips"
+        ) || filename.ends_with(".pem")
+            || filename.ends_with(".key"))
     {
-        return Err("Credential or account files cannot be selected as content".into());
+        return Err(
+            "Credential, account or player-list files cannot be selected as content".into(),
+        );
     }
     Ok(())
 }
@@ -114,7 +130,30 @@ pub fn snapshot(server: &ConfigServer) -> Result<Snapshot, String> {
                 if name.ends_with(".jar.disabled") {
                     let path = format!("{folder}/{name}");
                     let identity = identify(&managed_path(&server.server_dir, &path)?)?;
-                    baseline.insert(path, identity.sha512);
+                    baseline.insert(path.clone(), identity.sha512.clone());
+                    let canonical = path
+                        .strip_suffix(".disabled")
+                        .ok_or("Invalid disabled add-on name")?;
+                    let active = managed_path(&server.server_dir, canonical)?
+                        .try_exists()
+                        .map_err(|error| error.to_string())?;
+                    if active || !collection.current_files.contains_key(canonical) {
+                        let mut disabled = fresh_entry(&path, &identity);
+                        disabled.audience = ContentAudience::Server;
+                        disabled.classification_evidence =
+                            vec!["Disabled server add-on; activation is not requested".into()];
+                        disabled.unresolved_reasons.clear();
+                        disabled
+                            .extra
+                            .insert("serverEnabled".into(), serde_json::Value::Bool(false));
+                        if !collection
+                            .current_files
+                            .get(&path)
+                            .is_some_and(|known| known.sha512 == identity.sha512)
+                        {
+                            collection.current_files.insert(path, disabled);
+                        }
+                    }
                     continue;
                 }
                 if !name.ends_with(".jar") {
@@ -141,6 +180,9 @@ pub fn snapshot(server: &ConfigServer) -> Result<Snapshot, String> {
     }
     for (path, entry) in &mut collection.current_files {
         if baseline.contains_key(path) {
+            if !path.ends_with(".jar.disabled") {
+                entry.extra.remove("serverEnabled");
+            }
             continue;
         }
         let actual = managed_path(&server.server_dir, path).and_then(|path| identify(&path));
@@ -151,7 +193,18 @@ pub fn snapshot(server: &ConfigServer) -> Result<Snapshot, String> {
                     *entry = fresh_entry(path, &identity);
                 }
             }
-            Err(_) if baseline.get(&format!("{path}.disabled")) == Some(&entry.sha512) => {
+            Err(_) if baseline.contains_key(&format!("{path}.disabled")) => {
+                let disabled = identify(&managed_path(
+                    &server.server_dir,
+                    &format!("{path}.disabled"),
+                )?)?;
+                if disabled.sha512 != entry.sha512 {
+                    *entry = fresh_entry(path, &disabled);
+                    entry.audience = ContentAudience::Server;
+                    entry.classification_evidence =
+                        vec!["Disabled server add-on; activation is not requested".into()];
+                    entry.unresolved_reasons.clear();
+                }
                 entry
                     .extra
                     .insert("serverEnabled".into(), serde_json::Value::Bool(false));

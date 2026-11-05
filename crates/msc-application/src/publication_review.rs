@@ -414,29 +414,26 @@ pub fn prepare(
                 issues.push(issue(audience,Some(path),!entry.optional,"Redistribution eligibility needs review; download authorization alone is insufficient"));
                 continue;
             };
-            let source = if audience == "players" {
-                management::player_source(server, entry)
-            } else {
-                crate::content_install::managed_path(&server.server_dir, path)
-            };
-            let _source = match source {
-                Ok(source) => source,
-                Err(error) => {
-                    issues.push(issue(audience, Some(path), !entry.optional, error));
-                    continue;
-                }
-            };
-            let raw_relative = if audience == "players" {
+            let server_disabled = audience == "server"
+                && entry
+                    .extra
+                    .get("serverEnabled")
+                    .and_then(serde_json::Value::as_bool)
+                    == Some(false);
+            let relative = if audience == "players" {
                 entry
                     .extra
                     .get("retainedPath")
                     .and_then(serde_json::Value::as_str)
                     .ok_or("Player source path disappeared")?
+                    .to_string()
+            } else if server_disabled && !path.ends_with(".jar.disabled") {
+                format!("{path}.disabled")
             } else {
-                path.as_str()
+                path.clone()
             };
-            let source = match crate::content_publications::checked_source(server, raw_relative) {
-                Ok(path) => path,
+            let source = match crate::content_publications::checked_source(server, &relative) {
+                Ok(source) => source,
                 Err(error) => {
                     issues.push(issue(audience, Some(path), !entry.optional, error));
                     continue;
@@ -452,16 +449,6 @@ pub fn prepare(
             if actual.sha512 != entry.sha512 || actual.byte_size != entry.byte_size {
                 return Err(format!("Content changed during publication review: {key}"));
             }
-            let relative = if audience == "players" {
-                entry
-                    .extra
-                    .get("retainedPath")
-                    .and_then(serde_json::Value::as_str)
-                    .ok_or("Player source path disappeared")?
-                    .to_string()
-            } else {
-                path.clone()
-            };
             files.push(PreparedPublicationFile {
                 audience: audience.into(),
                 source_relative: relative,
@@ -471,14 +458,16 @@ pub fn prepare(
                     sha1: actual.sha1,
                     byte_size: actual.byte_size,
                     optional: entry.optional,
-                    enabled: entry
-                        .extra
-                        .get("enabled")
-                        .and_then(serde_json::Value::as_bool)
-                        .unwrap_or(
-                            !path.starts_with("resourcepacks/")
-                                && !path.starts_with("shaderpacks/"),
-                        ),
+                    enabled: !server_disabled
+                        && !path.ends_with(".jar.disabled")
+                        && entry
+                            .extra
+                            .get("enabled")
+                            .and_then(serde_json::Value::as_bool)
+                            .unwrap_or(
+                                !path.starts_with("resourcepacks/")
+                                    && !path.starts_with("shaderpacks/"),
+                            ),
                     source: entry.source.clone(),
                     classification_evidence: entry.classification_evidence.clone(),
                     redistribution_evidence: evidence,

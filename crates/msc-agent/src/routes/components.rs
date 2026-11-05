@@ -1,6 +1,7 @@
 //! P8.24: add-on, catalog, client-export, modpack, and shared staging
 //! routes wired to the real Phase 8 application services.
 
+mod content_archives;
 mod content_install;
 mod content_management;
 mod content_publications;
@@ -292,6 +293,10 @@ pub fn router(state: ComponentsRoutesState) -> Router {
         .route(
             "/servers/:server_id/content/collection",
             get(content_management::get),
+        )
+        .route(
+            "/servers/:server_id/content/exports",
+            post(content_archives::export),
         )
         .route(
             "/servers/:server_id/content/publication-reviews",
@@ -1436,6 +1441,13 @@ pub async fn download_staged_bytes(
                 "Unknown staged download.",
             );
         }
+        if let Some(permission) = downloads
+            .get(&id)
+            .and_then(|entry| entry.required_permission)
+            && let Some(response) = require_permission(&credential, permission)
+        {
+            return response;
+        }
         if !downloads.contains_key(&id) {
             return error_response(
                 StatusCode::NOT_FOUND,
@@ -2061,6 +2073,7 @@ pub async fn get_client_export(
             state.staging.downloads.lock().unwrap().insert(
                 id.clone(),
                 StagedDownload {
+                    required_permission: None,
                     owner: credential.credential_id.clone(),
                     expires_at_unix: now_unix() + STAGING_TTL_SECONDS,
                     path,

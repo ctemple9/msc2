@@ -512,9 +512,13 @@ fn required_permission_for(operation_type: &str) -> Option<&'static str> {
         "server-create" | "paper-import" => Some("fleet"),
         "java-start" | "bedrock-start" | "bedrock-stop" | "bedrock-crash" => Some("serverControl"),
         "java-download" => Some("settings"),
-        "version-change" | "bedrock-version-change" | "modpack-import" | "catalog-acquire" => {
-            Some("addons")
-        }
+        "version-change"
+        | "bedrock-version-change"
+        | "modpack-import"
+        | "catalog-acquire"
+        | "content-publication-review"
+        | "content-publish"
+        | "content-export" => Some("addons"),
         "host-reset" => Some("admin"),
         "xbox-broadcast" | "broadcast-jar-download" => Some("broadcast"),
         name if name.starts_with("world-") || name.starts_with("backup-") => Some("worlds"),

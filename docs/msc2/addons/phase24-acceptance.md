@@ -144,3 +144,18 @@ references resolve. Three essential local safety tests cover source independence
 manifest integrity and restriction/consent boundaries, expected <100 ms each,
 not run. Publication/revocation/cancellation flows, large worlds/packs, resource
 limits/disk exhaustion, platform behavior and all owner acceptance are pending.
+
+P24.16: streaming audience-specific ZIP generation and permission-bound staged
+binary delivery are wired. Output contains frozen bytes, README text/escaped
+HTML, manifest and frozen instruction files; optional cosmetics are included
+inactive and disabled JARs preserve disabled state. Archive layout zip-v1 is
+pinned for historical exports. Space, hashes, paths, collisions, cancellation,
+cleanup errors and transfer-admission bindings are checked. Disabled server
+publication paths and content-operation cancellation permissions were corrected;
+new staged exports require addons permission again at download admission.
+Focused agent Clippy/API generation/frontend checks passed (10 existing CSS
+warnings); schema references resolve. Two essential local ZIP tests cover
+scope/frozen-byte integrity/inactive assets/HTML safety and deterministic cancel
+cleanup, expected <150 ms each, not run. Large-file/resource limits, cleanup
+failures, revoked credentials, transfer disconnects and physical platforms remain
+unverified. Launcher screenshots/illustrated guide acceptance remains P24.20.

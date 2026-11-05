@@ -53,6 +53,8 @@ pub struct Publication {
     pub loader: String,
     pub loader_version: Option<String>,
     pub guide_version: String,
+    #[serde(default = "archive_layout_version")]
+    pub archive_layout_version: String,
     pub guide_assets: BTreeMap<String, GuideFile>,
     pub incomplete_consent: bool,
     pub issues: Vec<PublicationIssue>,
@@ -82,6 +84,9 @@ pub(crate) fn checked_source(server: &ConfigServer, relative: &str) -> Result<Pa
     crate::content_install::managed_path(&server.server_dir, relative)
 }
 
+fn archive_layout_version() -> String {
+    "zip-v1".into()
+}
 fn directory(server: &ConfigServer, id: &str) -> Result<PathBuf, String> {
     msc_domain::content_collection::validate_relative_path(id)?;
     if id.contains('/') || id.len() > 100 {
@@ -247,6 +252,7 @@ pub fn freeze(
         loader: server.java_flavor.raw_value().into(),
         loader_version: server.loader_version.clone(),
         guide_version: guide_version.into(),
+        archive_layout_version: archive_layout_version(),
         guide_assets: BTreeMap::new(),
         incomplete_consent,
         issues,
@@ -510,7 +516,7 @@ pub fn load(server: &ConfigServer, id: &str) -> Result<Publication, String> {
     validate(&publication, server, id)?;
     Ok(publication)
 }
-pub fn frozen_file(
+pub(crate) fn frozen_file_location(
     server: &ConfigServer,
     publication: &Publication,
     file: &PublishedFile,
@@ -528,7 +534,15 @@ pub fn frozen_file(
     if publication.server_id != server.id || !belongs {
         return Err("File does not belong to this publication".into());
     }
-    let path = blob(server, &publication.id, &file.sha512)?;
+    blob(server, &publication.id, &file.sha512)
+}
+
+pub fn frozen_file(
+    server: &ConfigServer,
+    publication: &Publication,
+    file: &PublishedFile,
+) -> Result<PathBuf, String> {
+    let path = frozen_file_location(server, publication, file)?;
     let actual = identify(&path)?;
     if actual.sha512 != file.sha512
         || actual.sha1 != file.sha1

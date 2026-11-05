@@ -5,6 +5,7 @@
 use msc_application::content_install::{self, InstallFile, InstallReview, StoredInstallReview};
 use msc_domain::app_config_schema::ConfigServer;
 use msc_domain::identity::JavaServerFlavor;
+use std::collections::BTreeMap;
 use std::io::Write;
 use std::path::PathBuf;
 
@@ -43,6 +44,7 @@ fn fixture() -> (Fixture, ConfigServer, StoredInstallReview) {
         flavor: "fabric".into(),
         created_unix: 0,
         collection_revision: 0,
+        replacements: BTreeMap::new(),
         baseline: content_install::content_baseline(&server).unwrap(),
         review: InstallReview {
             provider: "curseforge".into(),
@@ -112,4 +114,53 @@ fn recovery_preserves_owner_edits_after_interruption() {
         b"owner changed this after the interrupted install"
     );
     assert!(marker.exists());
+}
+
+// Essential update regressions: the original must survive a failed metadata
+// commit whether the provider keeps or changes its filename. Same controlled
+// fixture and runtime bound as the install checks above; not auto-authorized.
+#[test]
+fn failed_same_name_update_restores_original_bytes() {
+    let (root, server, mut record) = fixture();
+    let original = root.0.join("mods/example.jar");
+    std::fs::write(&original, b"original installed bytes").unwrap();
+    record.baseline = content_install::content_baseline(&server).unwrap();
+    record
+        .replacements
+        .insert("example.jar".into(), "example.jar".into());
+    let result = content_install::activate(&server, &record, &|| false, &mut |_| {
+        Err("controlled metadata save failure".into())
+    });
+    assert!(result.is_err());
+    assert_eq!(
+        std::fs::read(original).unwrap(),
+        b"original installed bytes"
+    );
+    assert_eq!(
+        content_install::content_baseline(&server).unwrap(),
+        record.baseline
+    );
+}
+
+#[test]
+fn failed_renamed_update_restores_original_filename() {
+    let (root, server, mut record) = fixture();
+    std::fs::write(root.0.join("mods/previous.jar"), b"previous release").unwrap();
+    record.baseline = content_install::content_baseline(&server).unwrap();
+    record
+        .replacements
+        .insert("previous.jar".into(), "example.jar".into());
+    let result = content_install::activate(&server, &record, &|| false, &mut |_| {
+        Err("controlled metadata save failure".into())
+    });
+    assert!(result.is_err());
+    assert!(!root.0.join("mods/example.jar").exists());
+    assert_eq!(
+        std::fs::read(root.0.join("mods/previous.jar")).unwrap(),
+        b"previous release"
+    );
+    assert_eq!(
+        content_install::content_baseline(&server).unwrap(),
+        record.baseline
+    );
 }

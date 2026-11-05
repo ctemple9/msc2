@@ -59,7 +59,7 @@ fn compatible(file: &cf::Release, flavor: JavaServerFlavor, game_version: &str) 
                 .any(|version| version.eq_ignore_ascii_case(flavor.raw_value())))
 }
 
-fn dependency_release(
+pub(crate) fn dependency_release(
     transport: &dyn AddonTransport,
     secrets: &dyn SecretStore,
     project: u64,
@@ -133,6 +133,36 @@ pub fn review_curseforge(
     game_version: &str,
     cancelled: &dyn Fn() -> bool,
 ) -> Result<InstallReview, AddonProviderError> {
+    review_curseforge_with_pins(
+        transport,
+        secrets,
+        project_id,
+        file_id,
+        ReviewContext {
+            flavor,
+            game_version,
+            installed: &BTreeMap::new(),
+        },
+        cancelled,
+    )
+}
+
+pub struct ReviewContext<'a> {
+    pub flavor: JavaServerFlavor,
+    pub game_version: &'a str,
+    pub installed: &'a BTreeMap<u64, u64>,
+}
+
+pub fn review_curseforge_with_pins(
+    transport: &dyn AddonTransport,
+    secrets: &dyn SecretStore,
+    project_id: u64,
+    file_id: u64,
+    context: ReviewContext<'_>,
+    cancelled: &dyn Fn() -> bool,
+) -> Result<InstallReview, AddonProviderError> {
+    let flavor = context.flavor;
+    let game_version = context.game_version;
     if flavor.add_on_kind().is_none() || game_version.is_empty() {
         return Err(invalid(
             "A mod/plugin server and exact Minecraft version are required",
@@ -168,14 +198,24 @@ pub fn review_curseforge(
         }
         let file = match selected {
             Some(file) => file,
-            None => dependency_release(
-                transport,
-                secrets,
-                project_id,
-                flavor,
-                game_version,
-                cancelled,
-            )?,
+            None => {
+                let pinned = context
+                    .installed
+                    .get(&project_id)
+                    .map(|id| cf::release(transport, secrets, project_id, *id))
+                    .transpose()?;
+                match pinned.filter(|file| compatible(file, flavor, game_version)) {
+                    Some(file) => file,
+                    None => dependency_release(
+                        transport,
+                        secrets,
+                        project_id,
+                        flavor,
+                        game_version,
+                        cancelled,
+                    )?,
+                }
+            }
         };
         validate_relative_path(&file.file_name).map_err(invalid)?;
         if file.file_name.contains('/')
@@ -272,10 +312,12 @@ pub struct StoredInstallReview {
     pub created_unix: u64,
     pub collection_revision: u64,
     pub baseline: BTreeMap<String, String>,
+    #[serde(default)]
+    pub replacements: BTreeMap<String, String>,
     pub review: InstallReview,
 }
 
-fn managed_path(server_dir: &str, relative: &str) -> Result<std::path::PathBuf, String> {
+pub fn managed_path(server_dir: &str, relative: &str) -> Result<std::path::PathBuf, String> {
     let home = std::env::var_os("HOME")
         .or_else(|| std::env::var_os("USERPROFILE"))
         .map(std::path::PathBuf::from)
@@ -581,7 +623,14 @@ pub fn recover_activation(
                 std::fs::remove_file(temporary).map_err(|error| error.to_string())?;
             }
             if record.baseline.contains_key(&file.file_name) {
-                continue;
+                let replacing = record.replacements.get(&file.file_name) == Some(&file.file_name);
+                if !replacing
+                    || !rollback_path(&record, &file.file_name)?
+                        .try_exists()
+                        .map_err(|error| error.to_string())?
+                {
+                    continue;
+                }
             }
             let destination = managed_path(
                 &record.server_dir,
@@ -591,6 +640,13 @@ pub fn recover_activation(
                 .try_exists()
                 .map_err(|error| error.to_string())?
             {
+                if record
+                    .baseline
+                    .get(&file.file_name)
+                    .is_some_and(|hash| verify_original(&destination, hash).is_ok())
+                {
+                    continue;
+                }
                 verify_file(&destination, file).map_err(|_| {
                     format!(
                         "Content recovery preserved changed file {}; inspect it before retrying",
@@ -601,7 +657,61 @@ pub fn recover_activation(
             }
         }
     }
+    if !committed {
+        let flavor =
+            JavaServerFlavor::from_raw_value(&record.flavor).ok_or("Invalid recovery flavor")?;
+        let folder = flavor
+            .add_on_kind()
+            .ok_or("Invalid recovery content kind")?
+            .folder_name();
+        for original in record.replacements.keys() {
+            let backup = rollback_path(&record, original)?;
+            if !backup.try_exists().map_err(|error| error.to_string())? {
+                continue;
+            }
+            verify_original(
+                &backup,
+                record
+                    .baseline
+                    .get(original)
+                    .ok_or("Missing original identity")?,
+            )?;
+            let destination = managed_path(&record.server_dir, &format!("{folder}/{original}"))?;
+            if destination
+                .try_exists()
+                .map_err(|error| error.to_string())?
+            {
+                verify_original(&destination, &record.baseline[original])?;
+            } else {
+                std::fs::hard_link(&backup, &destination).map_err(|error| error.to_string())?;
+            }
+            std::fs::remove_file(backup).map_err(|error| error.to_string())?;
+        }
+    }
     std::fs::remove_file(marker).map_err(|error| error.to_string())
+}
+
+fn rollback_path(
+    record: &StoredInstallReview,
+    original: &str,
+) -> Result<std::path::PathBuf, String> {
+    validate_relative_path(original)?;
+    if original.contains('/') {
+        return Err("Unsafe original filename".into());
+    }
+    review_relative(&record.id)?;
+    managed_path(
+        &record.server_dir,
+        &format!(".msc2-content/install/{}/rollback/{original}", record.id),
+    )
+}
+
+fn verify_original(path: &std::path::Path, expected_sha512: &str) -> Result<(), String> {
+    let identity = msc_infrastructure::addon_provider::fingerprint::identify(path)?;
+    if identity.sha512 != expected_sha512 {
+        return Err("Original file changed; recovery preserved it for inspection".into());
+    }
+    Ok(())
 }
 
 /// The caller holds server operation exclusivity and ensures it is stopped.
@@ -631,6 +741,33 @@ pub fn activate(
         .java_flavor
         .add_on_kind()
         .ok_or("Server has no add-ons")?;
+    let mut targets = BTreeSet::new();
+    for (original, replacement) in &record.replacements {
+        validate_relative_path(original)?;
+        validate_relative_path(replacement)?;
+        if original.contains('/')
+            || replacement.contains('/')
+            || !record
+                .review
+                .files
+                .iter()
+                .any(|file| file.file_name == *replacement)
+            || !targets.insert(replacement)
+        {
+            return Err("Invalid or ambiguous replacement plan".into());
+        }
+        let expected = record
+            .baseline
+            .get(original)
+            .ok_or("Original file is absent from review")?;
+        verify_original(
+            &managed_path(
+                &record.server_dir,
+                &format!("{}/{original}", kind.folder_name()),
+            )?,
+            expected,
+        )?;
+    }
     for file in &record.review.files {
         validate_relative_path(&file.file_name)?;
         if file.file_name.contains('/') {
@@ -641,16 +778,17 @@ pub fn activate(
             &server.server_dir,
             &format!("{}/{}", kind.folder_name(), file.file_name),
         )?;
-        if record
-            .baseline
-            .keys()
-            .any(|name| name.eq_ignore_ascii_case(&file.file_name) && name != &file.file_name)
-        {
+        if record.baseline.keys().any(|name| {
+            name.eq_ignore_ascii_case(&file.file_name)
+                && name != &file.file_name
+                && !record.replacements.contains_key(name)
+        }) {
             return Err("A reviewed filename collides with existing content".into());
         }
         if destination
             .try_exists()
             .map_err(|error| error.to_string())?
+            && record.replacements.get(&file.file_name) != Some(&file.file_name)
         {
             verify_file(&destination, file)?;
         }
@@ -664,11 +802,32 @@ pub fn activate(
     )
     .map_err(|error| error.to_string())?;
     let result = (|| {
+        for original in record.replacements.keys() {
+            if cancelled() {
+                return Err("Content activation cancelled".into());
+            }
+            let backup = rollback_path(record, original)?;
+            if let Some(parent) = backup.parent() {
+                std::fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+            }
+            let original_path = managed_path(
+                &server.server_dir,
+                &format!("{}/{original}", kind.folder_name()),
+            )?;
+            // Copy-free rollback storage retains the original inode without
+            // ever overwriting another backup or a later owner edit.
+            std::fs::hard_link(&original_path, &backup).map_err(|error| error.to_string())?;
+            verify_original(&backup, &record.baseline[original])?;
+            verify_original(&original_path, &record.baseline[original])?;
+            std::fs::remove_file(original_path).map_err(|error| error.to_string())?;
+        }
         for file in &record.review.files {
             if cancelled() {
                 return Err("Content activation cancelled".into());
             }
-            if record.baseline.contains_key(&file.file_name) {
+            if record.baseline.contains_key(&file.file_name)
+                && !record.replacements.contains_key(&file.file_name)
+            {
                 continue;
             }
             let destination = managed_path(
@@ -708,9 +867,30 @@ pub fn activate(
             .revision
             .checked_add(1)
             .ok_or("Content revision overflow")?;
+        let previous_entries = collection.current_files.clone();
+        for original in record.replacements.keys() {
+            collection
+                .current_files
+                .remove(&format!("{}/{original}", kind.folder_name()));
+        }
         for file in &record.review.files {
             let path = format!("{}/{}", kind.folder_name(), file.file_name);
-            let previous = collection.current_files.get(&path).cloned();
+            let old_name = record
+                .replacements
+                .iter()
+                .find(|(_, target)| *target == &file.file_name)
+                .map(|(original, _)| original);
+            let previous = previous_entries
+                .get(&path)
+                .or_else(|| {
+                    old_name.and_then(|name| {
+                        previous_entries.get(&format!("{}/{name}", kind.folder_name()))
+                    })
+                })
+                .cloned();
+            let same_bytes = previous
+                .as_ref()
+                .is_some_and(|entry| installed.get(&file.file_name) == Some(&entry.sha512));
             collection.current_files.insert(
                 path.clone(),
                 ContentEntry {
@@ -731,11 +911,13 @@ pub fn activate(
                     }),
                     redistribution_evidence: previous
                         .as_ref()
+                        .filter(|_| same_bytes)
                         .and_then(|entry| entry.redistribution_evidence.clone()),
                     classification_evidence: previous
                         .as_ref()
+                        .filter(|_| same_bytes)
                         .map_or_else(Vec::new, |entry| entry.classification_evidence.clone()),
-                    unresolved_reasons: previous.as_ref().map_or_else(
+                    unresolved_reasons: previous.as_ref().filter(|_| same_bytes).map_or_else(
                         || vec!["Player requirements have not been reviewed".into()],
                         |entry| entry.unresolved_reasons.clone(),
                     ),

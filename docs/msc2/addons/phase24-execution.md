@@ -126,14 +126,14 @@ commits per turn. Rolling-plan statuses and Git history remain the step record.
 
 | Field | Current value |
 |---|---|
-| Run state | executing — P24.4 implemented; autonomous goal active |
-| Current step | P24.5 |
-| Next action | P24.5 provider-qualified identification, manual links and updates |
-| Last implementation commit | P24.4: resolve curseforge installs and dependencies |
+| Run state | executing — P24.5 implemented; autonomous goal active |
+| Current step | P24.6 |
+| Next action | P24.6 retain complete original/client pack content before server filtering, including manual files |
+| Last implementation commit | P24.5: extend identification and updates across providers |
 | Pending UI review | none |
 | Candidate base commit / changed files | none |
 | Owner approval evidence | none |
-| Checks and outcomes | P24.4 agent check/Clippy passed; API generation and frontend check passed (10 existing CSS warnings); three essential safety tests added, not run |
+| Checks and outcomes | P24.5 agent Clippy/build passed; API generation and frontend check passed (10 existing CSS warnings); two additional safety tests added, not run |
 | External prerequisites | owner screenshots for P24.20; usable provider key/content for live acceptance |
 | Deferred owner acceptance | all physical feature/platform scenarios |
 

@@ -154,6 +154,8 @@ async fn capabilities_for_query(
             protocol: 1,
             providers: vec!["modrinth".into(), "curseforge".into()],
             reviewed_installs: vec!["curseforge".into()],
+            source_identification: vec!["curseforge".into()],
+            reviewed_updates: vec!["curseforge".into()],
             pack_acquisition: credential
                 .permissions
                 .contains(&msc_api::dto::PermissionCategoryDto::Addons),

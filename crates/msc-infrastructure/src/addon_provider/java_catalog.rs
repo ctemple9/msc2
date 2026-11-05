@@ -228,3 +228,47 @@ pub struct Category {
 pub struct Author {
     pub name: String,
 }
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FingerprintMatches {
+    pub is_cache_built: bool,
+    #[serde(default)]
+    pub exact_matches: Vec<FingerprintMatch>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct FingerprintMatch {
+    pub id: i64,
+    pub file: Release,
+}
+
+pub fn fingerprint_matches(
+    transport: &dyn AddonTransport,
+    secrets: &dyn SecretStore,
+    fingerprints: &[u32],
+) -> Result<Vec<FingerprintMatch>, AddonProviderError> {
+    let key = curseforge_api_key(secrets)?;
+    let mut matches = Vec::new();
+    for chunk in fingerprints.chunks(MAX_BATCH_SIZE) {
+        let response = transport
+            .post_json(
+                &format!("{}/v1/fingerprints/432", curseforge_base()),
+                "CurseForge fingerprints",
+                &serde_json::json!({"fingerprints": chunk}),
+                &[("x-api-key", key.as_str())],
+                RESPONSE_MAX_BYTES,
+            )
+            .map_err(map_transport_err)?;
+        ensure_curseforge_ok_for("fingerprint lookup", response.status)?;
+        let envelope: Envelope<FingerprintMatches> = serde_json::from_slice(&response.body)
+            .map_err(|error| malformed("CurseForge fingerprints", error))?;
+        if !envelope.data.is_cache_built {
+            return Err(AddonProviderError::Network(
+                "CurseForge fingerprint index is unavailable".into(),
+            ));
+        }
+        matches.extend(envelope.data.exact_matches);
+    }
+    Ok(matches)
+}

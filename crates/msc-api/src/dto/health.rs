@@ -79,6 +79,8 @@ pub struct HealthProblemsResponseDto {
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HealthRepairRequestDto {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provider: Option<String>,
     pub problem_id: String,
     pub action: String,
 }

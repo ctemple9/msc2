@@ -5072,7 +5072,11 @@ async fn run_doctor(common: CommonArgs, command: Option<DoctorCommand>) -> Resul
             Ok(())
         }
         Some(DoctorCommand::Repair { problem_id, action }) => {
-            let body = HealthRepairRequestDto { problem_id, action };
+            let body = HealthRepairRequestDto {
+                problem_id,
+                action,
+                provider: None,
+            };
             let result: HealthRepairResultDto =
                 client.post_json("/v1/health/repair", &body).await?;
             if common.json {

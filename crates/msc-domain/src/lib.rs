@@ -8,6 +8,7 @@ pub mod capability;
 pub mod commands;
 pub mod content_collection;
 pub mod crash_analysis;
+pub mod curseforge_fingerprint;
 pub mod helper;
 pub mod identity;
 pub mod java_runtime;

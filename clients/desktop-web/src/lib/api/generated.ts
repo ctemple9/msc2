@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: 196222bed1f222e2375ee0665f05ab15da1e7d7251b2fb1807190e774e4d7f4c
+// Contract SHA-256: 05e1c80fdd2ade2705e217831631c16d175685576e96a58b6a7d20685ec0affc
 
 export interface paths {
   '/v1/active-server': {
@@ -5318,6 +5318,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/v1/servers/{server_id}/content/identify': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description Read-only exact-byte source discovery. Fingerprints find candidates; SHA1/size verification establishes exact release candidates. Existing provider identities are preserved; ambiguity and provider failures are explicit. */
+    get: operations['identifyServerContent'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/v1/servers/{server_id}/content/install': {
     parameters: {
       query?: never;
@@ -5380,6 +5397,57 @@ export interface paths {
     put?: never;
     /** @description Review exact CurseForge files and required dependencies. Bound to credential and stopped selected server; expires after 30 minutes. */
     post: operations['reviewContentInstall'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/servers/{server_id}/content/source': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** @description Explicit source linking/removal bound to the reviewed SHA512. An exact version requires matching provider bytes; a project-only link is a manual hint, never fabricated installed version metadata. */
+    post: operations['linkContentSource'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/servers/{server_id}/content/update-review': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** @description Review a pinned CurseForge replacement and its dependencies. Old/new filename mapping and disabled state are preserved. Apply via the existing reviewed content install endpoint. */
+    post: operations['reviewContentUpdate'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/servers/{server_id}/content/updates': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description Compatible CurseForge update discovery from exact identity or explicit manual project hints. Does not install or silently downgrade content. */
+    get: operations['discoverContentUpdates'];
+    put?: never;
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -8472,6 +8540,25 @@ export interface components {
       protocol: number;
       providers: string[];
       reviewedInstalls?: string[];
+      reviewedUpdates?: string[];
+      sourceIdentification?: string[];
+    } & {
+      [key: string]: unknown;
+    };
+    ContentIdentificationDTO: {
+      items: components['schemas']['ContentIdentityDTO'][];
+      note: string | null;
+    } & {
+      [key: string]: unknown;
+    };
+    ContentIdentityDTO: {
+      byteSize: number;
+      candidates: components['schemas']['ContentSourceDTO'][];
+      note: string | null;
+      path: string;
+      sha512: string | null;
+      source: components['schemas']['ContentSourceDTO'] | null;
+      status: string;
     } & {
       [key: string]: unknown;
     };
@@ -8505,6 +8592,10 @@ export interface components {
       collectionRevision: number;
       files: components['schemas']['ContentInstallFileDTO'][];
       provider: string;
+      /** @description Reviewed original-to-target filenames; originals remain in protected rollback storage until activation commits. */
+      replacements?: {
+        [key: string]: string;
+      };
       reviewId: string;
       serverId: string;
       warnings: string[];
@@ -8516,6 +8607,46 @@ export interface components {
       /** @enum {string} */
       provider: 'curseforge';
       versionId: number;
+    } & {
+      [key: string]: unknown;
+    };
+    ContentSourceDTO: {
+      projectId: string;
+      provider: string;
+      versionId: string;
+    } & {
+      [key: string]: unknown;
+    };
+    ContentSourceLinkDTO: {
+      path: string;
+      projectId?: number | null;
+      sha512: string;
+      versionId?: number | null;
+    } & {
+      [key: string]: unknown;
+    };
+    ContentUpdateDTO: {
+      availableVersionId: string | null;
+      installedVersionId: string | null;
+      label: string | null;
+      note: string | null;
+      path: string;
+      projectId: string;
+      provider: string;
+    } & {
+      [key: string]: unknown;
+    };
+    ContentUpdateReviewRequestDTO: {
+      path: string;
+      projectId: number;
+      sha512: string;
+      versionId: number;
+    } & {
+      [key: string]: unknown;
+    };
+    ContentUpdatesDTO: {
+      items: components['schemas']['ContentUpdateDTO'][];
+      note: string | null;
     } & {
       [key: string]: unknown;
     };
@@ -8688,6 +8819,11 @@ export interface components {
     HealthRepairRequestDTO: {
       action: string;
       problemId: string;
+      /**
+       * @description Optional catalog selection. CurseForge repairs require the shared reviewed-content flow; linked CurseForge files are never passed to legacy Modrinth repair.
+       * @enum {string}
+       */
+      provider?: 'modrinth' | 'curseforge';
     } & {
       [key: string]: unknown;
     };
@@ -12024,6 +12160,35 @@ export interface operations {
       };
     };
   };
+  identifyServerContent: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        server_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Read-only exact-byte source discovery. Fingerprints find candidates; SHA1/size verification establishes exact release candidates. Existing provider identities are preserved; ambiguity and provider failures are explicit. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ContentIdentificationDTO'];
+        };
+      };
+      /** @description Source, file, server or review changed; inspect again. */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
   applyContentInstall: {
     parameters: {
       query?: never;
@@ -12180,6 +12345,105 @@ export interface operations {
         content?: never;
       };
       /** @description Server selection/state/review or content changed; review again. */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  linkContentSource: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        server_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ContentSourceLinkDTO'];
+      };
+    };
+    responses: {
+      /** @description Explicit source linking/removal bound to the reviewed SHA512. An exact version requires matching provider bytes; a project-only link is a manual hint, never fabricated installed version metadata. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            success: boolean;
+          } & {
+            [key: string]: unknown;
+          };
+        };
+      };
+      /** @description Source, file, server or review changed; inspect again. */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  reviewContentUpdate: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        server_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ContentUpdateReviewRequestDTO'];
+      };
+    };
+    responses: {
+      /** @description Review a pinned CurseForge replacement and its dependencies. Old/new filename mapping and disabled state are preserved. Apply via the existing reviewed content install endpoint. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ContentInstallReviewDTO'];
+        };
+      };
+      /** @description Source, file, server or review changed; inspect again. */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  discoverContentUpdates: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        server_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Compatible CurseForge update discovery from exact identity or explicit manual project hints. Does not install or silently downgrade content. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ContentUpdatesDTO'];
+        };
+      };
+      /** @description Source, file, server or review changed; inspect again. */
       409: {
         headers: {
           [name: string]: unknown;

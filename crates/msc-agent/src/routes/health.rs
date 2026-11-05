@@ -784,6 +784,54 @@ pub async fn health_repair(
     };
     let add_on_dir: PathBuf = server_dir.join(add_on_kind.folder_name());
 
+    let linked_curseforge = problem.installed_jar_stem.as_deref().is_some_and(|stem| {
+        server
+            .content_collection
+            .as_ref()
+            .is_some_and(|collection| {
+                collection.current_files.values().any(|entry| {
+                    let name = Path::new(&entry.path)
+                        .file_name()
+                        .and_then(|name| name.to_str())
+                        .unwrap_or("");
+                    name.strip_suffix(".disabled")
+                        .unwrap_or(name)
+                        .strip_suffix(".jar")
+                        == Some(stem)
+                        && entry
+                            .source
+                            .as_ref()
+                            .is_some_and(|source| source.provider == "curseforge")
+                })
+            })
+    });
+    if body
+        .provider
+        .as_deref()
+        .is_some_and(|provider| !matches!(provider, "curseforge" | "modrinth"))
+    {
+        return invalid_body("invalid_provider", "Choose Modrinth or CurseForge");
+    }
+    if matches!(kind, RepairKind::Update | RepairKind::Install)
+        && (linked_curseforge || body.provider.as_deref() == Some("curseforge"))
+    {
+        // Provider identity must survive diagnostic actions too. The caller
+        // presents catalog selection and the same reviewed install/update flow.
+        return (StatusCode::CONFLICT, Json(msc_api::dto::ErrorDto {
+            code: "content_review_required".into(),
+            message: "Choose the CurseForge release and review its dependencies before applying this repair".into(),
+            help_id: None,
+            details: Some(serde_json::json!({
+                "provider": "curseforge", "serverId": server.id,
+                "catalogPath": "/v1/catalog/curseforge/search",
+                "reviewPath": if matches!(kind, RepairKind::Update) {
+                    format!("/v1/servers/{}/content/update-review", server.id)
+                } else { format!("/v1/servers/{}/content/install-review", server.id) },
+                "problemId": body.problem_id,
+            })),
+        })).into_response();
+    }
+
     let repair_outcome: Result<(), RepairFailure> = match kind {
         RepairKind::Disable | RepairKind::Delete => {
             let action = if matches!(kind, RepairKind::Disable) {
@@ -1019,6 +1067,7 @@ mod tests {
         let response = call_repair(
             &state,
             HealthRepairRequestDto {
+                provider: None,
                 problem_id: "  ".to_string(),
                 action: "disable".to_string(),
             },
@@ -1034,6 +1083,7 @@ mod tests {
         let response = call_repair(
             &state,
             HealthRepairRequestDto {
+                provider: None,
                 problem_id: "p1".to_string(),
                 action: "reinstall".to_string(),
             },
@@ -1055,6 +1105,7 @@ mod tests {
             let response = call_repair(
                 &state,
                 HealthRepairRequestDto {
+                    provider: None,
                     problem_id: "p1".to_string(),
                     action: action.to_string(),
                 },
@@ -1071,6 +1122,7 @@ mod tests {
         let response = call_repair(
             &state,
             HealthRepairRequestDto {
+                provider: None,
                 problem_id: "p1".to_string(),
                 action: "disable".to_string(),
             },

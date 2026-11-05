@@ -7,7 +7,10 @@ use msc_api::dto::{
 use msc_application::content_install as service;
 use msc_domain::app_config_schema::ConfigServer;
 
-fn selected(state: &ComponentsRoutesState, server_id: &str) -> Result<ConfigServer, &'static str> {
+pub(super) fn selected(
+    state: &ComponentsRoutesState,
+    server_id: &str,
+) -> Result<ConfigServer, &'static str> {
     let server = state
         .lifecycle
         .active_config_server()
@@ -19,13 +22,14 @@ fn selected(state: &ComponentsRoutesState, server_id: &str) -> Result<ConfigServ
     Ok(server)
 }
 
-fn public_review(record: service::StoredInstallReview) -> ContentInstallReviewDto {
+pub(super) fn public_review(record: service::StoredInstallReview) -> ContentInstallReviewDto {
     ContentInstallReviewDto {
         review_id: record.id,
         server_id: record.server_id,
         provider: record.review.provider,
         collection_revision: record.collection_revision,
         warnings: record.review.warnings,
+        replacements: record.replacements,
         files: record
             .review
             .files
@@ -88,8 +92,10 @@ pub(super) async fn review(
         let baseline = service::content_baseline(&server)?;
         let secrets = production_secret_store().map_err(|_| "Provider secret storage unavailable".to_string())?;
         let version = server.minecraft_version.clone().ok_or("Select an exact Minecraft version")?;
-        let mut review = service::review_curseforge(&HttpTransport::new(), secrets.as_ref(), body.project_id,
-            body.version_id, server.java_flavor, &version, &|| review_cancel() || !auth.stream_retains_permissions(&identity)).map_err(|error| error.to_string())?;
+        let pins = msc_application::content_sources::verified_pins(&server)?;
+        let mut review = service::review_curseforge_with_pins(&HttpTransport::new(), secrets.as_ref(), body.project_id,
+            body.version_id, service::ReviewContext { flavor: server.java_flavor, game_version: &version, installed: &pins },
+            &|| review_cancel() || !auth.stream_retains_permissions(&identity)).map_err(|error| error.to_string())?;
         if let Some(collection) = &server.content_collection {
             for file in &review.files {
                 for installed in collection.current_files.values().filter_map(|entry| entry.source.as_ref()).filter(|source| source.provider == "curseforge") {
@@ -112,7 +118,7 @@ pub(super) async fn review(
             server_id, server_dir: server.server_dir, minecraft_version: version,
             flavor: server.java_flavor.raw_value().into(), created_unix: now_unix(),
             collection_revision: server.content_collection.as_ref().map_or(0, |collection| collection.revision),
-            baseline, review,
+            baseline, review, replacements: BTreeMap::new(),
         };
         service::store_review(&record)?;
         Ok::<_, String>(record)

@@ -106,12 +106,14 @@ checks when no affected source has changed. New module paths are proposals.
 
 ### P24.5 — Extend identification and updates across providers
 
-**Status:** planned — not started
+**Status:** implemented — awaiting owner verification
 **Files:** crates/msc-application/src/{add_on_inventory,addon_updates,diagnostics}.rs; crates/msc-infrastructure/src/addon_provider.rs; crates/msc-agent/src/routes/components.rs
 **What:** Add CurseForge fingerprint/exact matching, manual source links and update discovery/install for all inventoried Modrinth equivalents. Keep ambiguous/unidentified files visible; preserve evidence and detect outside edits.
 **Verify:** `cargo check -p msc-agent`. Cameron also verifies the corresponding behavior scenarios in `addons/phase24-scope.md` and the P24.1 acceptance record.
 **Commit:** `P24.5: extend identification and updates across providers`
 **Batch:** A — autonomous foundations; no routine owner handoff
+
+**Implementation evidence:** Added bounded two-pass fingerprinting with exact SHA1/size verification, ambiguous/unidentified/changed-file reporting, provider-qualified inventory and manual source links/hints. Compatible update discovery and pinned update-review API preserve verified installed dependencies and disabled filenames. Extended the shared activation journal with original-file rollback and old/new filename mapping; source changes clear obsolete classification evidence. Diagnostics refuses to pass CurseForge-linked repairs to Modrinth and returns the shared review/catalog paths for the P24.11 client. Added two essential deterministic rollback tests covering same-name and renamed updates (not run; expected <100 ms each; prior install-only checks missed replacement originals). Updated DTO/OpenAPI/generated types, capabilities and matrix. Agent Clippy/build, API generation and frontend check passed (10 existing CSS warnings); live provider/physical acceptance pending.
 
 ### P24.6 — Retain complete imported player content
 

@@ -2,6 +2,7 @@
 //! routes wired to the real Phase 8 application services.
 
 mod content_install;
+mod content_sources;
 mod provider_catalog;
 pub(crate) mod storage_cleanup;
 
@@ -282,6 +283,22 @@ pub fn router(state: ComponentsRoutesState) -> Router {
         .route(
             "/servers/:server_id/content/install-manual/complete",
             post(content_install::manual_complete),
+        )
+        .route(
+            "/servers/:server_id/content/identify",
+            get(content_sources::identify),
+        )
+        .route(
+            "/servers/:server_id/content/updates",
+            get(content_sources::updates),
+        )
+        .route(
+            "/servers/:server_id/content/source",
+            post(content_sources::link),
+        )
+        .route(
+            "/servers/:server_id/content/update-review",
+            post(content_sources::review_update),
         )
         .route("/addons", get(get_addons))
         .route("/catalog/search", get(search_catalog))

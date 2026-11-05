@@ -23,6 +23,7 @@
 //! `KeychainManager.shared.readCurseForgeAPIKey()` call site.
 
 pub mod artifact;
+pub mod fingerprint;
 pub mod java_catalog;
 
 use std::collections::HashMap;

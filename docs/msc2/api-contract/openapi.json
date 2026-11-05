@@ -53,6 +53,172 @@
     }
   },
   "paths": {
+    "/v1/servers/{server_id}/content/identify": {
+      "get": {
+        "operationId": "identifyServerContent",
+        "tags": [
+          "Content"
+        ],
+        "description": "Read-only exact-byte source discovery. Fingerprints find candidates; SHA1/size verification establishes exact release candidates. Existing provider identities are preserved; ambiguity and provider failures are explicit.",
+        "parameters": [
+          {
+            "name": "server_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Read-only exact-byte source discovery. Fingerprints find candidates; SHA1/size verification establishes exact release candidates. Existing provider identities are preserved; ambiguity and provider failures are explicit.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContentIdentificationDTO"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Source, file, server or review changed; inspect again."
+          }
+        }
+      }
+    },
+    "/v1/servers/{server_id}/content/updates": {
+      "get": {
+        "operationId": "discoverContentUpdates",
+        "tags": [
+          "Content"
+        ],
+        "description": "Compatible CurseForge update discovery from exact identity or explicit manual project hints. Does not install or silently downgrade content.",
+        "parameters": [
+          {
+            "name": "server_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Compatible CurseForge update discovery from exact identity or explicit manual project hints. Does not install or silently downgrade content.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContentUpdatesDTO"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Source, file, server or review changed; inspect again."
+          }
+        }
+      }
+    },
+    "/v1/servers/{server_id}/content/source": {
+      "post": {
+        "operationId": "linkContentSource",
+        "tags": [
+          "Content"
+        ],
+        "description": "Explicit source linking/removal bound to the reviewed SHA512. An exact version requires matching provider bytes; a project-only link is a manual hint, never fabricated installed version metadata.",
+        "parameters": [
+          {
+            "name": "server_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Explicit source linking/removal bound to the reviewed SHA512. An exact version requires matching provider bytes; a project-only link is a manual hint, never fabricated installed version metadata.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "success"
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Source, file, server or review changed; inspect again."
+          }
+        },
+        "x-permission-category": "addons",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContentSourceLinkDTO"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/servers/{server_id}/content/update-review": {
+      "post": {
+        "operationId": "reviewContentUpdate",
+        "tags": [
+          "Content"
+        ],
+        "description": "Review a pinned CurseForge replacement and its dependencies. Old/new filename mapping and disabled state are preserved. Apply via the existing reviewed content install endpoint.",
+        "parameters": [
+          {
+            "name": "server_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Review a pinned CurseForge replacement and its dependencies. Old/new filename mapping and disabled state are preserved. Apply via the existing reviewed content install endpoint.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContentInstallReviewDTO"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Source, file, server or review changed; inspect again."
+          }
+        },
+        "x-permission-category": "addons",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContentUpdateReviewRequestDTO"
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/servers/{server_id}/content/install-review": {
       "post": {
         "operationId": "reviewContentInstall",
@@ -9142,6 +9308,196 @@
   },
   "components": {
     "schemas": {
+      "ContentSourceDTO": {
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": "string"
+          },
+          "projectId": {
+            "type": "string"
+          },
+          "versionId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "projectId",
+          "versionId"
+        ]
+      },
+      "ContentIdentityDTO": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "sha512": {
+            "type": "string",
+            "nullable": true
+          },
+          "byteSize": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "source": {
+            "allOf": [{"$ref": "#/components/schemas/ContentSourceDTO"}],
+            "nullable": true
+          },
+          "candidates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ContentSourceDTO"
+            }
+          },
+          "status": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "path",
+          "sha512",
+          "byteSize",
+          "source",
+          "candidates",
+          "status",
+          "note"
+        ]
+      },
+      "ContentIdentificationDTO": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ContentIdentityDTO"
+            }
+          },
+          "note": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "items",
+          "note"
+        ]
+      },
+      "ContentSourceLinkDTO": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "sha512": {
+            "type": "string"
+          },
+          "projectId": {
+            "type": "integer",
+            "minimum": 0,
+            "nullable": true
+          },
+          "versionId": {
+            "type": "integer",
+            "minimum": 0,
+            "nullable": true
+          }
+        },
+        "required": [
+          "path",
+          "sha512"
+        ],
+        "additionalProperties": false
+      },
+      "ContentUpdateDTO": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "projectId": {
+            "type": "string"
+          },
+          "installedVersionId": {
+            "type": "string",
+            "nullable": true
+          },
+          "availableVersionId": {
+            "type": "string",
+            "nullable": true
+          },
+          "label": {
+            "type": "string",
+            "nullable": true
+          },
+          "note": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "path",
+          "provider",
+          "projectId",
+          "installedVersionId",
+          "availableVersionId",
+          "label",
+          "note"
+        ]
+      },
+      "ContentUpdatesDTO": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ContentUpdateDTO"
+            }
+          },
+          "note": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "items",
+          "note"
+        ]
+      },
+      "ContentUpdateReviewRequestDTO": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "sha512": {
+            "type": "string"
+          },
+          "projectId": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "versionId": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "path",
+          "sha512",
+          "projectId",
+          "versionId"
+        ],
+        "additionalProperties": false
+      },
       "ContentInstallReviewRequestDTO": {
         "type": "object",
         "properties": {
@@ -9249,6 +9605,13 @@
             "items": {
               "type": "string"
             }
+          },
+          "replacements": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Reviewed original-to-target filenames; originals remain in protected rollback storage until activation commits."
           }
         },
         "required": [
@@ -9448,6 +9811,18 @@
             "type": "boolean"
           },
           "reviewedInstalls": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "sourceIdentification": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "reviewedUpdates": {
             "type": "array",
             "items": {
               "type": "string"
@@ -12409,6 +12784,14 @@
           },
           "action": {
             "type": "string"
+          },
+          "provider": {
+            "type": "string",
+            "enum": [
+              "modrinth",
+              "curseforge"
+            ],
+            "description": "Optional catalog selection. CurseForge repairs require the shared reviewed-content flow; linked CurseForge files are never passed to legacy Modrinth repair."
           }
         },
         "required": [

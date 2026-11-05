@@ -46,3 +46,17 @@ inputs, no network/timing assumptions, expected <100 ms each. They were not run.
 Live provider installs, manual file admission, credential isolation/revocation,
 concurrent actions, restart/recovery and cross-platform behavior remain owner
 acceptance items. Player collection consumers are implemented in P24.7.
+
+P24.5: exact-byte CurseForge identification, manual source hints/links, compatible
+update discovery, reviewed replacements, preserved dependencies/disabled state
+and journaled original rollback are implemented through additive API endpoints.
+Diagnostic client integration consumes `content_review_required` in P24.11;
+legacy diagnostics will not mutate a known CurseForge file through Modrinth.
+Agent Clippy/build, API generation and frontend check passed (10 existing CSS
+warnings). Two additional essential tests cover original restoration for
+same-name/renamed updates; deterministic local fixtures, expected <100 ms each,
+not run. Live fingerprint matches, update/manual flows, permissions, recovery,
+physical platforms and source-aware diagnostic UI remain owner-unverified.
+Fingerprint API reference: https://docs.curseforge.com/rest-api/#get-fingerprints-matches-by-game-id
+Murmur mixing reference: https://github.com/aappleby/smhasher/blob/master/src/MurmurHash2.cpp
+Candidate fingerprints alone never establish file identity.

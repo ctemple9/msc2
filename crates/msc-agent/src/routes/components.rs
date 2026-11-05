@@ -6,6 +6,7 @@ mod content_management;
 mod content_recovery;
 mod content_sources;
 mod pack_retention;
+mod pack_updates;
 mod provider_catalog;
 pub(crate) mod storage_cleanup;
 
@@ -292,6 +293,26 @@ pub fn router(state: ComponentsRoutesState) -> Router {
             get(content_management::get),
         )
         .route(
+            "/servers/:server_id/content/pack-update-review",
+            post(pack_updates::review),
+        )
+        .route(
+            "/servers/:server_id/content/pack-reviews/:review_id",
+            get(pack_updates::get),
+        )
+        .route(
+            "/servers/:server_id/content/pack-reviews/:review_id/manual/admit",
+            post(pack_updates::manual_admit),
+        )
+        .route(
+            "/servers/:server_id/content/pack-reviews/:review_id/manual/complete",
+            post(pack_updates::manual_complete),
+        )
+        .route(
+            "/servers/:server_id/content/pack-update",
+            post(pack_updates::apply),
+        )
+        .route(
             "/servers/:server_id/content/recovery-review",
             post(content_recovery::review),
         )
@@ -438,6 +459,27 @@ fn audit(
         path: path.to_string(),
         status_code: status.as_u16(),
     });
+}
+
+fn pack_recovery_guard(server: &msc_domain::app_config_schema::ConfigServer) -> Option<Response> {
+    let pending = msc_application::content_install::managed_path(
+        &server.server_dir,
+        ".msc2-content/pack-active.json",
+    )
+    .and_then(|path| path.try_exists().map_err(|error| error.to_string()));
+    match pending {
+        Ok(false) => None,
+        Ok(true) => Some(error_response(
+            StatusCode::CONFLICT,
+            "pack_recovery_required",
+            "Finish interrupted pack recovery before changing server content. Starting the stopped server attempts safe recovery and reports preserved file conflicts.",
+        )),
+        Err(error) => Some(error_response(
+            StatusCode::CONFLICT,
+            "pack_recovery_required",
+            &error,
+        )),
+    }
 }
 
 fn no_active_server() -> Response {
@@ -2035,6 +2077,9 @@ pub async fn install_component(
     let Some(server) = state.lifecycle.active_config_server() else {
         return no_active_server();
     };
+    if let Some(response) = pack_recovery_guard(&server) {
+        return response;
+    }
     let Some(add_on_dir) = add_on_dir(&server) else {
         return error_response(
             StatusCode::CONFLICT,
@@ -2268,6 +2313,9 @@ pub async fn remove_component(
     let Some(server) = state.lifecycle.active_config_server() else {
         return no_active_server();
     };
+    if let Some(response) = pack_recovery_guard(&server) {
+        return response;
+    }
     let Some(add_on_dir) = add_on_dir(&server) else {
         return error_response(
             StatusCode::CONFLICT,
@@ -2328,6 +2376,9 @@ pub async fn update_component(
     let Some(server) = state.lifecycle.active_config_server() else {
         return no_active_server();
     };
+    if let Some(response) = pack_recovery_guard(&server) {
+        return response;
+    }
     if let Some(component) = body.component.as_deref() {
         let project = match component {
             "geyser" => msc_infrastructure::geyser::GeyserProject::Geyser,
@@ -2946,6 +2997,9 @@ pub async fn import_modpack(
     let Some(server) = state.lifecycle.active_config_server() else {
         return no_active_server();
     };
+    if let Some(response) = pack_recovery_guard(&server) {
+        return response;
+    }
     let explicit_replace = match body.action.as_str() {
         "import" => false,
         "replace" => true,

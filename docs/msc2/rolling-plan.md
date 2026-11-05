@@ -150,12 +150,14 @@ checks when no affected source has changed. New module paths are proposals.
 
 ### P24.9 — Preview and apply upstream pack updates
 
-**Status:** planned — not started
-**Files:** crates/msc-application/src/modpacks.rs; crates/msc-agent/src/routes/components.rs; crates/msc-api/src/
+**Status:** implemented — awaiting owner verification
+**Files:** crates/msc-application/src/pack_updates.rs; pack_review.rs; pack_activation.rs; content_install.rs/pack_retention.rs; crates/msc-agent/src/routes/components/pack_updates.rs and router/lifecycle guards; provider DTOs/capabilities; OpenAPI/generated clients; tests/pack_update_comparison.rs and pack_activation_safety.rs
 **What:** Implement old-upstream/current/new-upstream comparison, owner removal tombstones and per-item restore-upstream resolution. Stage and recover updates atomically within journal/operation locking; stopped-server enforcement, stale-review checks and truthful partial recovery.
 **Verify:** `cargo check -p msc-agent`. Cameron also verifies the corresponding behavior scenarios in `addons/phase24-scope.md` and the P24.1 acceptance record.
 **Commit:** `P24.9: preview and apply upstream pack updates`
 **Batch:** A — autonomous foundations; no routine owner handoff
+
+**Implementation evidence:** Added stopped-server, operation-locked pack review/read/apply and review-bound manual admission/completion APIs. Catalog-acquired or uploaded archives feed retained original/client/server content; a previous review can retry its pinned original without another upload. Three-way comparison preserves owner edits, additions, intentional removals and options; explicit per-path upstream restore and provider-qualified filename changes prevent duplicate/resurrected versions. Observations cover active mod inventory plus old/new tracked content paths; unsupported/runtime/world paths remain untouched and visible as exclusions. Matching game/loader setup and known base-project identity are enforced; unverified local association needs explicit confirmation. Missing exact files or new server audience decisions block apply until recovered/reviewed. Before/after bytes stage privately, active changes journal before mutation, atomic config commit identifies completed transactions, and rollback/startup recovery preserve later edits behind a blocking marker. Existing add-on actions refuse unresolved pack recovery. Generated contracts and capability are wired. Focused agent Clippy and frontend check passed (10 existing CSS warnings); schema references resolve. Three essential pure comparison tests (<5 ms each) cover owner edits/removals/restoration and renamed project identity; two local generic activation tests (<100 ms each) cover metadata-save rollback and preserved subsequent edits. Existing JAR-only tests do not cover these old-pack/generic-config paths; none run. Live providers, large packs, cancellation/restart, manual recovery and physical platforms remain owner-unverified. Cross-game/loader migration is refused rather than silently changing server setup in this content-update path.
 
 ### P24.10 — Replace base packs through a content review
 

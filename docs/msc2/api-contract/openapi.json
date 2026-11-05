@@ -53,6 +53,245 @@
     }
   },
   "paths": {
+    "/v1/servers/{server_id}/content/pack-update-review": {
+      "post": {
+        "operationId": "reviewPackUpdate",
+        "tags": [
+          "Content"
+        ],
+        "description": "Prepare a three-way update from an acquired/uploaded pack archive or a previous review. Matching game/loader and explicit local-origin confirmation are required. Operation result supplies reviewId.",
+        "parameters": [
+          {
+            "name": "server_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Prepare a three-way update from an acquired/uploaded pack archive or a previous review. Matching game/loader and explicit local-origin confirmation are required. Operation result supplies reviewId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationAcceptedDTO"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Server state, permission, collection, source bytes or review changed; inspect and review again."
+          }
+        },
+        "x-permission-category": "addons",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PackUpdateReviewDTO"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/servers/{server_id}/content/pack-reviews/{review_id}": {
+      "get": {
+        "operationId": "getPackUpdateReview",
+        "tags": [
+          "Content"
+        ],
+        "description": "Read current owner-bound pack update review including per-path conflicts and missing items.",
+        "parameters": [
+          {
+            "name": "server_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "review_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Read current owner-bound pack update review including per-path conflicts and missing items.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackUpdateReviewResultDTO"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Server state, permission, collection, source bytes or review changed; inspect and review again."
+          }
+        },
+        "x-permission-category": "addons"
+      }
+    },
+    "/v1/servers/{server_id}/content/pack-update": {
+      "post": {
+        "operationId": "applyPackUpdate",
+        "tags": [
+          "Content"
+        ],
+        "description": "Apply a current complete pack review with the selected server stopped. Staged original/replacement bytes and recovery journal protect active content. Worlds and unsupported paths remain untouched.",
+        "parameters": [
+          {
+            "name": "server_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Apply a current complete pack review with the selected server stopped. Staged original/replacement bytes and recovery journal protect active content. Worlds and unsupported paths remain untouched.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationAcceptedDTO"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Server state, permission, collection, source bytes or review changed; inspect and review again."
+          }
+        },
+        "x-permission-category": "addons",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContentInstallApplyDTO"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/servers/{server_id}/content/pack-reviews/{review_id}/manual/admit": {
+      "post": {
+        "operationId": "admitPackReviewFile",
+        "tags": [
+          "Content"
+        ],
+        "description": "Admit an owner/review/path/hash-bound upload for one missing new-pack file.",
+        "parameters": [
+          {
+            "name": "server_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "review_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Admit an owner/review/path/hash-bound upload for one missing new-pack file.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StagedUploadBeginResultDTO"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Server state, permission, collection, source bytes or review changed; inspect and review again."
+          }
+        },
+        "x-permission-category": "addons",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RetainedPackManualDTO"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/servers/{server_id}/content/pack-reviews/{review_id}/manual/complete": {
+      "post": {
+        "operationId": "completePackReviewFile",
+        "tags": [
+          "Content"
+        ],
+        "description": "Verify a manual file into retained new-pack staging only. Prepare a fresh review using previousReviewId before activation; this action does not change active server files.",
+        "parameters": [
+          {
+            "name": "server_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "review_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Verify a manual file into retained new-pack staging only. Prepare a fresh review using previousReviewId before activation; this action does not change active server files.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationAcceptedDTO"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Server state, permission, collection, source bytes or review changed; inspect and review again."
+          }
+        },
+        "x-permission-category": "addons",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RetainedPackManualDTO"
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/servers/{server_id}/content/recovery-review": {
       "post": {
         "operationId": "reviewContentRecovery",
@@ -9758,6 +9997,164 @@
   },
   "components": {
     "schemas": {
+      "PackPathChangeDTO": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "oldSha512": {
+            "type": "string",
+            "nullable": true
+          },
+          "currentSha512": {
+            "type": "string",
+            "nullable": true
+          },
+          "newSha512": {
+            "type": "string",
+            "nullable": true
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "add",
+              "remove",
+              "replace",
+              "keep"
+            ]
+          },
+          "conflict": {
+            "type": "boolean"
+          },
+          "restored": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "oldSha512",
+          "currentSha512",
+          "newSha512",
+          "action",
+          "conflict",
+          "restored",
+          "reason"
+        ]
+      },
+      "PackUpdateReviewDTO": {
+        "type": "object",
+        "properties": {
+          "collectionRevision": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "stagedUploadId": {
+            "type": "string",
+            "nullable": true
+          },
+          "previousReviewId": {
+            "type": "string",
+            "nullable": true
+          },
+          "restoreServer": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "restorePlayer": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "audiences": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string",
+              "enum": [
+                "server",
+                "players",
+                "both"
+              ]
+            }
+          },
+          "confirmUnverifiedOrigin": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "collectionRevision"
+        ]
+      },
+      "PackUpdateReviewResultDTO": {
+        "type": "object",
+        "properties": {
+          "reviewId": {
+            "type": "string"
+          },
+          "serverId": {
+            "type": "string"
+          },
+          "collectionRevision": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "packId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "serverChanges": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PackPathChangeDTO"
+            }
+          },
+          "playerChanges": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PackPathChangeDTO"
+            }
+          },
+          "missing": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "collection": {
+            "$ref": "#/components/schemas/ContentCollectionDTO"
+          }
+        },
+        "required": [
+          "reviewId",
+          "serverId",
+          "collectionRevision",
+          "packId",
+          "name",
+          "version",
+          "serverChanges",
+          "playerChanges",
+          "missing",
+          "warnings",
+          "collection"
+        ]
+      },
       "ContentRecoveryReviewDTO": {
         "type": "object",
         "properties": {
@@ -10682,6 +11079,7 @@
       "ContentCatalogCapabilityDTO": {
         "type": "object",
         "properties": {
+          "reviewedPackUpdates": { "type": "boolean" },
           "playerContentRecovery": { "type": "boolean" },
           "playerContentManagement": { "type": "boolean" },
           "retainedPackRecovery": { "type": "boolean" },

@@ -904,6 +904,19 @@ pub fn accept_manual_file(
     logical_path: &str,
     uploaded: &Path,
 ) -> Result<(), String> {
+    accept_manual_file_cancellable(server_dir, pack, logical_path, uploaded, &|| false)
+}
+
+pub fn accept_manual_file_cancellable(
+    server_dir: &Path,
+    pack: &mut RetainedPack,
+    logical_path: &str,
+    uploaded: &Path,
+    cancelled: &dyn Fn() -> bool,
+) -> Result<(), String> {
+    if cancelled() {
+        return Err("Manual recovery cancelled".into());
+    }
     let expected = pack
         .expected_files
         .get(logical_path)
@@ -923,7 +936,7 @@ pub fn accept_manual_file(
             byte_size: identity.byte_size,
         }
     } else {
-        copy_exact(uploaded, &destination, expected.byte_size, &|| false)?
+        copy_exact(uploaded, &destination, expected.byte_size, cancelled)?
     };
     if let Err(error) = matches_expected(&destination, &expected) {
         if !existed {
@@ -939,6 +952,9 @@ pub fn accept_manual_file(
             .get_mut(logical_path)
             .ok_or("Expected file disappeared")?
             .audience = Some(audience);
+    }
+    if cancelled() {
+        return Err("Manual recovery cancelled before retained metadata commit".into());
     }
     pack.resolved_files.insert(logical_path.into(), retained);
     pack.unresolved.remove(logical_path);

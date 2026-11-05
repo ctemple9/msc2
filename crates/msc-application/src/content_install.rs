@@ -588,6 +588,7 @@ fn activation_marker(server_dir: &str) -> Result<std::path::PathBuf, String> {
 pub fn recover_activation(
     server: &msc_domain::app_config_schema::ConfigServer,
 ) -> Result<(), String> {
+    crate::pack_activation::recover(server)?;
     let marker = activation_marker(&server.server_dir)?;
     if !marker.try_exists().map_err(|error| error.to_string())? {
         return Ok(());

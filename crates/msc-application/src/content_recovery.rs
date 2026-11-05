@@ -17,7 +17,7 @@ pub struct RecoveryResult {
     pub missing: Vec<String>,
     pub pack_id: Option<String>,
 }
-fn compatible(
+pub(crate) fn compatible(
     server: &ConfigServer,
     inspection: &crate::modpacks::ModpackInspection,
 ) -> Result<(), String> {

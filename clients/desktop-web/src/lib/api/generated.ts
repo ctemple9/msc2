@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: 72ca49d41b904b5426a341741f8c898437b34f6117dc27c266625be8bcc4e35a
+// Contract SHA-256: 00602edb283d301d08540c781e1792092e261416018e2a76f4b24859abab52d2
 
 export interface paths {
   '/v1/active-server': {
@@ -5437,6 +5437,91 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/v1/servers/{server_id}/content/pack-reviews/{review_id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description Read current owner-bound pack update review including per-path conflicts and missing items. */
+    get: operations['getPackUpdateReview'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/servers/{server_id}/content/pack-reviews/{review_id}/manual/admit': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** @description Admit an owner/review/path/hash-bound upload for one missing new-pack file. */
+    post: operations['admitPackReviewFile'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/servers/{server_id}/content/pack-reviews/{review_id}/manual/complete': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** @description Verify a manual file into retained new-pack staging only. Prepare a fresh review using previousReviewId before activation; this action does not change active server files. */
+    post: operations['completePackReviewFile'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/servers/{server_id}/content/pack-update': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** @description Apply a current complete pack review with the selected server stopped. Staged original/replacement bytes and recovery journal protect active content. Worlds and unsupported paths remain untouched. */
+    post: operations['applyPackUpdate'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/servers/{server_id}/content/pack-update-review': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** @description Prepare a three-way update from an acquired/uploaded pack archive or a previous review. Matching game/loader and explicit local-origin confirmation are required. Operation result supplies reviewId. */
+    post: operations['reviewPackUpdate'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/v1/servers/{server_id}/content/player-files/admit': {
     parameters: {
       query?: never;
@@ -8713,6 +8798,7 @@ export interface components {
       providers: string[];
       retainedPackRecovery?: boolean;
       reviewedInstalls?: string[];
+      reviewedPackUpdates?: boolean;
       reviewedUpdates?: string[];
       sourceIdentification?: string[];
     } & {
@@ -9529,6 +9615,49 @@ export interface components {
       target?: string | null;
       /** @description Kind of work, e.g. demo-install. Not a closed enum -- new values are additive (P2.5 SS2). */
       type: string;
+    } & {
+      [key: string]: unknown;
+    };
+    PackPathChangeDTO: {
+      /** @enum {string} */
+      action: 'add' | 'remove' | 'replace' | 'keep';
+      conflict: boolean;
+      currentSha512: string | null;
+      newSha512: string | null;
+      oldSha512: string | null;
+      path: string;
+      reason: string;
+      restored: boolean;
+    } & {
+      [key: string]: unknown;
+    };
+    PackUpdateReviewDTO: {
+      audiences?: {
+        [key: string]: 'server' | 'players' | 'both';
+      };
+      /** Format: int64 */
+      collectionRevision: number;
+      confirmUnverifiedOrigin?: boolean;
+      previousReviewId?: string | null;
+      restorePlayer?: string[];
+      restoreServer?: string[];
+      stagedUploadId?: string | null;
+    } & {
+      [key: string]: unknown;
+    };
+    PackUpdateReviewResultDTO: {
+      collection: components['schemas']['ContentCollectionDTO'];
+      /** Format: int64 */
+      collectionRevision: number;
+      missing: string[];
+      name: string;
+      packId: string;
+      playerChanges: components['schemas']['PackPathChangeDTO'][];
+      reviewId: string;
+      serverChanges: components['schemas']['PackPathChangeDTO'][];
+      serverId: string;
+      version: string;
+      warnings: string[];
     } & {
       [key: string]: unknown;
     };
@@ -12723,6 +12852,170 @@ export interface operations {
         content?: never;
       };
       /** @description Server selection/state/review or content changed; review again. */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  getPackUpdateReview: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        review_id: string;
+        server_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Read current owner-bound pack update review including per-path conflicts and missing items. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['PackUpdateReviewResultDTO'];
+        };
+      };
+      /** @description Server state, permission, collection, source bytes or review changed; inspect and review again. */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  admitPackReviewFile: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        review_id: string;
+        server_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['RetainedPackManualDTO'];
+      };
+    };
+    responses: {
+      /** @description Admit an owner/review/path/hash-bound upload for one missing new-pack file. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['StagedUploadBeginResultDTO'];
+        };
+      };
+      /** @description Server state, permission, collection, source bytes or review changed; inspect and review again. */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  completePackReviewFile: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        review_id: string;
+        server_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['RetainedPackManualDTO'];
+      };
+    };
+    responses: {
+      /** @description Verify a manual file into retained new-pack staging only. Prepare a fresh review using previousReviewId before activation; this action does not change active server files. */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['OperationAcceptedDTO'];
+        };
+      };
+      /** @description Server state, permission, collection, source bytes or review changed; inspect and review again. */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  applyPackUpdate: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        server_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ContentInstallApplyDTO'];
+      };
+    };
+    responses: {
+      /** @description Apply a current complete pack review with the selected server stopped. Staged original/replacement bytes and recovery journal protect active content. Worlds and unsupported paths remain untouched. */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['OperationAcceptedDTO'];
+        };
+      };
+      /** @description Server state, permission, collection, source bytes or review changed; inspect and review again. */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  reviewPackUpdate: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        server_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['PackUpdateReviewDTO'];
+      };
+    };
+    responses: {
+      /** @description Prepare a three-way update from an acquired/uploaded pack archive or a previous review. Matching game/loader and explicit local-origin confirmation are required. Operation result supplies reviewId. */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['OperationAcceptedDTO'];
+        };
+      };
+      /** @description Server state, permission, collection, source bytes or review changed; inspect and review again. */
       409: {
         headers: {
           [name: string]: unknown;

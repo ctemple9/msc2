@@ -100,3 +100,18 @@ CSS warnings). One essential local test protects server config/world bytes and
 original/client override retention, expected <100 ms, not run. Live provider,
 manual recovery, cancellations, interruptions, credentials and physical platforms
 remain pending owner acceptance.
+
+P24.9: three-way pack update review/read/apply and review-bound exact manual
+recovery are wired through explicit-server, stopped-server operation boundaries.
+Owner edits/removals/options and provider-qualified filename changes are handled
+without silently resurrecting or duplicating a mod. Active file plans use private
+before/after copies and a durable recovery marker; rollback and startup preserve
+subsequent owner edits and block unresolved recovery. Missing bytes/classification
+block apply and require a fresh review after manual recovery. Cross-game/loader
+migration is explicitly refused by this content update path. Focused Clippy,
+generated API/frontend check passed (10 existing CSS warnings); schema references
+resolve. Three essential metadata comparison tests (<5 ms each) and two local
+generic activation safety tests (<100 ms each) were added, not run. Existing
+single-file/JAR tests lack old upstream baselines and generic config activation.
+Live providers, manual flows, interrupted large-pack updates, disk exhaustion,
+permissions, cancellation, physical platforms and all owner acceptance are pending.

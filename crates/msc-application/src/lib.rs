@@ -16,6 +16,7 @@ pub mod client_export;
 pub mod commands;
 pub mod content_install;
 pub mod content_management;
+pub mod content_recovery;
 pub mod content_sources;
 pub mod curseforge_manual;
 pub mod diagnostics;

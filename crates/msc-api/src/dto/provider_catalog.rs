@@ -68,6 +68,8 @@ pub struct ContentCatalogCapabilityDto {
     pub retained_pack_recovery: bool,
     #[serde(default)]
     pub player_content_management: bool,
+    #[serde(default)]
+    pub player_content_recovery: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -238,4 +240,16 @@ pub struct PlayerFileAdmissionDto {
     pub path: String,
     pub byte_size: u64,
     pub sha512: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ContentRecoveryReviewDto {
+    pub retained_pack_id: Option<String>,
+    pub collection_revision: u64,
+    pub staged_upload_id: Option<String>,
+    #[serde(default)]
+    pub selected_paths: Vec<String>,
+    #[serde(default)]
+    pub restore_paths: Vec<String>,
 }

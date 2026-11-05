@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: b13683688e422b759e4009cc87781fb27ac18f9d14e495016430c0fd8e013fee
+// Contract SHA-256: 72ca49d41b904b5426a341741f8c898437b34f6117dc27c266625be8bcc4e35a
 
 export interface paths {
   '/v1/active-server': {
@@ -5454,6 +5454,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/v1/servers/{server_id}/content/recovery-review': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** @description Prepare non-destructive inventory/original-pack recovery. Operation result supplies reviewId; fetch it from content/reviews and apply with the existing content/apply route. Original pack must match game/loader; server/world files are untouched. */
+    post: operations['reviewContentRecovery'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/v1/servers/{server_id}/content/retained-packs/{pack_id}': {
     parameters: {
       query?: never;
@@ -5533,6 +5550,23 @@ export interface paths {
     put?: never;
     /** @description Stage independent player content changes against exact server and collection baselines. Classification changes do not install or uninstall active server files. */
     post: operations['reviewContentChanges'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/servers/{server_id}/content/reviews/{review_id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description Read an owner-bound current content review. Missing files, preserved conflicts and retained pack ID for recovery are in collection.recoverySummary; expired or changed reviews are refused. */
+    get: operations['getContentChangesReview'];
+    put?: never;
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -8674,6 +8708,7 @@ export interface components {
     ContentCatalogCapabilityDTO: {
       packAcquisition: boolean;
       playerContentManagement?: boolean;
+      playerContentRecovery?: boolean;
       protocol: number;
       providers: string[];
       retainedPackRecovery?: boolean;
@@ -8830,6 +8865,16 @@ export interface components {
       /** @enum {string} */
       provider: 'curseforge';
       versionId: number;
+    } & {
+      [key: string]: unknown;
+    };
+    ContentRecoveryReviewDTO: {
+      /** Format: int64 */
+      collectionRevision: number;
+      restorePaths?: string[];
+      retainedPackId?: string | null;
+      selectedPaths?: string[];
+      stagedUploadId?: string | null;
     } & {
       [key: string]: unknown;
     };
@@ -12719,6 +12764,39 @@ export interface operations {
       };
     };
   };
+  reviewContentRecovery: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        server_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ContentRecoveryReviewDTO'];
+      };
+    };
+    responses: {
+      /** @description Prepare non-destructive inventory/original-pack recovery. Operation result supplies reviewId; fetch it from content/reviews and apply with the existing content/apply route. Original pack must match game/loader; server/world files are untouched. */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['OperationAcceptedDTO'];
+        };
+      };
+      /** @description Review unavailable, wrong original pack, changed server or conflicting operation. */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
   getRetainedPack: {
     parameters: {
       query?: never;
@@ -12872,6 +12950,36 @@ export interface operations {
         };
       };
       /** @description Content changed or review unavailable; refresh and review again. */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  getContentChangesReview: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        review_id: string;
+        server_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Read an owner-bound current content review. Missing files, preserved conflicts and retained pack ID for recovery are in collection.recoverySummary; expired or changed reviews are refused. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ContentCollectionReviewDTO'];
+        };
+      };
+      /** @description Review unavailable, wrong original pack, changed server or conflicting operation. */
       409: {
         headers: {
           [name: string]: unknown;

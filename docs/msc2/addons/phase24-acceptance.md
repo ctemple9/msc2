@@ -88,3 +88,15 @@ frontend check passed (10 existing CSS warnings). Two essential local tests
 protect stale reviews, credential ownership and independent player copies,
 expected <100 ms each, not run. Live behavior, complete provider/classification
 acceptance, cancellations, filesystem errors and physical platforms are pending.
+
+P24.8: existing-server inventory/original-pack recovery review, review retrieval
+and application through independent player metadata are wired. Uploaded and
+checksum-verified retained originals are supported; active server/world files
+are never imported or overwritten. Compatible setup, known base identity,
+current bytes, permissions and owner review identity are checked. Conflicts,
+removal tombstones, missing client content and unverified local source remain
+explicit. Focused Clippy, API generation and frontend check passed (10 existing
+CSS warnings). One essential local test protects server config/world bytes and
+original/client override retention, expected <100 ms, not run. Live provider,
+manual recovery, cancellations, interruptions, credentials and physical platforms
+remain pending owner acceptance.

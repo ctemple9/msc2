@@ -3,6 +3,7 @@
 
 mod content_install;
 mod content_management;
+mod content_recovery;
 mod content_sources;
 mod pack_retention;
 mod provider_catalog;
@@ -289,6 +290,14 @@ pub fn router(state: ComponentsRoutesState) -> Router {
         .route(
             "/servers/:server_id/content/collection",
             get(content_management::get),
+        )
+        .route(
+            "/servers/:server_id/content/recovery-review",
+            post(content_recovery::review),
+        )
+        .route(
+            "/servers/:server_id/content/reviews/:review_id",
+            get(content_management::get_review),
         )
         .route(
             "/servers/:server_id/content/player-files/admit",

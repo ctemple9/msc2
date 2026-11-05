@@ -321,6 +321,7 @@ pub struct Review {
     pub server_dir: String,
     pub flavor: String,
     pub minecraft_version: Option<String>,
+    pub loader_version: Option<String>,
     pub source_collection: Option<ContentCollection>,
     pub created_unix: u64,
     pub baseline: BTreeMap<String, String>,
@@ -341,7 +342,11 @@ fn review_path(server: &ConfigServer, id: &str) -> Result<PathBuf, String> {
         &format!(".msc2-content/player-reviews/{id}.json"),
     )
 }
-fn retain_player(server: &ConfigServer, path: &str, source: &Path) -> Result<ContentEntry, String> {
+pub(crate) fn retain_player(
+    server: &ConfigServer,
+    path: &str,
+    source: &Path,
+) -> Result<ContentEntry, String> {
     content_path(path)?;
     if path.starts_with("plugins/") {
         return Err("Server plugins cannot be added to a player launcher collection".into());
@@ -558,8 +563,28 @@ pub fn review(
     {
         result.retained_roots.push(".msc2-content/player".into());
     }
-    result.revision = result
-        .revision
+    create_review(
+        server,
+        owner,
+        snapshot.server_baseline,
+        result,
+        changes,
+        warnings,
+    )
+}
+
+pub(crate) fn create_review(
+    server: &ConfigServer,
+    owner: &str,
+    baseline: BTreeMap<String, String>,
+    mut result: ContentCollection,
+    changes: Vec<Change>,
+    warnings: Vec<String>,
+) -> Result<Review, String> {
+    result.revision = server
+        .content_collection
+        .as_ref()
+        .map_or(0, |collection| collection.revision)
         .checked_add(1)
         .ok_or("Content revision overflow")?;
     result.validate()?;
@@ -570,9 +595,10 @@ pub fn review(
         server_dir: server.server_dir.clone(),
         flavor: format!("{:?}", server.java_flavor),
         minecraft_version: server.minecraft_version.clone(),
+        loader_version: server.loader_version.clone(),
         source_collection: server.content_collection.clone(),
         created_unix: now(),
-        baseline: snapshot.server_baseline,
+        baseline,
         result,
         changes,
         warnings,
@@ -602,6 +628,7 @@ pub fn load_review(server: &ConfigServer, id: &str, owner: &str) -> Result<Revie
         || review.server_dir != server.server_dir
         || review.flavor != format!("{:?}", server.java_flavor)
         || review.minecraft_version != server.minecraft_version
+        || review.loader_version != server.loader_version
         || review.source_collection != server.content_collection
         || now().saturating_sub(review.created_unix) > 1800
     {

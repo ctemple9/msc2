@@ -126,14 +126,14 @@ commits per turn. Rolling-plan statuses and Git history remain the step record.
 
 | Field | Current value |
 |---|---|
-| Run state | executing — P24.7 implemented; autonomous goal active |
-| Current step | P24.8 |
-| Next action | Implement non-destructive existing-server inventory/original-pack recovery preview and apply. Continue without routine handoff; no UI checkpoint yet. |
-| Last implementation commit | P24.7: manage independent player content and requirements |
+| Run state | executing — P24.8 implemented; autonomous goal active |
+| Current step | P24.9 |
+| Next action | Implement three-way upstream pack update review and recoverable stopped-server application; preserve owner customizations/removals by default. No UI checkpoint yet. |
+| Last implementation commit | P24.8: recover player packs for existing servers |
 | Pending UI review | none |
-| Candidate base commit / changed files | P24.7 committed; next slice P24.8 |
+| Candidate base commit / changed files | P24.8 committed; next slice P24.9 |
 | Owner approval evidence | none |
-| Checks and outcomes | P24.7 focused agent Clippy passed; API generation/frontend check passed (10 existing CSS warnings); two essential player safety tests added, not run |
+| Checks and outcomes | P24.8 focused agent Clippy passed; API generation/frontend check passed (10 existing CSS warnings); one essential recovery safety test added, not run |
 | External prerequisites | owner screenshots for P24.20; usable provider key/content for live acceptance |
 | Deferred owner acceptance | all physical feature/platform scenarios |
 

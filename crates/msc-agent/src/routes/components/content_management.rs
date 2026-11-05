@@ -14,7 +14,7 @@ fn server(
         .find(|server| server.id == id)
         .ok_or_else(|| "Server not found".into())
 }
-fn public_review(review: service::Review) -> serde_json::Value {
+pub(super) fn public_review(review: service::Review) -> serde_json::Value {
     serde_json::json!({"reviewId": review.id, "collectionRevision": review.source_collection.as_ref().map_or(0, |collection| collection.revision), "collection":review.result, "changes":review.changes, "warnings":review.warnings})
 }
 pub(super) async fn get(
@@ -305,4 +305,33 @@ pub(super) async fn apply(
         }
     });
     response
+}
+
+pub(super) async fn get_review(
+    State(state): State<ComponentsRoutesState>,
+    Extension(credential): Extension<AuthenticatedCredential>,
+    AxumPath((server_id, review_id)): AxumPath<(String, String)>,
+) -> Response {
+    if let Some(response) = require_permission(&credential, PermissionCategoryDto::Addons) {
+        return response;
+    }
+    let result = tokio::task::spawn_blocking(move || {
+        service::load_review(
+            &server(&state, &server_id)?,
+            &review_id,
+            &credential.credential_id,
+        )
+    })
+    .await;
+    match result {
+        Ok(Ok(review)) => Json(public_review(review)).into_response(),
+        Ok(Err(error)) => {
+            error_response(StatusCode::CONFLICT, "content_review_unavailable", &error)
+        }
+        Err(_) => error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "content_review_unavailable",
+            "Content review reader failed",
+        ),
+    }
 }

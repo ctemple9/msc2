@@ -139,12 +139,14 @@ checks when no affected source has changed. New module paths are proposals.
 
 ### P24.8 — Recover player packs for existing servers
 
-**Status:** planned — not started
-**Files:** crates/msc-application/src/modpacks.rs; crates/msc-agent/src/routes/components.rs
+**Status:** implemented — awaiting owner verification
+**Files:** crates/msc-application/src/content_recovery.rs; content_management.rs; pack_retention.rs; crates/msc-agent/src/routes/components/content_recovery.rs and content review read/router; provider DTOs/capabilities; OpenAPI/generated clients; tests/content_recovery_safety.rs
 **What:** Preview non-destructive inventory recovery and optional original-pack recovery. Match exact identities/hashes, show missing client content, resolve conflicts and retain player files without reinstalling or modifying the live server.
 **Verify:** `cargo check -p msc-agent`. Cameron also verifies the corresponding behavior scenarios in `addons/phase24-scope.md` and the P24.1 acceptance record.
 **Commit:** `P24.8: recover player packs for existing servers`
 **Batch:** A — autonomous foundations; no routine owner handoff
+
+**Implementation evidence:** Added journaled recovery review preparation and owner-bound review read, applying through P24.7 atomic player metadata. Recovery can explicitly retain installed files, inspect an uploaded matching original, or re-use a checksum-verified retained original (including protected interrupted-import references). It never calls the live server importer or writes server/world files. Exact matching files may gain provenance/environment evidence; conflicting server/player customizations and player removal tombstones are preserved unless individual upstream restoration is selected. Missing manifest files, server-only source evidence and unverified local archive origin stay explicit. Game/loader/version mismatches and known different base projects are refused. Review binding now also pins loader version. Focused agent Clippy and frontend type-check passed (10 existing CSS warnings); schema references resolve. One essential deterministic recovery test protects server config/world bytes and original/client override retention, expected <100 ms, not run. Live network/manual recovery, permission/cancellation/restart and cross-platform scenarios remain owner-unverified.
 
 ### P24.9 — Preview and apply upstream pack updates
 

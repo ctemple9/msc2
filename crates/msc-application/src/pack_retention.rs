@@ -946,13 +946,13 @@ pub fn accept_manual_file(
 }
 
 /// Retry from the privately retained archive; never substitute a new upstream pack.
-pub fn retry_resolution(
+pub fn inspect_original(
     server_dir: &Path,
-    pack: &mut RetainedPack,
+    pack: &RetainedPack,
     transport: &dyn msc_infrastructure::addon_provider::AddonTransport,
     secrets: &dyn msc_infrastructure::secret_store::SecretStore,
     cancelled: &dyn Fn() -> bool,
-) -> Result<(), String> {
+) -> Result<crate::modpacks::ModpackInspection, String> {
     let original = retained_path(server_dir, pack, "original.zip")?;
     let metadata = std::fs::symlink_metadata(&original).map_err(|error| error.to_string())?;
     if !metadata.is_file() || metadata.len() != pack.original.byte_size {
@@ -990,6 +990,19 @@ pub fn retry_resolution(
         &recovery_id,
     )
     .map_err(|error| error.to_string())?;
+    let mut inspection = inspection;
+    inspection.origin = pack.origin.clone();
+    Ok(inspection)
+}
+
+pub fn retry_resolution(
+    server_dir: &Path,
+    pack: &mut RetainedPack,
+    transport: &dyn msc_infrastructure::addon_provider::AddonTransport,
+    secrets: &dyn msc_infrastructure::secret_store::SecretStore,
+    cancelled: &dyn Fn() -> bool,
+) -> Result<(), String> {
+    let inspection = inspect_original(server_dir, pack, transport, secrets, cancelled)?;
     let result = resolve_content(server_dir, &inspection, pack, transport, secrets, cancelled);
     let _ = std::fs::remove_dir_all(&inspection.staged_dir);
     result

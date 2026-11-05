@@ -1,6 +1,6 @@
 # Phase 24 — Modpack management and content exports
 
-**State:** planned; autonomous workflow owner-authorized, implementation not started.
+**State:** implementation underway; autonomous workflow owner-authorized. Acceptance remains pending.
 **Execution:** [order and review checkpoints](phase24-execution.md).
 **Owner direction:** discussion and explicit answers, 2026-11-05.
 **Decision:** D-045. Implementation steps: [rolling plan](../rolling-plan.md).

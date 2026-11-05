@@ -53,6 +53,94 @@
     }
   },
   "paths": {
+    "/v1/servers/{server_id}/content/recovery-review": {
+      "post": {
+        "operationId": "reviewContentRecovery",
+        "tags": [
+          "Content"
+        ],
+        "description": "Prepare non-destructive inventory/original-pack recovery. Operation result supplies reviewId; fetch it from content/reviews and apply with the existing content/apply route. Original pack must match game/loader; server/world files are untouched.",
+        "parameters": [
+          {
+            "name": "server_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Prepare non-destructive inventory/original-pack recovery. Operation result supplies reviewId; fetch it from content/reviews and apply with the existing content/apply route. Original pack must match game/loader; server/world files are untouched.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationAcceptedDTO"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Review unavailable, wrong original pack, changed server or conflicting operation."
+          }
+        },
+        "x-permission-category": "addons",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContentRecoveryReviewDTO"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/servers/{server_id}/content/reviews/{review_id}": {
+      "get": {
+        "operationId": "getContentChangesReview",
+        "tags": [
+          "Content"
+        ],
+        "description": "Read an owner-bound current content review. Missing files, preserved conflicts and retained pack ID for recovery are in collection.recoverySummary; expired or changed reviews are refused.",
+        "parameters": [
+          {
+            "name": "server_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "review_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Read an owner-bound current content review. Missing files, preserved conflicts and retained pack ID for recovery are in collection.recoverySummary; expired or changed reviews are refused.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContentCollectionReviewDTO"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Review unavailable, wrong original pack, changed server or conflicting operation."
+          }
+        },
+        "x-permission-category": "addons"
+      }
+    },
     "/v1/servers/{server_id}/content/collection": {
       "get": {
         "operationId": "getContentCollection",
@@ -9670,6 +9758,35 @@
   },
   "components": {
     "schemas": {
+      "ContentRecoveryReviewDTO": {
+        "type": "object",
+        "properties": {
+          "retainedPackId": { "type": "string", "nullable": true },
+          "collectionRevision": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "stagedUploadId": {
+            "type": "string",
+            "nullable": true
+          },
+          "selectedPaths": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "restorePaths": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "collectionRevision"
+        ]
+      },
       "ContentEntryDTO": {
         "type": "object",
         "properties": {
@@ -10565,6 +10682,7 @@
       "ContentCatalogCapabilityDTO": {
         "type": "object",
         "properties": {
+          "playerContentRecovery": { "type": "boolean" },
           "playerContentManagement": { "type": "boolean" },
           "retainedPackRecovery": { "type": "boolean" },
           "protocol": {

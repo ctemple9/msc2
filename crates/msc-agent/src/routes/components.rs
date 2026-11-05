@@ -1,6 +1,7 @@
 //! P8.24: add-on, catalog, client-export, modpack, and shared staging
 //! routes wired to the real Phase 8 application services.
 
+mod provider_catalog;
 pub(crate) mod storage_cleanup;
 
 use std::collections::{BTreeMap, HashMap};
@@ -267,6 +268,15 @@ pub fn router(state: ComponentsRoutesState) -> Router {
         )
         .route("/addons", get(get_addons))
         .route("/catalog/search", get(search_catalog))
+        .route("/catalog/curseforge/search", get(provider_catalog::search))
+        .route(
+            "/catalog/curseforge/projects/:project_id",
+            get(provider_catalog::project),
+        )
+        .route(
+            "/catalog/curseforge/projects/:project_id/versions",
+            get(provider_catalog::versions),
+        )
         .route("/catalog/datapacks", get(search_datapacks))
         .route("/catalog/projects/:project_id", get(get_catalog_project))
         .route(
@@ -278,6 +288,7 @@ pub fn router(state: ComponentsRoutesState) -> Router {
         .route("/components/install", post(install_component))
         .route("/components/remove", post(remove_component))
         .route("/components/update", post(update_component))
+        .route("/catalog/modpacks/acquire", post(provider_catalog::acquire))
         .route("/modpacks/inspect", post(inspect_modpack))
         .route("/modpacks/import", post(import_modpack))
         .route(
@@ -783,6 +794,7 @@ pub async fn begin_staged_upload(
     state.staging.uploads.lock().unwrap().insert(
         id.clone(),
         StagedUpload {
+            provider_owner: None,
             native_guard: None,
             purpose: body.purpose,
             file_name: body.file_name.clone(),

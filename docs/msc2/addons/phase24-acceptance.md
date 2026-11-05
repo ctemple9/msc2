@@ -30,3 +30,9 @@ requests run. Later slices add precise artifact/version/platform evidence here.
 P24.2: versioned collection persistence and portable metadata validation added.
 Infrastructure build and focused Clippy passed; config round-trip and physical
 Storage acceptance remain owner-unverified. No retained files are created yet.
+
+P24.3: agent catalog/acquisition endpoints implemented; build and Clippy passed.
+API generation and Svelte check passed (10 existing unused-selector warnings).
+Live credentialed catalog/download, restricted file, cancellation/revocation,
+owner-only redemption, restart and physical platform acceptance remain pending.
+No test or release commands run.

@@ -22,6 +22,9 @@
 //! §9's `curseforge.api-key`), matching `CurseForgeAPI.swift`'s own
 //! `KeychainManager.shared.readCurseForgeAPIKey()` call site.
 
+pub mod artifact;
+pub mod java_catalog;
+
 use std::collections::HashMap;
 use std::fmt;
 use std::time::Duration;
@@ -223,10 +226,16 @@ impl AddonTransport for HttpTransport {
         for (k, v) in headers {
             req = req.header(*k, *v);
         }
-        let response = req.call().map_err(|e| match e {
-            ureq::Error::Timeout(_) => TransportError::Timeout(what.to_string()),
-            other => TransportError::Network(format!("{what}: {other}")),
-        })?;
+        // Custom provider credentials must never be forwarded on redirects.
+        let response = req
+            .config()
+            .max_redirects(if headers.is_empty() { 10 } else { 0 })
+            .build()
+            .call()
+            .map_err(|e| match e {
+                ureq::Error::Timeout(_) => TransportError::Timeout(what.to_string()),
+                other => TransportError::Network(format!("{what}: {other}")),
+            })?;
         Self::read_body(response, what, max_bytes)
     }
 
@@ -249,10 +258,15 @@ impl AddonTransport for HttpTransport {
         for (k, v) in headers {
             req = req.header(*k, *v);
         }
-        let response = req.send(payload.as_slice()).map_err(|e| match e {
-            ureq::Error::Timeout(_) => TransportError::Timeout(what.to_string()),
-            other => TransportError::Network(format!("{what}: {other}")),
-        })?;
+        let response = req
+            .config()
+            .max_redirects(if headers.is_empty() { 10 } else { 0 })
+            .build()
+            .send(payload.as_slice())
+            .map_err(|e| match e {
+                ureq::Error::Timeout(_) => TransportError::Timeout(what.to_string()),
+                other => TransportError::Network(format!("{what}: {other}")),
+            })?;
         Self::read_body(response, what, max_bytes)
     }
 }

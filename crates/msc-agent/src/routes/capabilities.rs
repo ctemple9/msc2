@@ -150,6 +150,13 @@ async fn capabilities_for_query(
     });
 
     Json(CapabilitiesResponseDto {
+        content_catalog: Some(msc_api::dto::ContentCatalogCapabilityDto {
+            protocol: 1,
+            providers: vec!["modrinth".into(), "curseforge".into()],
+            pack_acquisition: credential
+                .permissions
+                .contains(&msc_api::dto::PermissionCategoryDto::Addons),
+        }),
         storage_inventory: credential
             .permissions
             .contains(&msc_api::dto::PermissionCategoryDto::Admin)

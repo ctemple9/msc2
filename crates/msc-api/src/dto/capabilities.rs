@@ -268,6 +268,12 @@ pub struct RelativeTimeCapabilityDto {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CapabilitiesResponseDto {
     #[serde(
+        rename = "contentCatalog",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub content_catalog: Option<super::ContentCatalogCapabilityDto>,
+    #[serde(
         rename = "storageInventory",
         default,
         skip_serializing_if = "Option::is_none"

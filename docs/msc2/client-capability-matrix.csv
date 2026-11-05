@@ -167,3 +167,7 @@ GET,/v1/host/storage/candidates,,Reviewed storage action candidates,admin,Implem
 POST,/v1/host/storage/reviews,,Exact host-bound storage review,admin,Implemented,Implemented,Implemented,P21.5-P21.7: expiring credential-bound selection; existing Worlds/Fleet permission rules for server data
 POST,/v1/host/storage/cleanups,,Confirm reviewed storage removal,admin,Implemented,Implemented,Implemented,P21.5-P21.7: journaled single-use confirmation; no arbitrary path deletion or automatic resume
 GET,/v1/host/storage/cleanups/{id},,Per-item reviewed storage outcomes,admin,Implemented,Implemented,Implemented,P21.5-P21.7: removed retained unconfirmed and not-attempted outcomes; separate affected-volume samples
+GET,/v1/catalog/curseforge/search,searchCurseForgeCatalog,CurseForge Java catalog search,none,Implemented,Planned,Planned,P24.3 provider-qualified paginated catalog; TUI pending P24.22
+GET,/v1/catalog/curseforge/projects/{project_id},getCurseForgeProject,CurseForge project details,none,Implemented,Planned,Planned,P24.3 exact provider identity and distribution metadata
+GET,/v1/catalog/curseforge/projects/{project_id}/versions,getCurseForgeVersions,CurseForge release browsing,none,Implemented,Planned,Planned,P24.3 paginated release and manual-download status
+POST,/v1/catalog/modpacks/acquire,acquireCatalogModpack,Acquire exact provider modpack to staging,addons,Implemented,Planned,Planned,P24.3 both providers; pinned size/checksum streaming and owner-bound staged result

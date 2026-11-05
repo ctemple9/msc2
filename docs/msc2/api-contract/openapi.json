@@ -53,6 +53,243 @@
     }
   },
   "paths": {
+    "/v1/catalog/curseforge/search": {
+      "get": {
+        "operationId": "searchCurseForgeCatalog",
+        "tags": [
+          "Catalog"
+        ],
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "mod",
+                "plugin",
+                "modpack",
+                "resourcepack",
+                "shader",
+                "datapack"
+              ]
+            }
+          },
+          {
+            "name": "gameVersion",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "loader",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "forge",
+                "neoforge",
+                "fabric",
+                "quilt"
+              ]
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Provider result; metadata does not guarantee compatibility or distribution permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderCatalogSearchDTO"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Provider authentication, category, availability or network failure"
+          }
+        }
+      }
+    },
+    "/v1/catalog/curseforge/projects/{project_id}": {
+      "get": {
+        "operationId": "getCurseForgeProject",
+        "tags": [
+          "Catalog"
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Provider result; metadata does not guarantee compatibility or distribution permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderCatalogProjectDTO"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Provider authentication, category, availability or network failure"
+          }
+        }
+      }
+    },
+    "/v1/catalog/curseforge/projects/{project_id}/versions": {
+      "get": {
+        "operationId": "getCurseForgeVersions",
+        "tags": [
+          "Catalog"
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "mod",
+                "plugin",
+                "modpack",
+                "resourcepack",
+                "shader",
+                "datapack"
+              ]
+            }
+          },
+          {
+            "name": "gameVersion",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "loader",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "forge",
+                "neoforge",
+                "fabric",
+                "quilt"
+              ]
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Provider result; metadata does not guarantee compatibility or distribution permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderCatalogVersionsDTO"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Provider authentication, category, availability or network failure"
+          }
+        }
+      }
+    },
+    "/v1/catalog/modpacks/acquire": {
+      "post": {
+        "operationId": "acquireCatalogModpack",
+        "tags": [
+          "Catalog"
+        ],
+        "x-permission-category": "addons",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CatalogAcquireRequestDTO"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Journaled acquisition; operation result contains purpose-bound stagedUploadId after checksum verification. Use existing pack inspect/import/create APIs.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogAcquireResultDTO"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Staging capacity is busy"
+          }
+        }
+      }
+    },
     "/v1/host/storage/cleanups/{id}": {
       "get": {
         "summary": "Reviewed host storage cleanups/{id}",
@@ -8705,6 +8942,168 @@
   },
   "components": {
     "schemas": {
+      "ProviderCatalogSearchDTO": {
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": "string"
+          },
+          "results": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CatalogItemDTO"
+            }
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "totalCount": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "provider",
+          "results",
+          "offset",
+          "totalCount"
+        ]
+      },
+      "ProviderCatalogProjectDTO": {
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": "string"
+          },
+          "project": {
+            "$ref": "#/components/schemas/CatalogProjectDetailDTO"
+          },
+          "distributionAllowed": {
+            "type": "boolean",
+            "nullable": true
+          }
+        },
+        "required": [
+          "provider",
+          "project",
+          "distributionAllowed"
+        ]
+      },
+      "ProviderCatalogReleaseDTO": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "$ref": "#/components/schemas/CatalogVersionDTO"
+          },
+          "available": {
+            "type": "boolean"
+          },
+          "serverPack": {
+            "type": "boolean"
+          },
+          "sha1": {
+            "type": "string",
+            "nullable": true
+          },
+          "manualDownloadRequired": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "version",
+          "available",
+          "serverPack",
+          "sha1",
+          "manualDownloadRequired"
+        ]
+      },
+      "ProviderCatalogVersionsDTO": {
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": "string"
+          },
+          "versions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProviderCatalogReleaseDTO"
+            }
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "totalCount": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "provider",
+          "versions",
+          "offset",
+          "totalCount"
+        ]
+      },
+      "CatalogAcquireRequestDTO": {
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": "string",
+            "enum": [
+              "modrinth",
+              "curseforge"
+            ]
+          },
+          "projectId": {
+            "type": "string"
+          },
+          "versionId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "projectId",
+          "versionId"
+        ],
+        "additionalProperties": false
+      },
+      "CatalogAcquireResultDTO": {
+        "type": "object",
+        "properties": {
+          "operationId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "operationId"
+        ]
+      },
+      "ContentCatalogCapabilityDTO": {
+        "type": "object",
+        "properties": {
+          "protocol": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "providers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "packAcquisition": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "protocol",
+          "providers",
+          "packAcquisition"
+        ]
+      },
       "StorageReviewedCleanupRequestDTO": {
         "type": "object",
         "properties": {
@@ -14820,6 +15219,7 @@
         "type": "object",
         "description": "P2.6 SS3 -- GET /v1/capabilities response; P12.28 adds optional version-aware worldSettings.",
         "properties": {
+          "contentCatalog": {"$ref": "#/components/schemas/ContentCatalogCapabilityDTO"},
           "nativeTransfers": {
             "$ref": "#/components/schemas/NativeTransfersDTO"
           },

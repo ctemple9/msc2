@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: c955a91883906b2a0400683fc293e37a3a69de76069c63e1bf03ac3ffb77b1d3
+// Contract SHA-256: e421e45ae977edbd6b85014393c5b439be98264fd27bf1e22f47c39a0d747efb
 
 export interface paths {
   '/v1/active-server': {
@@ -989,6 +989,54 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/v1/catalog/curseforge/projects/{project_id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations['getCurseForgeProject'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/catalog/curseforge/projects/{project_id}/versions': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations['getCurseForgeVersions'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/catalog/curseforge/search': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations['searchCurseForgeCatalog'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/v1/catalog/datapacks': {
     parameters: {
       query?: never;
@@ -1017,6 +1065,22 @@ export interface paths {
     get: operations['getGameruleCatalog'];
     put?: never;
     post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/catalog/modpacks/acquire': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations['acquireCatalogModpack'];
     delete?: never;
     options?: never;
     head?: never;
@@ -7994,6 +8058,7 @@ export interface components {
       agentVersion: string;
       apiMajor: number;
       apiMinor: number;
+      contentCatalog?: components['schemas']['ContentCatalogCapabilityDTO'];
       /** @description Placeholder this phase (P2.6 SS3) -- real presence detection is Phase 3 substrate work. */
       helpers: {
         duckdns: boolean;
@@ -8043,6 +8108,19 @@ export interface components {
       storageInventory?: components['schemas']['StorageInventoryCapabilityDTO'];
       /** @description Optional active or create-time context for native world settings. Omitted when no server context was selected. */
       worldSettings?: components['schemas']['WorldSettingsCapabilitiesDTO'];
+    } & {
+      [key: string]: unknown;
+    };
+    CatalogAcquireRequestDTO: {
+      projectId: string;
+      /** @enum {string} */
+      provider: 'modrinth' | 'curseforge';
+      versionId: string;
+    } & {
+      [key: string]: unknown;
+    };
+    CatalogAcquireResultDTO: {
+      operationId: string;
     } & {
       [key: string]: unknown;
     };
@@ -8318,6 +8396,13 @@ export interface components {
     ConsoleStreamTicketDTO: {
       /** @description Short-lived, console-only WebSocket capability; never a bearer credential. */
       ticket: string;
+    } & {
+      [key: string]: unknown;
+    };
+    ContentCatalogCapabilityDTO: {
+      packAcquisition: boolean;
+      protocol: number;
+      providers: string[];
     } & {
       [key: string]: unknown;
     };
@@ -9126,6 +9211,38 @@ export interface components {
       usesVoiceTunnel?: boolean;
       voiceAddress?: string;
       voiceChatEnabled: boolean;
+    } & {
+      [key: string]: unknown;
+    };
+    ProviderCatalogProjectDTO: {
+      distributionAllowed: boolean | null;
+      project: components['schemas']['CatalogProjectDetailDTO'];
+      provider: string;
+    } & {
+      [key: string]: unknown;
+    };
+    ProviderCatalogReleaseDTO: {
+      available: boolean;
+      manualDownloadRequired: boolean;
+      serverPack: boolean;
+      sha1: string | null;
+      version: components['schemas']['CatalogVersionDTO'];
+    } & {
+      [key: string]: unknown;
+    };
+    ProviderCatalogSearchDTO: {
+      offset: number;
+      provider: string;
+      results: components['schemas']['CatalogItemDTO'][];
+      totalCount: number;
+    } & {
+      [key: string]: unknown;
+    };
+    ProviderCatalogVersionsDTO: {
+      offset: number;
+      provider: string;
+      totalCount: number;
+      versions: components['schemas']['ProviderCatalogReleaseDTO'][];
     } & {
       [key: string]: unknown;
     };
@@ -10944,6 +11061,103 @@ export interface operations {
       };
     };
   };
+  getCurseForgeProject: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: number;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Provider result; metadata does not guarantee compatibility or distribution permission. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ProviderCatalogProjectDTO'];
+        };
+      };
+      /** @description Provider authentication, category, availability or network failure */
+      502: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  getCurseForgeVersions: {
+    parameters: {
+      query?: {
+        gameVersion?: string;
+        kind?: 'mod' | 'plugin' | 'modpack' | 'resourcepack' | 'shader' | 'datapack';
+        loader?: 'forge' | 'neoforge' | 'fabric' | 'quilt';
+        offset?: number;
+        q?: string;
+      };
+      header?: never;
+      path: {
+        project_id: number;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Provider result; metadata does not guarantee compatibility or distribution permission. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ProviderCatalogVersionsDTO'];
+        };
+      };
+      /** @description Provider authentication, category, availability or network failure */
+      502: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  searchCurseForgeCatalog: {
+    parameters: {
+      query?: {
+        gameVersion?: string;
+        kind?: 'mod' | 'plugin' | 'modpack' | 'resourcepack' | 'shader' | 'datapack';
+        loader?: 'forge' | 'neoforge' | 'fabric' | 'quilt';
+        offset?: number;
+        q?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Provider result; metadata does not guarantee compatibility or distribution permission. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ProviderCatalogSearchDTO'];
+        };
+      };
+      /** @description Provider authentication, category, availability or network failure */
+      502: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
   searchJavaDatapacks: {
     parameters: {
       query?: {
@@ -10999,6 +11213,37 @@ export interface operations {
         content: {
           'application/json': components['schemas']['ErrorDTO'];
         };
+      };
+    };
+  };
+  acquireCatalogModpack: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['CatalogAcquireRequestDTO'];
+      };
+    };
+    responses: {
+      /** @description Journaled acquisition; operation result contains purpose-bound stagedUploadId after checksum verification. Use existing pack inspect/import/create APIs. */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['CatalogAcquireResultDTO'];
+        };
+      };
+      /** @description Staging capacity is busy */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
       };
     };
   };

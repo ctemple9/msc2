@@ -139,16 +139,30 @@ impl UploadStore {
             }
             session.touch();
         }
-        self.entries.get(id)
+        let entry = self.entries.get(id)?;
+        if entry.provider_owner.as_ref().is_some_and(|owner| {
+            !crate::auth::INITIATING_CREDENTIAL
+                .try_with(|credential| credential.credential_id == *owner)
+                .unwrap_or(false)
+        }) {
+            return None;
+        }
+        Some(entry)
     }
     pub(crate) fn get_mut(&mut self, id: &str) -> Option<&mut StagedUpload> {
         // Existing PUT/chunk handlers must never append to a verified native file.
-        if self.native.contains_key(id) {
+        if self.native.contains_key(id)
+            || self
+                .entries
+                .get(id)
+                .is_some_and(|entry| entry.provider_owner.is_some())
+        {
             return None;
         }
         self.entries.get_mut(id)
     }
     pub(crate) fn remove(&mut self, id: &str) -> Option<StagedUpload> {
+        self.get(id)?;
         let session = self.native.get(id).cloned();
         if let Some(session) = &session
             && (!session.visible()
@@ -361,6 +375,7 @@ fn recover(root: &Path, sessions: &Mutex<HashMap<String, Arc<Session>>>) -> std:
                 adapter: Default::default(),
                 target: None,
                 upload: StagedUpload {
+                    provider_owner: None,
                     native_guard: None,
                     purpose: StagedUploadPurposeDto::WorldImport,
                     file_name: None,
@@ -856,6 +871,7 @@ async fn admit_inner(
         adapter: Default::default(),
         target: target.clone(),
         upload: StagedUpload {
+            provider_owner: None,
             native_guard: None,
             purpose: body.purpose,
             file_name: body.file_name,

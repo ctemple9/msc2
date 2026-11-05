@@ -50,3 +50,6 @@ pub use storage::{
     StorageCandidateDto, StorageCandidatesDto, StorageOutcomeDto, StorageReviewDto,
     StorageReviewRequestDto, StorageReviewedCleanupRequestDto, StorageReviewedResultDto,
 };
+
+pub mod provider_catalog;
+pub use provider_catalog::*;

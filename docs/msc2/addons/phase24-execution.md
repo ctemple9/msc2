@@ -126,14 +126,14 @@ commits per turn. Rolling-plan statuses and Git history remain the step record.
 
 | Field | Current value |
 |---|---|
-| Run state | executing — P24.2 implemented; autonomous goal active |
-| Current step | P24.3 |
-| Next action | P24.3 provider catalog operations and acquisition |
-| Last implementation commit | P24.2: persist content ownership and player collections |
+| Run state | executing — P24.3 implemented; autonomous goal active |
+| Current step | P24.4 |
+| Next action | P24.4 exact CurseForge installation and dependency/manual-file review |
+| Last implementation commit | P24.3: extend shared curseforge catalog operations |
 | Pending UI review | none |
 | Candidate base commit / changed files | none |
 | Owner approval evidence | none |
-| Checks and outcomes | P24.2 cargo check -p msc-infrastructure and focused Clippy passed; cargo fmt and diff check passed; no tests |
+| Checks and outcomes | P24.3 cargo check/clippy -p msc-agent passed; API generation and frontend check passed (10 pre-existing CSS warnings); no tests |
 | External prerequisites | owner screenshots for P24.20; usable provider key/content for live acceptance |
 | Deferred owner acceptance | all physical feature/platform scenarios |
 

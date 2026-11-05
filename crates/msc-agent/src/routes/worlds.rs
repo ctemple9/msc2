@@ -438,6 +438,7 @@ impl WorldsRoutesState {
 
 #[derive(Debug, Clone)]
 pub(crate) struct StagedUpload {
+    pub(crate) provider_owner: Option<String>,
     pub(crate) native_guard:
         Option<std::sync::Arc<super::components::native_upload::ConsumedInput>>,
     pub(crate) purpose: StagedUploadPurposeDto,
@@ -4260,6 +4261,7 @@ pub async fn begin_staged_upload(
     state.staging.uploads.lock().unwrap().insert(
         id.clone(),
         StagedUpload {
+            provider_owner: None,
             native_guard: None,
             purpose: body.purpose,
             file_name: body.file_name.clone(),

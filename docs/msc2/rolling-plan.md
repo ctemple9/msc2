@@ -84,12 +84,14 @@ checks when no affected source has changed. New module paths are proposals.
 
 ### P24.3 — Extend shared curseforge catalog operations
 
-**Status:** planned — not started
+**Status:** implemented — awaiting owner verification
 **Files:** crates/msc-domain/src/addon_provider.rs; crates/msc-infrastructure/src/addon_provider.rs
 **What:** Implement Java categories, paginated search, project descriptions, files/releases, filters and exact file identity. Supply provider pack acquisition into staged archives for both providers; creation/update/import must consume this shared path. Reuse secret-backed keys; scope headers to trusted provider hosts and handle redirects, authentication, rate limits, unavailable categories and restricted downloads explicitly. Preserve existing providers/Bedrock.
 **Verify:** `cargo check -p msc-infrastructure`. Cameron also verifies the corresponding behavior scenarios in `addons/phase24-scope.md` and the P24.1 acceptance record.
 **Commit:** `P24.3: extend shared curseforge catalog operations`
 **Batch:** A — autonomous foundations; no routine owner handoff
+
+**Implementation evidence:** Additive CurseForge catalog/detail/release routes, typed DTO/OpenAPI/generated clients and capability disclosure; dynamic Java classes, paging, dependencies and distribution/manual-download metadata. Shared Modrinth/CurseForge pinned pack acquisition streams to protected staging with size/SHA checks, cooperative cancellation, credential/host revalidation, owner-only redemption and no authenticated redirects. Existing Modrinth routes retained. Agent build and focused Clippy passed; frontend type-check passed with 10 existing unused-selector warnings. No tests or live provider calls run.
 
 ### P24.4 — Resolve curseforge installs and dependencies
 

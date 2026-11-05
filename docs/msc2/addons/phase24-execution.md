@@ -126,10 +126,10 @@ commits per turn. Rolling-plan statuses and Git history remain the step record.
 
 | Field | Current value |
 |---|---|
-| Run state | ready for an execution request; implementation not started |
-| Current step | none |
-| Next action | P24.1 integration inventory and contract |
-| Last implementation commit | none |
+| Run state | executing — P24.1 contract recorded |
+| Current step | P24.2 |
+| Next action | P24.2 persisted ownership and collection schema |
+| Last implementation commit | P24.1: freeze integration and export contracts |
 | Pending UI review | none |
 | Candidate base commit / changed files | none |
 | Owner approval evidence | none |

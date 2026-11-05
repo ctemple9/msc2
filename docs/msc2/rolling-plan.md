@@ -64,8 +64,8 @@ checks when no affected source has changed. New module paths are proposals.
 
 ### P24.1 — Freeze integration and export contracts
 
-**Status:** planned — not started
-**Files:** docs/msc2/addons/phase24-scope.md; docs/msc2/addons/phase24-acceptance.md; docs/msc2/api-contract/openapi.json; docs/msc2/client-capability-matrix.csv
+**Status:** implemented — awaiting owner verification
+**Files:** docs/msc2/addons/phase24-contract.md; docs/msc2/addons/phase24-scope.md; docs/msc2/addons/phase24-acceptance.md; docs/msc2/api-contract/openapi.json; docs/msc2/client-capability-matrix.csv
 **What:** Inventory every Modrinth call/site and its CurseForge counterpart, including diagnostics and world paths. Specify provider-qualified catalog/content DTOs, permissions, operation and capability semantics, destination rules and existing API compatibility. Freeze exact ZIP/.mrpack eligibility, classification review and recovery/update contracts. Record primary-source evidence and external prerequisites; no implementation in this step.
 **Verify:** `git diff HEAD^ -- docs/msc2/addons docs/msc2/api-contract/openapi.json docs/msc2/client-capability-matrix.csv`. Cameron also verifies the corresponding behavior scenarios in `addons/phase24-scope.md` and the P24.1 acceptance record.
 **Commit:** `P24.1: freeze integration and export contracts`

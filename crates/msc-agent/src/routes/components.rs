@@ -2,6 +2,7 @@
 //! routes wired to the real Phase 8 application services.
 
 mod content_install;
+mod content_management;
 mod content_sources;
 mod pack_retention;
 mod provider_catalog;
@@ -284,6 +285,22 @@ pub fn router(state: ComponentsRoutesState) -> Router {
         .route(
             "/servers/:server_id/content/install-manual/complete",
             post(content_install::manual_complete),
+        )
+        .route(
+            "/servers/:server_id/content/collection",
+            get(content_management::get),
+        )
+        .route(
+            "/servers/:server_id/content/player-files/admit",
+            post(content_management::admit),
+        )
+        .route(
+            "/servers/:server_id/content/review",
+            post(content_management::review),
+        )
+        .route(
+            "/servers/:server_id/content/apply",
+            post(content_management::apply),
         )
         .route(
             "/servers/:server_id/content/identify",

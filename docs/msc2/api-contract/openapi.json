@@ -53,6 +53,176 @@
     }
   },
   "paths": {
+    "/v1/servers/{server_id}/content/collection": {
+      "get": {
+        "operationId": "getContentCollection",
+        "tags": [
+          "Content"
+        ],
+        "description": "Read current server and retained player content with recomputed requirement gaps.",
+        "parameters": [
+          {
+            "name": "server_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Read current server and retained player content with recomputed requirement gaps.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContentCollectionSnapshotDTO"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Content changed or review unavailable; refresh and review again."
+          }
+        },
+        "x-permission-category": "addons"
+      }
+    },
+    "/v1/servers/{server_id}/content/player-files/admit": {
+      "post": {
+        "operationId": "admitPlayerContent",
+        "tags": [
+          "Content"
+        ],
+        "description": "Admit an owner/server/path/hash-bound player file upload.",
+        "parameters": [
+          {
+            "name": "server_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Admit an owner/server/path/hash-bound player file upload.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StagedUploadBeginResultDTO"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Content changed or review unavailable; refresh and review again."
+          }
+        },
+        "x-permission-category": "addons",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlayerFileAdmissionDTO"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/servers/{server_id}/content/review": {
+      "post": {
+        "operationId": "reviewContentChanges",
+        "tags": [
+          "Content"
+        ],
+        "description": "Stage independent player content changes against exact server and collection baselines. Classification changes do not install or uninstall active server files.",
+        "parameters": [
+          {
+            "name": "server_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Stage independent player content changes against exact server and collection baselines. Classification changes do not install or uninstall active server files.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContentCollectionReviewDTO"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Content changed or review unavailable; refresh and review again."
+          }
+        },
+        "x-permission-category": "addons",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContentChangesReviewDTO"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/servers/{server_id}/content/apply": {
+      "post": {
+        "operationId": "applyContentChanges",
+        "tags": [
+          "Content"
+        ],
+        "description": "Commit a current owner-bound player content review through the operation journal.",
+        "parameters": [
+          {
+            "name": "server_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Commit a current owner-bound player content review through the operation journal.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationAcceptedDTO"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Content changed or review unavailable; refresh and review again."
+          }
+        },
+        "x-permission-category": "addons",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContentInstallApplyDTO"
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/servers/{server_id}/content/retained-packs/{pack_id}": {
       "get": {
         "operationId": "getRetainedPack",
@@ -9500,6 +9670,319 @@
   },
   "components": {
     "schemas": {
+      "ContentEntryDTO": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "sha512": {
+            "type": "string"
+          },
+          "byteSize": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "audience": {
+            "type": "string",
+            "enum": [
+              "server",
+              "players",
+              "both"
+            ]
+          },
+          "optional": {
+            "type": "boolean"
+          },
+          "source": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ContentSourceDTO"
+              }
+            ],
+            "nullable": true
+          },
+          "redistributionEvidence": {
+            "type": "string",
+            "nullable": true
+          },
+          "classificationEvidence": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "unresolvedReasons": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "path",
+          "sha512",
+          "byteSize",
+          "audience",
+          "optional",
+          "source",
+          "redistributionEvidence",
+          "classificationEvidence",
+          "unresolvedReasons"
+        ],
+        "additionalProperties": true
+      },
+      "ContentCollectionDTO": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": {
+            "type": "integer"
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "upstream": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ContentSourceDTO"
+              }
+            ],
+            "nullable": true
+          },
+          "upstreamFiles": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ContentEntryDTO"
+            }
+          },
+          "currentFiles": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ContentEntryDTO"
+            }
+          },
+          "playerFiles": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ContentEntryDTO"
+            }
+          },
+          "upstreamPlayerFiles": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ContentEntryDTO"
+            }
+          },
+          "excludedPaths": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "playerExcludedPaths": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "retainedRoots": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "publicationIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "revision",
+          "upstream",
+          "upstreamFiles",
+          "currentFiles",
+          "playerFiles",
+          "upstreamPlayerFiles",
+          "excludedPaths",
+          "playerExcludedPaths",
+          "retainedRoots",
+          "publicationIds"
+        ],
+        "additionalProperties": true
+      },
+      "PlayerRequirementDTO": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "state",
+          "reason"
+        ]
+      },
+      "ContentCollectionSnapshotDTO": {
+        "type": "object",
+        "properties": {
+          "collection": {
+            "$ref": "#/components/schemas/ContentCollectionDTO"
+          },
+          "serverBaseline": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "requirements": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlayerRequirementDTO"
+            }
+          }
+        },
+        "required": [
+          "collection",
+          "serverBaseline",
+          "requirements"
+        ]
+      },
+      "ContentChangeDTO": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "addPlayerFile",
+              "copyServerToPlayers",
+              "setServerAudience",
+              "setPlayerOptions",
+              "removePlayerFile",
+              "restorePlayerUpstream"
+            ]
+          },
+          "path": {
+            "type": "string"
+          },
+          "sha512": {
+            "type": "string",
+            "nullable": true
+          },
+          "audience": {
+            "type": "string",
+            "enum": [
+              "server",
+              "players",
+              "both"
+            ],
+            "nullable": true
+          },
+          "optional": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "enabled": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "redistributionEvidence": {
+            "type": "string",
+            "nullable": true
+          },
+          "stagedUploadId": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "action",
+          "path"
+        ]
+      },
+      "ContentChangesReviewDTO": {
+        "type": "object",
+        "properties": {
+          "collectionRevision": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "changes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ContentChangeDTO"
+            }
+          }
+        },
+        "required": [
+          "collectionRevision",
+          "changes"
+        ]
+      },
+      "ContentCollectionReviewDTO": {
+        "type": "object",
+        "properties": {
+          "reviewId": {
+            "type": "string"
+          },
+          "collectionRevision": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "collection": {
+            "$ref": "#/components/schemas/ContentCollectionDTO"
+          },
+          "changes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ContentChangeDTO"
+            }
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "reviewId",
+          "collectionRevision",
+          "collection",
+          "changes",
+          "warnings"
+        ]
+      },
+      "PlayerFileAdmissionDTO": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "byteSize": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "sha512": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "byteSize",
+          "sha512"
+        ]
+      },
       "RetainedPackMissingDTO": {
         "type": "object",
         "properties": {
@@ -10082,6 +10565,7 @@
       "ContentCatalogCapabilityDTO": {
         "type": "object",
         "properties": {
+          "playerContentManagement": { "type": "boolean" },
           "retainedPackRecovery": { "type": "boolean" },
           "protocol": {
             "type": "integer",

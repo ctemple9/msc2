@@ -36,7 +36,7 @@ pub struct RetainedPack {
     pub server_excluded_file_ids: Vec<String>,
 }
 
-fn copy_exact(
+pub(crate) fn copy_exact(
     source: &Path,
     destination: &Path,
     limit: u64,

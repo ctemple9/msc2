@@ -55,6 +55,8 @@ pub struct ContentCollection {
     pub upstream_player_files: BTreeMap<String, ContentEntry>,
     /// Preserve intentional owner removals when comparing future upstream packs.
     pub excluded_paths: Vec<String>,
+    #[serde(default)]
+    pub player_excluded_paths: Vec<String>,
     /// Paths relative to the registered server root, never arbitrary host paths.
     pub retained_roots: Vec<String>,
     pub publication_ids: Vec<String>,
@@ -73,6 +75,7 @@ impl Default for ContentCollection {
             player_files: BTreeMap::new(),
             upstream_player_files: BTreeMap::new(),
             excluded_paths: Vec::new(),
+            player_excluded_paths: Vec::new(),
             retained_roots: Vec::new(),
             publication_ids: Vec::new(),
             extra: BTreeMap::new(),
@@ -111,7 +114,11 @@ impl ContentCollection {
                 }
             }
         }
-        for path in &self.excluded_paths {
+        for path in self
+            .excluded_paths
+            .iter()
+            .chain(&self.player_excluded_paths)
+        {
             validate_relative_path(path)?;
         }
         for path in &self.retained_roots {

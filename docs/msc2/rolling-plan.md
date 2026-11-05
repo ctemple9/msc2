@@ -128,12 +128,14 @@ checks when no affected source has changed. New module paths are proposals.
 
 ### P24.7 — Manage independent player content and requirements
 
-**Status:** planned — not started
-**Files:** crates/msc-application/src/; crates/msc-agent/src/routes/components.rs; crates/msc-api/src/
+**Status:** implemented — awaiting owner verification
+**Files:** crates/msc-application/src/content_management.rs; content_install.rs; crates/msc-agent/src/routes/components/content_management.rs and router/capabilities; provider DTOs; domain collection; OpenAPI/generated clients; tests/player_content_safety.rs
 **What:** Implement Server/Players/Both and required/optional mutation/review with separate storage. Adding/updating/removing/toggling server content recomputes player dependency needs without discarding owner choices; ambiguous or contradictory evidence requires review. Include resource packs, shaders and config/scripts.
 **Verify:** `cargo check -p msc-agent`. Cameron also verifies the corresponding behavior scenarios in `addons/phase24-scope.md` and the P24.1 acceptance record.
 **Commit:** `P24.7: manage independent player content and requirements`
 **Batch:** A — autonomous foundations; no routine owner handoff
+
+**Implementation evidence:** Added explicit-server collection/requirements read, owner/server/path/hash-bound player upload admission, review and journaled apply endpoints. Immutable player blobs live outside running server content; metadata application is one atomic config commit. Reviews pin collection, game/loader, server identity and byte baseline, expire and revalidate retained bytes/permissions. Owners can add/remove independent files, choose required/optional/enabled, classify server content, copy matching server bytes to players and explicitly restore individual upstream player files. Owner removal tombstones are separate from server removals. Classification changes do not install/uninstall live server files; existing stopped-server install/remove/toggle workflows remain authoritative and the review warns about client-only content still installed on the server. Every collection read recomputes server additions/changes/removals/disabled state and known provider dependency/conflict gaps without discarding player customizations. Unknown evidence requires review. New shader/resource selections are inactive by default, and known redistribution restrictions cannot be overridden by an attestation. Focused Clippy and frontend check passed (10 existing CSS warnings); two essential local tests protect stale/owner-bound reviews and independent retained bytes, expected <100 ms each, not run. No new UI yet; physical behavior, provider-source dependency completeness and all platform acceptance remain pending.
 
 ### P24.8 — Recover player packs for existing servers
 

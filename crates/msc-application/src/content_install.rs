@@ -921,7 +921,22 @@ pub fn activate(
                         || vec!["Player requirements have not been reviewed".into()],
                         |entry| entry.unresolved_reasons.clone(),
                     ),
-                    extra: previous.map_or_else(BTreeMap::new, |entry| entry.extra),
+                    extra: {
+                        let mut extra = previous.map_or_else(BTreeMap::new, |entry| entry.extra);
+                        extra.insert(
+                            "requiredProjects".into(),
+                            serde_json::json!(file.required_projects),
+                        );
+                        extra.insert(
+                            "incompatibleProjects".into(),
+                            serde_json::json!(file.incompatible_projects),
+                        );
+                        extra.insert(
+                            "providerDistributionAllowed".into(),
+                            serde_json::json!(file.distribution_allowed),
+                        );
+                        extra
+                    },
                 },
             );
         }

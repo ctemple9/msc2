@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: d8c776d61cb69bfaf95cc27fdab4e056cb152722ae579963b9d217c450fb87b7
+// Contract SHA-256: b13683688e422b759e4009cc87781fb27ac18f9d14e495016430c0fd8e013fee
 
 export interface paths {
   '/v1/active-server': {
@@ -5318,6 +5318,40 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/v1/servers/{server_id}/content/apply': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** @description Commit a current owner-bound player content review through the operation journal. */
+    post: operations['applyContentChanges'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/servers/{server_id}/content/collection': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description Read current server and retained player content with recomputed requirement gaps. */
+    get: operations['getContentCollection'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/v1/servers/{server_id}/content/identify': {
     parameters: {
       query?: never;
@@ -5403,6 +5437,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/v1/servers/{server_id}/content/player-files/admit': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** @description Admit an owner/server/path/hash-bound player file upload. */
+    post: operations['admitPlayerContent'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/v1/servers/{server_id}/content/retained-packs/{pack_id}': {
     parameters: {
       query?: never;
@@ -5465,6 +5516,23 @@ export interface paths {
     put?: never;
     /** @description Retry resolution from the checksum-verified retained original archive. */
     post: operations['retryRetainedPack'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/servers/{server_id}/content/review': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** @description Stage independent player content changes against exact server and collection baselines. Classification changes do not install or uninstall active server files. */
+    post: operations['reviewContentChanges'];
     delete?: never;
     options?: never;
     head?: never;
@@ -8605,12 +8673,98 @@ export interface components {
     };
     ContentCatalogCapabilityDTO: {
       packAcquisition: boolean;
+      playerContentManagement?: boolean;
       protocol: number;
       providers: string[];
       retainedPackRecovery?: boolean;
       reviewedInstalls?: string[];
       reviewedUpdates?: string[];
       sourceIdentification?: string[];
+    } & {
+      [key: string]: unknown;
+    };
+    ContentChangeDTO: {
+      /** @enum {string} */
+      action:
+        | 'addPlayerFile'
+        | 'copyServerToPlayers'
+        | 'setServerAudience'
+        | 'setPlayerOptions'
+        | 'removePlayerFile'
+        | 'restorePlayerUpstream';
+      /** @enum {string|null} */
+      audience?: 'server' | 'players' | 'both' | null;
+      enabled?: boolean | null;
+      optional?: boolean | null;
+      path: string;
+      redistributionEvidence?: string | null;
+      sha512?: string | null;
+      stagedUploadId?: string | null;
+    } & {
+      [key: string]: unknown;
+    };
+    ContentChangesReviewDTO: {
+      changes: components['schemas']['ContentChangeDTO'][];
+      /** Format: int64 */
+      collectionRevision: number;
+    } & {
+      [key: string]: unknown;
+    };
+    ContentCollectionDTO: {
+      currentFiles: {
+        [key: string]: components['schemas']['ContentEntryDTO'];
+      };
+      excludedPaths: string[];
+      playerExcludedPaths: string[];
+      playerFiles: {
+        [key: string]: components['schemas']['ContentEntryDTO'];
+      };
+      publicationIds: string[];
+      retainedRoots: string[];
+      /** Format: int64 */
+      revision: number;
+      schemaVersion: number;
+      upstream: components['schemas']['ContentSourceDTO'] | null;
+      upstreamFiles: {
+        [key: string]: components['schemas']['ContentEntryDTO'];
+      };
+      upstreamPlayerFiles: {
+        [key: string]: components['schemas']['ContentEntryDTO'];
+      };
+    } & {
+      [key: string]: unknown;
+    };
+    ContentCollectionReviewDTO: {
+      changes: components['schemas']['ContentChangeDTO'][];
+      collection: components['schemas']['ContentCollectionDTO'];
+      /** Format: int64 */
+      collectionRevision: number;
+      reviewId: string;
+      warnings: string[];
+    } & {
+      [key: string]: unknown;
+    };
+    ContentCollectionSnapshotDTO: {
+      collection: components['schemas']['ContentCollectionDTO'];
+      requirements: components['schemas']['PlayerRequirementDTO'][];
+      serverBaseline: {
+        [key: string]: string;
+      };
+    } & {
+      [key: string]: unknown;
+    };
+    ContentEntryDTO: {
+      /** @enum {string} */
+      audience: 'server' | 'players' | 'both';
+      /** Format: int64 */
+      byteSize: number;
+      classificationEvidence: string[];
+      optional: boolean;
+      path: string;
+      redistributionEvidence: string | null;
+      sha512: string;
+      source: components['schemas']['ContentSourceDTO'] | null;
+      unresolvedReasons: string[];
     } & {
       [key: string]: unknown;
     };
@@ -9381,6 +9535,14 @@ export interface components {
     } & {
       [key: string]: unknown;
     };
+    PlayerFileAdmissionDTO: {
+      /** Format: int64 */
+      byteSize: number;
+      path: string;
+      sha512: string;
+    } & {
+      [key: string]: unknown;
+    };
     PlayerIdentifyRequestDTO: {
       gamertag: string;
       profileId: string;
@@ -9431,6 +9593,13 @@ export interface components {
     PlayerProfilesResponseDTO: {
       isLoadingStats: boolean;
       profiles: components['schemas']['PlayerProfileDTO'][];
+    } & {
+      [key: string]: unknown;
+    };
+    PlayerRequirementDTO: {
+      path: string;
+      reason: string;
+      state: string;
     } & {
       [key: string]: unknown;
     };
@@ -12262,6 +12431,68 @@ export interface operations {
       };
     };
   };
+  applyContentChanges: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        server_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ContentInstallApplyDTO'];
+      };
+    };
+    responses: {
+      /** @description Commit a current owner-bound player content review through the operation journal. */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['OperationAcceptedDTO'];
+        };
+      };
+      /** @description Content changed or review unavailable; refresh and review again. */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  getContentCollection: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        server_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Read current server and retained player content with recomputed requirement gaps. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ContentCollectionSnapshotDTO'];
+        };
+      };
+      /** @description Content changed or review unavailable; refresh and review again. */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
   identifyServerContent: {
     parameters: {
       query?: never;
@@ -12455,6 +12686,39 @@ export interface operations {
       };
     };
   };
+  admitPlayerContent: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        server_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['PlayerFileAdmissionDTO'];
+      };
+    };
+    responses: {
+      /** @description Admit an owner/server/path/hash-bound player file upload. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['StagedUploadBeginResultDTO'];
+        };
+      };
+      /** @description Content changed or review unavailable; refresh and review again. */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
   getRetainedPack: {
     parameters: {
       query?: never;
@@ -12575,6 +12839,39 @@ export interface operations {
         };
       };
       /** @description Retained manifest, server or file changed; inspect before retrying. */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  reviewContentChanges: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        server_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ContentChangesReviewDTO'];
+      };
+    };
+    responses: {
+      /** @description Stage independent player content changes against exact server and collection baselines. Classification changes do not install or uninstall active server files. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ContentCollectionReviewDTO'];
+        };
+      };
+      /** @description Content changed or review unavailable; refresh and review again. */
       409: {
         headers: {
           [name: string]: unknown;

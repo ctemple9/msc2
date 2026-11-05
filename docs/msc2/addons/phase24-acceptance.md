@@ -75,3 +75,16 @@ Live provider resolution, restricted/manual downloads, cancellation/restart,
 disk exhaustion, permissions and all physical platforms remain owner-unverified.
 Unsupported mirrors, missing exact hashes and uncertain environment evidence
 remain unresolved rather than being silently omitted or called export-ready.
+
+P24.7: independent player blobs, upload admission, stale/owner-bound content
+reviews and atomic collection application are wired through the shared API.
+Player options/removals and explicit per-item upstream restoration preserve
+server bytes. Classification is separate from active server installation;
+existing stopped-server mutations remain in use and new reads recompute content
+requirements after changes. Known provider dependency/conflict evidence is
+retained; ambiguous local requirements remain owner review items. Optional
+shader/resource content starts inactive. Focused Clippy, API generation and
+frontend check passed (10 existing CSS warnings). Two essential local tests
+protect stale reviews, credential ownership and independent player copies,
+expected <100 ms each, not run. Live behavior, complete provider/classification
+acceptance, cancellations, filesystem errors and physical platforms are pending.

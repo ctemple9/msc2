@@ -66,6 +66,8 @@ pub struct ContentCatalogCapabilityDto {
     pub reviewed_updates: Vec<String>,
     #[serde(default)]
     pub retained_pack_recovery: bool,
+    #[serde(default)]
+    pub player_content_management: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -210,4 +212,30 @@ pub struct RetainedPackStatusDto {
 pub struct RetainedPackManualDto {
     pub path: String,
     pub staged_upload_id: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ContentChangeDto {
+    pub action: String,
+    pub path: String,
+    pub sha512: Option<String>,
+    pub audience: Option<String>,
+    pub optional: Option<bool>,
+    pub enabled: Option<bool>,
+    pub redistribution_evidence: Option<String>,
+    pub staged_upload_id: Option<String>,
+}
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ContentChangesReviewDto {
+    pub collection_revision: u64,
+    pub changes: Vec<ContentChangeDto>,
+}
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PlayerFileAdmissionDto {
+    pub path: String,
+    pub byte_size: u64,
+    pub sha512: String,
 }

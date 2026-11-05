@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: 05e1c80fdd2ade2705e217831631c16d175685576e96a58b6a7d20685ec0affc
+// Contract SHA-256: d8c776d61cb69bfaf95cc27fdab4e056cb152722ae579963b9d217c450fb87b7
 
 export interface paths {
   '/v1/active-server': {
@@ -5403,6 +5403,74 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/v1/servers/{server_id}/content/retained-packs/{pack_id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description Inspect retained original and unresolved player files. File completeness does not imply publication readiness. */
+    get: operations['getRetainedPack'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/servers/{server_id}/content/retained-packs/{pack_id}/manual/admit': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** @description Admit an exact-size upload bound to one pinned retained file. */
+    post: operations['admitRetainedPackFile'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/servers/{server_id}/content/retained-packs/{pack_id}/manual/complete': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** @description Verify and retain an uploaded player asset without changing active server files. */
+    post: operations['completeRetainedPackFile'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/servers/{server_id}/content/retained-packs/{pack_id}/retry': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** @description Retry resolution from the checksum-verified retained original archive. */
+    post: operations['retryRetainedPack'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/v1/servers/{server_id}/content/source': {
     parameters: {
       query?: never;
@@ -8539,6 +8607,7 @@ export interface components {
       packAcquisition: boolean;
       protocol: number;
       providers: string[];
+      retainedPackRecovery?: boolean;
       reviewedInstalls?: string[];
       reviewedUpdates?: string[];
       sourceIdentification?: string[];
@@ -9216,6 +9285,11 @@ export interface components {
     };
     /** @description Structured first-launch copy. Anchoring and presentation remain client-owned. */
     OnboardingGuideDTO: Record<string, never>;
+    OperationAcceptedDTO: {
+      operationId: string;
+    } & {
+      [key: string]: unknown;
+    };
     /** @description P2.5 SS4.1 -- POST /v1/operations request body. */
     OperationCreateRequestDTO: {
       /** @description Free-form, shape defined per type. */
@@ -9632,6 +9706,34 @@ export interface components {
     ResourcePackToggleRequestDTO: {
       enabled: boolean;
       packId: string;
+    } & {
+      [key: string]: unknown;
+    };
+    RetainedPackManualDTO: {
+      path: string;
+      stagedUploadId?: string | null;
+    } & {
+      [key: string]: unknown;
+    };
+    RetainedPackMissingDTO: {
+      /** Format: int64 */
+      byteSize: number | null;
+      manualRecoveryAvailable: boolean;
+      path: string;
+      reason: string;
+    } & {
+      [key: string]: unknown;
+    };
+    RetainedPackStatusDTO: {
+      filesComplete: boolean;
+      missing: components['schemas']['RetainedPackMissingDTO'][];
+      name: string;
+      originalSha512: string;
+      packId: string;
+      playerRecoveryRequired: boolean;
+      resolvedFileCount: number;
+      sourceServerPack: boolean | null;
+      version: string;
     } & {
       [key: string]: unknown;
     };
@@ -12345,6 +12447,134 @@ export interface operations {
         content?: never;
       };
       /** @description Server selection/state/review or content changed; review again. */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  getRetainedPack: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        pack_id: string;
+        server_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Inspect retained original and unresolved player files. File completeness does not imply publication readiness. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['RetainedPackStatusDTO'];
+        };
+      };
+      /** @description Retained manifest, server or file changed; inspect before retrying. */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  admitRetainedPackFile: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        pack_id: string;
+        server_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['RetainedPackManualDTO'];
+      };
+    };
+    responses: {
+      /** @description Admit an exact-size upload bound to one pinned retained file. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['StagedUploadBeginResultDTO'];
+        };
+      };
+      /** @description Retained manifest, server or file changed; inspect before retrying. */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  completeRetainedPackFile: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        pack_id: string;
+        server_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['RetainedPackManualDTO'];
+      };
+    };
+    responses: {
+      /** @description Verify and retain an uploaded player asset without changing active server files. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['RetainedPackStatusDTO'];
+        };
+      };
+      /** @description Retained manifest, server or file changed; inspect before retrying. */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  retryRetainedPack: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        pack_id: string;
+        server_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Retry resolution from the checksum-verified retained original archive. */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['OperationAcceptedDTO'];
+        };
+      };
+      /** @description Retained manifest, server or file changed; inspect before retrying. */
       409: {
         headers: {
           [name: string]: unknown;

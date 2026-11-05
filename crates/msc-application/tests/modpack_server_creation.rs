@@ -148,6 +148,8 @@ fn staged_dir(tmp: &TempDir, label: &str) -> PathBuf {
 
 fn inspection(format: InspectedFormat, staged_dir: PathBuf) -> ModpackInspection {
     ModpackInspection {
+        archive_path: None,
+        origin: None,
         format,
         pinned_version: None,
         manual_downloads: Vec::new(),

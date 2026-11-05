@@ -159,8 +159,18 @@ pub fn source_identity(format: &InspectedFormat) -> Option<modpack::ModpackIdent
     }
 }
 
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PackOrigin {
+    pub source: msc_domain::content_collection::ContentSource,
+    pub server_pack: Option<bool>,
+}
+
 #[derive(Debug)]
 pub struct ModpackInspection {
+    pub origin: Option<PackOrigin>,
+    /// Original staged archive retained until import completes.
+    pub archive_path: Option<PathBuf>,
     pub format: InspectedFormat,
     pub pinned_version: Option<PinnedVersionEntry>,
     /// D-027's manual-file (author-blocked CurseForge file) list — always
@@ -316,6 +326,8 @@ fn extract_and_enrich(
     };
 
     Ok(ModpackInspection {
+        origin: None,
+        archive_path: Some(archive_path.to_path_buf()),
         format,
         pinned_version,
         manual_downloads,

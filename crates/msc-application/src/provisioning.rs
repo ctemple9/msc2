@@ -1835,6 +1835,9 @@ pub fn create_server_from_pack(
             return Err(CreateFromPackError::Cancelled);
         }
 
+        let mut retained_pack =
+            crate::pack_retention::capture_original(inspection, &new_dir, should_cancel)
+                .map_err(CreateFromPackError::Import)?;
         let pack_report = match &inspection.format {
             modpacks::InspectedFormat::Mrpack(manifest) => {
                 let report = modpacks::import_mrpack(
@@ -1893,6 +1896,32 @@ pub fn create_server_from_pack(
         created.config.pack_name = Some(pack_name);
         created.config.pack_version = Some(pack_version);
         created.config.modpack_identity = modpacks::source_identity(&inspection.format);
+        if let Some(pack) = retained_pack.as_mut() {
+            if let PackApplyReport::CurseForge(report) = &pack_report {
+                pack.server_excluded_file_ids = report
+                    .excluded_manifest_files
+                    .iter()
+                    .map(|file| file.file_id.to_string())
+                    .collect();
+            }
+            crate::pack_retention::resolve_content(
+                &new_dir,
+                inspection,
+                pack,
+                addon_transport,
+                secrets,
+                should_cancel,
+            )
+            .map_err(CreateFromPackError::Import)?;
+            created.config.content_collection = Some(
+                crate::pack_retention::collection(
+                    &new_dir,
+                    pack,
+                    created.config.content_collection.as_ref(),
+                )
+                .map_err(CreateFromPackError::Import)?,
+            );
+        }
 
         Ok(CreatedFromPack {
             created,

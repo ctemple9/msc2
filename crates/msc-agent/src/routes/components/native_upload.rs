@@ -377,6 +377,7 @@ fn recover(root: &Path, sessions: &Mutex<HashMap<String, Arc<Session>>>) -> std:
                 target: None,
                 upload: StagedUpload {
                     provider_owner: None,
+                    pack_origin: None,
                     native_guard: None,
                     purpose: StagedUploadPurposeDto::WorldImport,
                     file_name: None,
@@ -873,6 +874,7 @@ async fn admit_inner(
         target: target.clone(),
         upload: StagedUpload {
             provider_owner: None,
+            pack_origin: None,
             native_guard: None,
             purpose: body.purpose,
             file_name: body.file_name,

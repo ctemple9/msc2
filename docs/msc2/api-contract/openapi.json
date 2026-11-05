@@ -53,6 +53,198 @@
     }
   },
   "paths": {
+    "/v1/servers/{server_id}/content/retained-packs/{pack_id}": {
+      "get": {
+        "operationId": "getRetainedPack",
+        "tags": [
+          "Content"
+        ],
+        "description": "Inspect retained original and unresolved player files. File completeness does not imply publication readiness.",
+        "parameters": [
+          {
+            "name": "server_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "pack_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Inspect retained original and unresolved player files. File completeness does not imply publication readiness.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetainedPackStatusDTO"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Retained manifest, server or file changed; inspect before retrying."
+          }
+        },
+        "x-permission-category": "addons"
+      }
+    },
+    "/v1/servers/{server_id}/content/retained-packs/{pack_id}/retry": {
+      "post": {
+        "operationId": "retryRetainedPack",
+        "tags": [
+          "Content"
+        ],
+        "description": "Retry resolution from the checksum-verified retained original archive.",
+        "parameters": [
+          {
+            "name": "server_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "pack_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Retry resolution from the checksum-verified retained original archive.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationAcceptedDTO"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Retained manifest, server or file changed; inspect before retrying."
+          }
+        },
+        "x-permission-category": "addons"
+      }
+    },
+    "/v1/servers/{server_id}/content/retained-packs/{pack_id}/manual/admit": {
+      "post": {
+        "operationId": "admitRetainedPackFile",
+        "tags": [
+          "Content"
+        ],
+        "description": "Admit an exact-size upload bound to one pinned retained file.",
+        "parameters": [
+          {
+            "name": "server_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "pack_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Admit an exact-size upload bound to one pinned retained file.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StagedUploadBeginResultDTO"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Retained manifest, server or file changed; inspect before retrying."
+          }
+        },
+        "x-permission-category": "addons",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RetainedPackManualDTO"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/servers/{server_id}/content/retained-packs/{pack_id}/manual/complete": {
+      "post": {
+        "operationId": "completeRetainedPackFile",
+        "tags": [
+          "Content"
+        ],
+        "description": "Verify and retain an uploaded player asset without changing active server files.",
+        "parameters": [
+          {
+            "name": "server_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "pack_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Verify and retain an uploaded player asset without changing active server files.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetainedPackStatusDTO"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Retained manifest, server or file changed; inspect before retrying."
+          }
+        },
+        "x-permission-category": "addons",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RetainedPackManualDTO"
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/servers/{server_id}/content/identify": {
       "get": {
         "operationId": "identifyServerContent",
@@ -9308,6 +9500,99 @@
   },
   "components": {
     "schemas": {
+      "RetainedPackMissingDTO": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "byteSize": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "manualRecoveryAvailable": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "path",
+          "reason",
+          "byteSize",
+          "manualRecoveryAvailable"
+        ]
+      },
+      "RetainedPackStatusDTO": {
+        "type": "object",
+        "properties": {
+          "sourceServerPack": { "type": "boolean", "nullable": true },
+          "playerRecoveryRequired": { "type": "boolean" },
+          "packId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "originalSha512": {
+            "type": "string"
+          },
+          "resolvedFileCount": {
+            "type": "integer"
+          },
+          "filesComplete": {
+            "type": "boolean"
+          },
+          "missing": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RetainedPackMissingDTO"
+            }
+          }
+        },
+        "required": [
+          "sourceServerPack",
+          "playerRecoveryRequired",
+          "packId",
+          "name",
+          "version",
+          "originalSha512",
+          "resolvedFileCount",
+          "filesComplete",
+          "missing"
+        ]
+      },
+      "RetainedPackManualDTO": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "stagedUploadId": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "path"
+        ]
+      },
+      "OperationAcceptedDTO": {
+        "type": "object",
+        "properties": {
+          "operationId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "operationId"
+        ]
+      },
       "ContentSourceDTO": {
         "type": "object",
         "properties": {
@@ -9797,6 +10082,7 @@
       "ContentCatalogCapabilityDTO": {
         "type": "object",
         "properties": {
+          "retainedPackRecovery": { "type": "boolean" },
           "protocol": {
             "type": "integer",
             "minimum": 0

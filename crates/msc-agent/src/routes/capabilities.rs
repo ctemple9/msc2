@@ -156,6 +156,7 @@ async fn capabilities_for_query(
             reviewed_installs: vec!["curseforge".into()],
             source_identification: vec!["curseforge".into()],
             reviewed_updates: vec!["curseforge".into()],
+            retained_pack_recovery: true,
             pack_acquisition: credential
                 .permissions
                 .contains(&msc_api::dto::PermissionCategoryDto::Addons),

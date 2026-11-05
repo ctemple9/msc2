@@ -371,6 +371,21 @@ pub(super) async fn acquire(
                     ));
                 }
             }
+            let server_pack = if body.provider == "curseforge" {
+                cf::release(
+                    &transport,
+                    secrets.as_ref(),
+                    body.project_id
+                        .parse()
+                        .map_err(|_| AddonProviderError::InvalidDirectUrl)?,
+                    body.version_id
+                        .parse()
+                        .map_err(|_| AddonProviderError::InvalidDirectUrl)?,
+                )?
+                .is_server_pack
+            } else {
+                None
+            };
             let artifact = provider::artifact::resolve(
                 &transport,
                 secrets.as_ref(),
@@ -401,6 +416,14 @@ pub(super) async fn acquire(
                 id.clone(),
                 StagedUpload {
                     provider_owner: Some(credential.credential_id.clone()),
+                    pack_origin: Some(msc_application::modpacks::PackOrigin {
+                        source: msc_domain::content_collection::ContentSource {
+                            provider: body.provider.clone(),
+                            project_id: body.project_id.clone(),
+                            version_id: body.version_id.clone(),
+                        },
+                        server_pack,
+                    }),
                     native_guard: None,
                     purpose: StagedUploadPurposeDto::ModpackArchive,
                     file_name: Some(artifact.file_name),

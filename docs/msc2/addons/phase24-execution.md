@@ -126,14 +126,14 @@ commits per turn. Rolling-plan statuses and Git history remain the step record.
 
 | Field | Current value |
 |---|---|
-| Run state | executing — P24.5 implemented; autonomous goal active |
-| Current step | P24.6 |
-| Next action | P24.6 retain complete original/client pack content before server filtering, including manual files |
-| Last implementation commit | P24.5: extend identification and updates across providers |
+| Run state | executing — P24.6 implemented; autonomous goal active |
+| Current step | P24.7 |
+| Next action | Implement independent player content storage, mutations and server/player requirement reconciliation through shared APIs. Continue without routine handoff; no UI checkpoint yet. |
+| Last implementation commit | P24.6: retain complete imported player content |
 | Pending UI review | none |
-| Candidate base commit / changed files | none |
+| Candidate base commit / changed files | P24.6 committed; next slice P24.7 |
 | Owner approval evidence | none |
-| Checks and outcomes | P24.5 agent Clippy/build passed; API generation and frontend check passed (10 existing CSS warnings); two additional safety tests added, not run |
+| Checks and outcomes | P24.6 focused agent Clippy passed; API generation/frontend check passed (10 existing CSS warnings); two essential retention tests added, not run |
 | External prerequisites | owner screenshots for P24.20; usable provider key/content for live acceptance |
 | Deferred owner acceptance | all physical feature/platform scenarios |
 

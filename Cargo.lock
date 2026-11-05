@@ -1070,6 +1070,7 @@ name = "msc-application"
 version = "0.1.0"
 dependencies = [
  "flate2",
+ "fs2",
  "msc-domain",
  "msc-infrastructure",
  "serde",

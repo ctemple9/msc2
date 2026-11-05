@@ -60,3 +60,18 @@ physical platforms and source-aware diagnostic UI remain owner-unverified.
 Fingerprint API reference: https://docs.curseforge.com/rest-api/#get-fingerprints-matches-by-game-id
 Murmur mixing reference: https://github.com/aappleby/smhasher/blob/master/src/MurmurHash2.cpp
 Candidate fingerprints alone never establish file identity.
+
+P24.6: original archives, shared/client/server override layers and complete
+manifest retention are implemented before destructive server filtering. Player
+and server baselines retain distinct bytes at the same logical path. Missing
+content stays explicit; retained status/retry/manual endpoints and legacy manual
+completion share exact-size/hash checks. Provider-acquired pack identities and
+CurseForge source-server-pack flags persist; local archive source type remains
+unknown and server-only archives require player recovery. Focused Clippy and
+frontend type-check passed (10 existing CSS warnings); generated schema references
+resolve. Two essential tests cover rejected retained asset bytes and side-specific
+override separation, controlled local files, expected <100 ms each, not run.
+Live provider resolution, restricted/manual downloads, cancellation/restart,
+disk exhaustion, permissions and all physical platforms remain owner-unverified.
+Unsupported mirrors, missing exact hashes and uncertain environment evidence
+remain unresolved rather than being silently omitted or called export-ready.

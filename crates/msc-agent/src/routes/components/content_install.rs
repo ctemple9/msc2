@@ -299,6 +299,7 @@ pub(super) async fn manual_admission(
         id.clone(),
         StagedUpload {
             provider_owner: Some(credential.credential_id),
+            pack_origin: None,
             native_guard: None,
             purpose: StagedUploadPurposeDto::CurseforgeManualFile,
             file_name: Some(file.file_name.clone()),

@@ -272,3 +272,40 @@ pub fn fingerprint_matches(
     }
     Ok(matches)
 }
+
+/// Full project metadata for pack file placement, batched to avoid one lookup
+/// per mod while preserving the Java game and content-class boundary.
+pub fn projects(
+    transport: &dyn AddonTransport,
+    secrets: &dyn SecretStore,
+    ids: &[i64],
+) -> Result<Vec<Project>, AddonProviderError> {
+    let key = curseforge_api_key(secrets)?;
+    let ids = domain::curseforge_batched_ids(ids);
+    let mut projects = Vec::new();
+    for chunk in ids.chunks(MAX_BATCH_SIZE) {
+        let response = transport
+            .post_json(
+                &format!("{}/v1/mods", curseforge_base()),
+                "CurseForge pack projects",
+                &serde_json::json!({"modIds": chunk}),
+                &[("x-api-key", key.as_str())],
+                RESPONSE_MAX_BYTES,
+            )
+            .map_err(map_transport_err)?;
+        ensure_curseforge_ok_for("pack projects", response.status)?;
+        let envelope: Envelope<Vec<Project>> = serde_json::from_slice(&response.body)
+            .map_err(|error| malformed("CurseForge pack projects", error))?;
+        if envelope
+            .data
+            .iter()
+            .any(|project| project.game_id != 432 || !chunk.contains(&project.id))
+        {
+            return Err(AddonProviderError::Network(
+                "Unexpected provider project in pack metadata".into(),
+            ));
+        }
+        projects.extend(envelope.data);
+    }
+    Ok(projects)
+}

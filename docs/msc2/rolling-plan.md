@@ -117,12 +117,14 @@ checks when no affected source has changed. New module paths are proposals.
 
 ### P24.6 — Retain complete imported player content
 
-**Status:** planned — not started
-**Files:** crates/msc-application/src/modpacks.rs; crates/msc-domain/src/modpack_manifest.rs; crates/msc-agent/src/routes/components.rs
+**Status:** implemented — awaiting owner verification
+**Files:** crates/msc-application/src/pack_retention.rs; modpacks.rs; provisioning.rs; crates/msc-domain/src/content_collection.rs; crates/msc-agent/src/routes/components/pack_retention.rs and upload/import routes; provider DTOs, OpenAPI/generated clients; tests/pack_retention_safety.rs
 **What:** Retain original archives and resolve complete client/shared content before server filtering for both pack formats, including overrides and manual-download checkpoints. Distinguish source server packs from full client packs; journal bounded staging, failure/cancel recovery and content readiness.
 **Verify:** `cargo check -p msc-agent`. Cameron also verifies the corresponding behavior scenarios in `addons/phase24-scope.md` and the P24.1 acceptance record.
 **Commit:** `P24.6: retain complete imported player content`
 **Batch:** A — autonomous foundations; no routine owner handoff
+
+**Implementation evidence:** Original archives and all override layers are retained before server filtering, with streaming checksums, bounded copies and protected roots. Server/player baselines use separate maps, preserving different bytes at the same game path. Both manifest formats resolve client/shared files into private retained storage; exact missing files remain explicit, with class-aware folders, importer exclusions and bounded embedded environment evidence. Provider acquisition retains source identity and CurseForge server-pack evidence; local source type stays unknown. Status, journaled retry from the verified original and owner/file-bound raw manual recovery APIs are wired; existing server manual completion reconciles exact matching retained files. New endpoints/types/capability are published. Focused agent Clippy and frontend type-check pass (10 existing CSS warnings). Two essential deterministic tests protect retained manual bytes and side-specific override separation; no existing import checks cover those retained copies, expected <100 ms each, not run. Live provider, cancellation/restart, disk-full, physical platform and source-server-pack recovery acceptance remain pending. Uncertain classification, unsupported mirrors or unavailable exact hashes stay unresolved; retention is not publication approval.
 
 ### P24.7 — Manage independent player content and requirements
 

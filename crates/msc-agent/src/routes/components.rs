@@ -3,6 +3,7 @@
 
 mod content_install;
 mod content_sources;
+mod pack_retention;
 mod provider_catalog;
 pub(crate) mod storage_cleanup;
 
@@ -299,6 +300,22 @@ pub fn router(state: ComponentsRoutesState) -> Router {
         .route(
             "/servers/:server_id/content/update-review",
             post(content_sources::review_update),
+        )
+        .route(
+            "/servers/:server_id/content/retained-packs/:pack_id",
+            get(pack_retention::get_status),
+        )
+        .route(
+            "/servers/:server_id/content/retained-packs/:pack_id/retry",
+            post(pack_retention::retry),
+        )
+        .route(
+            "/servers/:server_id/content/retained-packs/:pack_id/manual/admit",
+            post(pack_retention::admit),
+        )
+        .route(
+            "/servers/:server_id/content/retained-packs/:pack_id/manual/complete",
+            post(pack_retention::complete),
         )
         .route("/addons", get(get_addons))
         .route("/catalog/search", get(search_catalog))
@@ -829,6 +846,7 @@ pub async fn begin_staged_upload(
         id.clone(),
         StagedUpload {
             provider_owner: None,
+            pack_origin: None,
             native_guard: None,
             purpose: body.purpose,
             file_name: body.file_name.clone(),
@@ -983,6 +1001,9 @@ pub async fn upload_staged_chunk(
     if !matches!(
         entry.purpose,
         StagedUploadPurposeDto::ModpackArchive
+            | StagedUploadPurposeDto::AddonLocalFile
+            | StagedUploadPurposeDto::CurseforgeManualFile
+            | StagedUploadPurposeDto::ModpackUnresolvedFile
             | StagedUploadPurposeDto::WorldImport
             | StagedUploadPurposeDto::ActiveWorldReplace
     ) {
@@ -2759,7 +2780,7 @@ pub async fn inspect_modpack(
         .staging
         .native
         .inspection_lease(&body.staged_upload_id, &credential);
-    let inspection = match modpacks::inspect_staged_archive(
+    let mut inspection = match modpacks::inspect_staged_archive(
         &StdFileSystem,
         &transport,
         secrets.as_ref(),
@@ -2776,6 +2797,7 @@ pub async fn inspect_modpack(
             return invalid_body("invalid_body", &error.to_string());
         }
     };
+    inspection.origin = entry.pack_origin.clone();
     drop(lease);
     let response = modpack_inspection_response(&inspection);
     let _ = std::fs::remove_dir_all(&inspection.staged_dir);
@@ -2954,7 +2976,7 @@ pub async fn import_modpack(
         .staging
         .native
         .inspection_lease(&body.staged_upload_id, &credential);
-    let inspection = match modpacks::inspect_staged_archive(
+    let mut inspection = match modpacks::inspect_staged_archive(
         &StdFileSystem,
         &transport,
         secrets.as_ref(),
@@ -2971,6 +2993,7 @@ pub async fn import_modpack(
             return invalid_body("invalid_body", &error.to_string());
         }
     };
+    inspection.origin = entry.pack_origin.clone();
     drop(lease);
 
     if matches!(inspection.format, modpacks::InspectedFormat::CurseForge(_)) {
@@ -3019,6 +3042,59 @@ pub async fn import_modpack(
         Err(error) => return crate::routes::operations::operation_error_response(error),
     };
 
+    let cancel = state
+        .lifecycle
+        .operations()
+        .cancellation_check(&operation_id);
+    let mut retained_pack = match msc_application::pack_retention::capture_original(
+        &inspection,
+        Path::new(&server.server_dir),
+        &cancel,
+    ) {
+        Ok(pack) => pack,
+        Err(error) => {
+            let _ = state.lifecycle.finish_operation_failure(
+                &operation_id,
+                "pack_retention_failed",
+                error.clone(),
+            );
+            return error_response(StatusCode::CONFLICT, "pack_retention_failed", &error);
+        }
+    };
+    if let Some(pack) = retained_pack.as_ref()
+        && state
+            .lifecycle
+            .try_mutate_config(|config| {
+                let current = config
+                    .servers
+                    .iter_mut()
+                    .find(|current| current.id == server.id)
+                    .ok_or(())?;
+                if current.server_dir != server.server_dir {
+                    return Err(());
+                }
+                let collection = current
+                    .content_collection
+                    .get_or_insert_with(Default::default);
+                if !collection.retained_roots.contains(&pack.relative_root) {
+                    collection.retained_roots.push(pack.relative_root.clone());
+                }
+                collection.extra.insert(
+                    "pendingPackRetention".into(),
+                    serde_json::Value::String(pack.id.clone()),
+                );
+                Ok(())
+            })
+            .is_err()
+    {
+        let error = "Original pack retained, but its recovery reference could not be saved";
+        let _ = state.lifecycle.finish_operation_failure(
+            &operation_id,
+            "pack_retention_failed",
+            error.into(),
+        );
+        return error_response(StatusCode::CONFLICT, "pack_retention_failed", error);
+    }
     let identity = modpacks::source_identity(&inspection.format);
     let result = match &inspection.format {
         modpacks::InspectedFormat::Mrpack(manifest) => modpacks::import_mrpack(
@@ -3031,7 +3107,7 @@ pub async fn import_modpack(
             &state.lifecycle.servers_root(),
             server.pack_managed,
             explicit_replace,
-            &|| false,
+            &cancel,
         )
         .map_err(|error| error.to_string())
         .and_then(|report| {
@@ -3064,10 +3140,17 @@ pub async fn import_modpack(
             &inspection.staged_dir,
             server.pack_managed,
             explicit_replace,
-            &|| false,
+            &cancel,
         )
         .map_err(|error| error.to_string())
         .and_then(|report| {
+            if let Some(pack) = retained_pack.as_mut() {
+                pack.server_excluded_file_ids = report
+                    .excluded_manifest_files
+                    .iter()
+                    .map(|file| file.file_id.to_string())
+                    .collect();
+            }
             let unresolved_files = report.unresolved_files.clone();
             if let Some(identity) = identity.clone() {
                 set_pack_metadata(
@@ -3089,6 +3172,46 @@ pub async fn import_modpack(
             Err("Plain JAR ZIP import is not supported here.".to_string())
         }
     };
+    let result = result.and_then(|report| {
+        if !report.3
+            && let Some(pack) = retained_pack.as_mut()
+        {
+            msc_application::pack_retention::resolve_content(
+                Path::new(&server.server_dir),
+                &inspection,
+                pack,
+                &transport,
+                secrets.as_ref(),
+                &cancel,
+            )
+            .map_err(|error| {
+                format!("Server import completed; retained player content needs recovery: {error}")
+            })?;
+            let collection = msc_application::pack_retention::collection(
+                Path::new(&server.server_dir),
+                pack,
+                server.content_collection.as_ref(),
+            )?;
+            state
+                .lifecycle
+                .try_mutate_config(|config| {
+                    let current = config
+                        .servers
+                        .iter_mut()
+                        .find(|current| current.id == server.id)
+                        .ok_or(())?;
+                    if current.server_dir != server.server_dir {
+                        return Err(());
+                    }
+                    current.content_collection = Some(collection);
+                    Ok(())
+                })
+                .map_err(|_: TryMutateError<()>| {
+                    "Could not save retained pack metadata".to_string()
+                })?;
+        }
+        Ok(report)
+    });
     let _ = std::fs::remove_file(&entry.path);
 
     let response = match result {
@@ -3254,6 +3377,34 @@ pub async fn complete_modpack_manual_file(
                 "Unknown or already-redeemed staged upload.",
             );
         }
+        let current_server = state
+            .lifecycle
+            .app_config_servers()
+            .into_iter()
+            .find(|server| server.id == import.server_id);
+        let Some(current_server) = current_server else {
+            return invalid_body(
+                "server_unavailable",
+                "The pending import server was removed",
+            );
+        };
+        let valid_destination = unresolved
+            .pending
+            .dest
+            .strip_prefix(&current_server.server_dir)
+            .ok()
+            .and_then(|path| path.to_str())
+            .and_then(|path| {
+                msc_application::content_install::managed_path(&current_server.server_dir, path)
+                    .ok()
+            })
+            .is_some_and(|path| path == unresolved.pending.dest);
+        if !valid_destination {
+            return invalid_body(
+                "server_changed",
+                "The pending import destination no longer belongs to this server",
+            );
+        }
         let _consumed = state
             .staging
             .uploads
@@ -3290,6 +3441,33 @@ pub async fn complete_modpack_manual_file(
         if let Err(error) = completion {
             return invalid_body("invalid_body", &error.to_string());
         }
+        let retained = msc_application::pack_retention::reconcile_server_file(
+            &current_server,
+            &unresolved.pending.dest,
+        );
+        let _ = state.lifecycle.try_mutate_config(|config| {
+            let current = config
+                .servers
+                .iter_mut()
+                .find(|server| server.id == current_server.id)
+                .ok_or(())?;
+            if current != &current_server {
+                return Err(());
+            }
+            match retained {
+                Ok(Some(collection)) => current.content_collection = Some(collection),
+                Ok(None) => {}
+                Err(error) => {
+                    if let Some(collection) = current.content_collection.as_mut() {
+                        collection.extra.insert(
+                            "retainedRecoveryError".into(),
+                            serde_json::Value::String(error),
+                        );
+                    }
+                }
+            }
+            Ok(())
+        });
         import.remaining_files.remove(index);
     } else {
         return invalid_body("invalid_action", "action must be upload or skip.");

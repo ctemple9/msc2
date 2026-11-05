@@ -939,7 +939,7 @@ fn run_create_server(
                 return;
             }
         };
-        let inspection = match modpacks::inspect_staged_archive(
+        let mut inspection = match modpacks::inspect_staged_archive(
             &StdFileSystem,
             &addon_transport,
             secrets.as_ref(),
@@ -958,6 +958,7 @@ fn run_create_server(
                 return;
             }
         };
+        inspection.origin = staged_modpack.pack_origin.clone();
         let pack_request = PackServerRequest {
             name: &safe_name,
             initial_world_name: initial_world_name.as_deref(),
@@ -2796,6 +2797,7 @@ mod tests {
             "pack-upload".to_string(),
             StagedUpload {
                 provider_owner: None,
+                pack_origin: None,
                 native_guard: None,
                 purpose: msc_api::dto::StagedUploadPurposeDto::ModpackArchive,
                 file_name: None,

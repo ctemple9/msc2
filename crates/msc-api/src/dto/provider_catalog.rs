@@ -64,6 +64,8 @@ pub struct ContentCatalogCapabilityDto {
     pub source_identification: Vec<String>,
     #[serde(default)]
     pub reviewed_updates: Vec<String>,
+    #[serde(default)]
+    pub retained_pack_recovery: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -178,4 +180,34 @@ pub struct ContentUpdateReviewRequestDto {
     pub sha512: String,
     pub project_id: u64,
     pub version_id: u64,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RetainedPackMissingDto {
+    pub path: String,
+    pub reason: String,
+    pub byte_size: Option<u64>,
+    pub manual_recovery_available: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RetainedPackStatusDto {
+    pub source_server_pack: Option<bool>,
+    pub player_recovery_required: bool,
+    pub pack_id: String,
+    pub name: String,
+    pub version: String,
+    pub original_sha512: String,
+    pub resolved_file_count: usize,
+    pub files_complete: bool,
+    pub missing: Vec<RetainedPackMissingDto>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RetainedPackManualDto {
+    pub path: String,
+    pub staged_upload_id: Option<String>,
 }

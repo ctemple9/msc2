@@ -48,6 +48,11 @@ pub struct ContentCollection {
     pub upstream: Option<ContentSource>,
     pub upstream_files: BTreeMap<String, ContentEntry>,
     pub current_files: BTreeMap<String, ContentEntry>,
+    /// Client and server overrides may have different bytes at the same game path.
+    #[serde(default)]
+    pub player_files: BTreeMap<String, ContentEntry>,
+    #[serde(default)]
+    pub upstream_player_files: BTreeMap<String, ContentEntry>,
     /// Preserve intentional owner removals when comparing future upstream packs.
     pub excluded_paths: Vec<String>,
     /// Paths relative to the registered server root, never arbitrary host paths.
@@ -65,6 +70,8 @@ impl Default for ContentCollection {
             upstream: None,
             upstream_files: BTreeMap::new(),
             current_files: BTreeMap::new(),
+            player_files: BTreeMap::new(),
+            upstream_player_files: BTreeMap::new(),
             excluded_paths: Vec::new(),
             retained_roots: Vec::new(),
             publication_ids: Vec::new(),
@@ -82,7 +89,12 @@ impl ContentCollection {
                 self.schema_version
             ));
         }
-        for files in [&self.upstream_files, &self.current_files] {
+        for files in [
+            &self.upstream_files,
+            &self.current_files,
+            &self.player_files,
+            &self.upstream_player_files,
+        ] {
             let mut folded = std::collections::BTreeSet::new();
             for (path, entry) in files {
                 validate_relative_path(path)?;

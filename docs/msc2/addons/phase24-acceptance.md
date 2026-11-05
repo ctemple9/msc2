@@ -26,3 +26,7 @@ Contract: [integration specification](phase24-contract.md).
 P24.1: production source inventory and compatibility/review/export contracts
 recorded. No new endpoint or capability advertised. No tests or live provider
 requests run. Later slices add precise artifact/version/platform evidence here.
+
+P24.2: versioned collection persistence and portable metadata validation added.
+Infrastructure build and focused Clippy passed; config round-trip and physical
+Storage acceptance remain owner-unverified. No retained files are created yet.

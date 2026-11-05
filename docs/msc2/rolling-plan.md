@@ -73,12 +73,14 @@ checks when no affected source has changed. New module paths are proposals.
 
 ### P24.2 — Persist content ownership and player collections
 
-**Status:** planned — not started
+**Status:** implemented — awaiting owner verification
 **Files:** crates/msc-domain/src/{modpack,app_config_schema}.rs; crates/msc-infrastructure/src/; docs/msc2/addons/phase24-acceptance.md
 **What:** Add versioned upstream/current/player/publication metadata, path ownership, hashes, exclusions, required/optional and classification evidence. Migrate existing servers non-destructively with unknown provenance explicit. Store retained data under owned roots without putting client-only files in the live tree.
 **Verify:** `cargo check -p msc-infrastructure`. Cameron also verifies the corresponding behavior scenarios in `addons/phase24-scope.md` and the P24.1 acceptance record.
 **Commit:** `P24.2: persist content ownership and player collections`
 **Batch:** A — autonomous foundations; no routine owner handoff
+
+**Implementation evidence:** Added versioned optional `content_collection` to server config, provider-qualified sources, upstream/current paths, exclusions, player audience/optional metadata and publication references. Existing configs omit it unchanged; unknown collection/item fields round-trip. Uses the existing atomic config repository. Validates hash identity, portable paths and reserved retained roots. `.msc2-content` stays in protected registered-server fallback accounting (Storage Group::Other); no new cleanup eligibility or capability is advertised. `cargo check -p msc-infrastructure`, `cargo fmt --all` and focused Clippy passed; no tests run.
 
 ### P24.3 — Extend shared curseforge catalog operations
 

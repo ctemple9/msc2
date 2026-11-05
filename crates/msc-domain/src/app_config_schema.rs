@@ -551,6 +551,7 @@ pub struct ConfigServer {
     pub pack_name: Option<String>,
     pub pack_version: Option<String>,
     pub modpack_identity: Option<ModpackIdentity>,
+    pub content_collection: Option<crate::content_collection::ContentCollection>,
 }
 
 impl ConfigServer {
@@ -624,6 +625,7 @@ impl ConfigServer {
             pack_name: None,
             pack_version: None,
             modpack_identity: None,
+            content_collection: None,
         }
     }
 
@@ -806,6 +808,15 @@ impl ConfigServer {
             pack_name,
             pack_version,
             modpack_identity,
+            content_collection: present(v, "content_collection")
+                .map(|value| {
+                    let collection: crate::content_collection::ContentCollection =
+                        serde_json::from_value(value.clone())
+                            .map_err(|error| err(format!("invalid content_collection: {error}")))?;
+                    collection.validate().map_err(err)?;
+                    Ok(collection)
+                })
+                .transpose()?,
         })
     }
 
@@ -949,6 +960,13 @@ impl ConfigServer {
         m.insert("pack_managed".into(), Value::Bool(self.pack_managed));
         insert_opt_str(&mut m, "pack_name", &self.pack_name);
         insert_opt_str(&mut m, "pack_version", &self.pack_version);
+        if let Some(collection) = &self.content_collection {
+            m.insert(
+                "content_collection".into(),
+                serde_json::to_value(collection)
+                    .expect("content collection contains only JSON-serializable fields"),
+            );
+        }
         if let Some(identity) = &self.modpack_identity {
             let mut encoded = Map::new();
             insert_opt_str(&mut encoded, "name", &identity.name);

@@ -126,14 +126,14 @@ commits per turn. Rolling-plan statuses and Git history remain the step record.
 
 | Field | Current value |
 |---|---|
-| Run state | executing — P24.1 contract recorded |
-| Current step | P24.2 |
-| Next action | P24.2 persisted ownership and collection schema |
-| Last implementation commit | P24.1: freeze integration and export contracts |
+| Run state | executing — P24.2 implemented; autonomous goal active |
+| Current step | P24.3 |
+| Next action | P24.3 provider catalog operations and acquisition |
+| Last implementation commit | P24.2: persist content ownership and player collections |
 | Pending UI review | none |
 | Candidate base commit / changed files | none |
 | Owner approval evidence | none |
-| Checks and outcomes | plan field/ordering/whitespace inspection only; no feature checks run |
+| Checks and outcomes | P24.2 cargo check -p msc-infrastructure and focused Clippy passed; cargo fmt and diff check passed; no tests |
 | External prerequisites | owner screenshots for P24.20; usable provider key/content for live acceptance |
 | Deferred owner acceptance | all physical feature/platform scenarios |
 

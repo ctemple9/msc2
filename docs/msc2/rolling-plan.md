@@ -208,12 +208,14 @@ checks when no affected source has changed. New module paths are proposals.
 
 ### P24.15 — Publish immutable dated content revisions
 
-**Status:** planned — not started
-**Files:** crates/msc-domain/src/; crates/msc-application/src/client_export.rs; crates/msc-agent/src/routes/components.rs; crates/msc-api/src/
+**Status:** implemented — awaiting owner verification
+**Files:** crates/msc-application/src/content_publications.rs; publication_review.rs; publication_datapacks.rs; content_guides.rs; crates/msc-agent/src/routes/components/content_publications.rs and router/capabilities; provider DTOs; OpenAPI/generated clients; tests/content_publication_safety.rs
 **What:** Freeze reviewed content bytes/hashes and metadata under date/revision identity; lock and revalidate concurrent changes. Track unpublished changes; complete vs explicitly incomplete publications; re-export old revisions independently of current files or provider availability. Persist eligibility evidence and retention ownership.
 **Verify:** `cargo check -p msc-agent`. Cameron also verifies the corresponding behavior scenarios in `addons/phase24-scope.md` and the P24.1 acceptance record.
 **Commit:** `P24.15: publish immutable dated content revisions`
 **Batch:** A — autonomous foundations; no routine owner handoff
+
+**Implementation evidence:** Added explicit-audience publication review/read/publish/history/snapshot and world-slot datapack inventory APIs. Reviews bind exact bytes, owner, collection/game/loader, selection/options and permissions; config/scripts require explicit per-file review, known distribution restrictions cannot be overridden, and API download permission alone is not redistribution evidence. Owner-selected optional content is included when eligible; selected unresolved content requires explicit incomplete consent. Freeze preflights unique bytes, streams independent copies, pins date plus monotonic publication revision, checksums manifest in the registry and freezes versioned guide files. Current source bytes are checked after copying before atomic registry commit; historical reads/re-export inputs do not depend on current content/provider availability. World datapacks come only from an explicit slot; active live content takes precedence over stale archives and archive inspection stages only selected datapack entries. Runtime/private/world data and arbitrary collection extras are excluded; child symlinks/case collisions are rejected. History pages report unavailable manifests and current unpublished changes. Guide text-v1 is a truthful development fallback; launcher-specific owner screenshots/HTML remain P24.20, not accepted here. Focused agent Clippy and frontend check passed (10 existing CSS warnings); schema references resolve. Three essential local tests protect independent frozen bytes, manifest checksum integrity and restricted-content/incomplete-consent boundaries; prior retention/JAR tests do not cover the publication registry/eligibility, expected <100 ms each, not run. Live publication/cancellation/revocation, large world/pack memory/disk behavior and physical platforms remain owner acceptance.
 
 ### P24.16 — Generate reviewed player and server zip archives
 

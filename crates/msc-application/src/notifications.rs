@@ -162,7 +162,7 @@ impl NotificationService {
     }
 }
 
-fn iso8601_now() -> String {
+pub(crate) fn iso8601_now() -> String {
     let seconds = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()

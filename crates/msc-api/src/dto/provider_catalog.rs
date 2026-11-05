@@ -74,6 +74,8 @@ pub struct ContentCatalogCapabilityDto {
     pub reviewed_pack_updates: bool,
     #[serde(default)]
     pub reviewed_pack_replacement: bool,
+    #[serde(default)]
+    pub content_publications: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -276,4 +278,55 @@ pub struct PackUpdateReviewDto {
     pub audiences: std::collections::BTreeMap<String, String>,
     #[serde(default)]
     pub confirm_unverified_origin: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PublicationApprovalDto {
+    pub audience: String,
+    pub path: String,
+    pub sha512: String,
+    pub redistribution_evidence: String,
+    #[serde(default)]
+    pub reviewed_configuration: bool,
+}
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PublicationExclusionDto {
+    pub audience: String,
+    pub path: String,
+}
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PublicationDatapackDto {
+    pub slot_id: String,
+    pub path: String,
+    pub sha512: String,
+    pub redistribution_evidence: String,
+}
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PublicationReviewRequestDto {
+    #[serde(default = "publication_audiences")]
+    pub audiences: Vec<String>,
+    pub collection_revision: u64,
+    pub version_name: Option<String>,
+    #[serde(default)]
+    pub approvals: Vec<PublicationApprovalDto>,
+    #[serde(default)]
+    pub excluded: Vec<PublicationExclusionDto>,
+    #[serde(default)]
+    pub server_paths: Vec<String>,
+    #[serde(default)]
+    pub datapacks: Vec<PublicationDatapackDto>,
+}
+fn publication_audiences() -> Vec<String> {
+    vec!["players".into(), "server".into()]
+}
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PublishContentDto {
+    pub review_id: String,
+    #[serde(default)]
+    pub incomplete_consent: bool,
 }

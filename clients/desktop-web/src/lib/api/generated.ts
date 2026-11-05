@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: c4eea8f6d02464aa77d64404f204c3af67ad2cae3c5cba8c5cd10cefa18b44c7
+// Contract SHA-256: 0dedd76b52a76f5762bae57fd4a0b41ff4dec8b54cdd749504b9e9a76e89d6b9
 
 export interface paths {
   '/v1/active-server': {
@@ -5573,6 +5573,92 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/v1/servers/{server_id}/content/publication-datapacks/{slot_id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description Inspect only datapack files in an explicit server world slot. Active world content is preferred over old archives; saved worlds are not extracted wholesale. Returns exact per-file identities for selection. */
+    get: operations['getPublicationDatapacks'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/servers/{server_id}/content/publication-reviews': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** @description Review selected audiences, exact bytes, configuration selection and redistribution evidence. Optional content is selected by default. Operation result supplies reviewId; unresolved content is explicit. */
+    post: operations['reviewContentPublication'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/servers/{server_id}/content/publication-reviews/{review_id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description Read a current owner-bound publication review without private source paths. */
+    get: operations['getPublicationReview'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/servers/{server_id}/content/publications': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description List frozen manifest summaries and detect current unpublished changes against the latest snapshot. Corrupt/missing manifests are reported as unavailable; old publication reads do not require current source files or provider access. */
+    get: operations['getContentPublications'];
+    put?: never;
+    /** @description Freeze a current review into independent dated content and guide copies. Revalidate bytes/permissions before atomic registry commit. Unresolved selected content requires explicit incompleteConsent. */
+    post: operations['publishContent'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/servers/{server_id}/content/publications/{publication_id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description Read registry-checksummed immutable publication metadata; historical setup/content remains independent of current server setup. */
+    get: operations['getContentPublication'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/v1/servers/{server_id}/content/recovery-review': {
     parameters: {
       query?: never;
@@ -8825,6 +8911,7 @@ export interface components {
       [key: string]: unknown;
     };
     ContentCatalogCapabilityDTO: {
+      contentPublications?: boolean;
       packAcquisition: boolean;
       playerContentManagement?: boolean;
       playerContentRecovery?: boolean;
@@ -8986,6 +9073,40 @@ export interface components {
       /** @enum {string} */
       provider: 'curseforge';
       versionId: number;
+    } & {
+      [key: string]: unknown;
+    };
+    ContentPublicationDTO: {
+      audiences: string[];
+      /** Format: int64 */
+      collectionRevision: number;
+      contentFingerprint: string;
+      createdAt: string;
+      exclusions: components['schemas']['PublicationIssueDTO'][];
+      guideAssets: {
+        [key: string]: components['schemas']['PublicationGuideFileDTO'];
+      };
+      guideVersion: string;
+      id: string;
+      incompleteConsent: boolean;
+      issues: components['schemas']['PublicationIssueDTO'][];
+      loader: string;
+      loaderVersion: string | null;
+      minecraftVersion: string | null;
+      playerFiles: {
+        [key: string]: components['schemas']['PublishedFileDTO'];
+      };
+      /** Format: int64 */
+      publicationRevision: number;
+      reviewedDatapacks: components['schemas']['PublicationDatapackDTO'][];
+      reviewedServerPaths: string[];
+      schemaVersion: number;
+      serverFiles: {
+        [key: string]: components['schemas']['PublishedFileDTO'];
+      };
+      serverId: string;
+      serverName: string;
+      versionName: string | null;
     } & {
       [key: string]: unknown;
     };
@@ -9965,6 +10086,156 @@ export interface components {
       provider: string;
       totalCount: number;
       versions: components['schemas']['ProviderCatalogReleaseDTO'][];
+    } & {
+      [key: string]: unknown;
+    };
+    PublicationApprovalDTO: {
+      /** @enum {string} */
+      audience: 'players' | 'server';
+      path: string;
+      redistributionEvidence: string;
+      reviewedConfiguration?: boolean;
+      sha512: string;
+    } & {
+      [key: string]: unknown;
+    };
+    PublicationDatapackDTO: {
+      path: string;
+      redistributionEvidence: string;
+      sha512: string;
+      slotId: string;
+    } & {
+      [key: string]: unknown;
+    };
+    PublicationDatapackFileDTO: {
+      /** Format: int64 */
+      byteSize: number;
+      path: string;
+      sha1: string;
+      sha512: string;
+      slotId: string;
+    } & {
+      [key: string]: unknown;
+    };
+    PublicationDatapackInventoryDTO: {
+      items: components['schemas']['PublicationDatapackFileDTO'][];
+    } & {
+      [key: string]: unknown;
+    };
+    PublicationExclusionDTO: {
+      /** @enum {string} */
+      audience: 'players' | 'server';
+      path: string;
+    } & {
+      [key: string]: unknown;
+    };
+    PublicationGuideFileDTO: {
+      /** Format: int64 */
+      byteSize: number;
+      sha512: string;
+    } & {
+      [key: string]: unknown;
+    };
+    PublicationHistoryDTO: {
+      comparisonError: string | null;
+      items: components['schemas']['PublicationSummaryDTO'][];
+      limit: number;
+      offset: number;
+      total: number;
+      unpublishedChanges: boolean;
+    } & {
+      [key: string]: unknown;
+    };
+    PublicationIssueDTO: {
+      audience: string;
+      path: string | null;
+      reason: string;
+      required: boolean;
+    } & {
+      [key: string]: unknown;
+    };
+    PublicationReviewedFileDTO: {
+      audience: string;
+      file: components['schemas']['PublishedFileDTO'];
+    } & {
+      [key: string]: unknown;
+    };
+    PublicationReviewRequestDTO: {
+      approvals?: components['schemas']['PublicationApprovalDTO'][];
+      /**
+       * @default [
+       *       "players",
+       *       "server"
+       *     ]
+       */
+      audiences: ('players' | 'server')[];
+      /** Format: int64 */
+      collectionRevision: number;
+      datapacks?: components['schemas']['PublicationDatapackDTO'][];
+      excluded?: components['schemas']['PublicationExclusionDTO'][];
+      serverPaths?: string[];
+      versionName?: string | null;
+    } & {
+      [key: string]: unknown;
+    };
+    PublicationReviewResultDTO: {
+      audiences: string[];
+      /** Format: int64 */
+      collectionRevision: number;
+      complete: boolean;
+      /** Format: int64 */
+      contentBytes: number;
+      exclusions: components['schemas']['PublicationIssueDTO'][];
+      files: components['schemas']['PublicationReviewedFileDTO'][];
+      guideStatus: string;
+      guideVersion: string;
+      issues: components['schemas']['PublicationIssueDTO'][];
+      reviewId: string;
+      serverId: string;
+      versionName: string | null;
+    } & {
+      [key: string]: unknown;
+    };
+    PublicationSummaryDTO: {
+      audiences?: string[];
+      /** @description Frozen manifest is readable and registry-verified. Payload bytes are verified when exporting. */
+      available: boolean;
+      /** Format: int64 */
+      collectionRevision?: number;
+      complete?: boolean;
+      /** Format: int64 */
+      contentBytes?: number;
+      createdAt?: string;
+      error?: string;
+      guideVersion?: string;
+      issues?: components['schemas']['PublicationIssueDTO'][];
+      playerFileCount?: number;
+      publicationId: string;
+      /** Format: int64 */
+      publicationRevision?: number;
+      serverFileCount?: number;
+      versionName?: string | null;
+    } & {
+      [key: string]: unknown;
+    };
+    PublishContentDTO: {
+      incompleteConsent?: boolean;
+      reviewId: string;
+    } & {
+      [key: string]: unknown;
+    };
+    PublishedFileDTO: {
+      /** Format: int64 */
+      byteSize: number;
+      classificationEvidence: string[];
+      enabled: boolean;
+      optional: boolean;
+      path: string;
+      redistributionEvidence: string;
+      sha1: string;
+      sha512: string;
+      source: components['schemas']['ContentSourceDTO'] | null;
+      worldSlot: string | null;
     } & {
       [key: string]: unknown;
     };
@@ -13171,6 +13442,194 @@ export interface operations {
         };
       };
       /** @description Content changed or review unavailable; refresh and review again. */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  getPublicationDatapacks: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        server_id: string;
+        slot_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Inspect only datapack files in an explicit server world slot. Active world content is preferred over old archives; saved worlds are not extracted wholesale. Returns exact per-file identities for selection. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['PublicationDatapackInventoryDTO'];
+        };
+      };
+      /** @description Server, collection, reviewed bytes, frozen manifest or permission changed; inspect the stated problem. */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  reviewContentPublication: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        server_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['PublicationReviewRequestDTO'];
+      };
+    };
+    responses: {
+      /** @description Review selected audiences, exact bytes, configuration selection and redistribution evidence. Optional content is selected by default. Operation result supplies reviewId; unresolved content is explicit. */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['OperationAcceptedDTO'];
+        };
+      };
+      /** @description Server, collection, reviewed bytes, frozen manifest or permission changed; inspect the stated problem. */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  getPublicationReview: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        review_id: string;
+        server_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Read a current owner-bound publication review without private source paths. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['PublicationReviewResultDTO'];
+        };
+      };
+      /** @description Server, collection, reviewed bytes, frozen manifest or permission changed; inspect the stated problem. */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  getContentPublications: {
+    parameters: {
+      query?: {
+        limit?: number;
+        offset?: number;
+      };
+      header?: never;
+      path: {
+        server_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description List frozen manifest summaries and detect current unpublished changes against the latest snapshot. Corrupt/missing manifests are reported as unavailable; old publication reads do not require current source files or provider access. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['PublicationHistoryDTO'];
+        };
+      };
+      /** @description Server, collection, reviewed bytes, frozen manifest or permission changed; inspect the stated problem. */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  publishContent: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        server_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['PublishContentDTO'];
+      };
+    };
+    responses: {
+      /** @description Freeze a current review into independent dated content and guide copies. Revalidate bytes/permissions before atomic registry commit. Unresolved selected content requires explicit incompleteConsent. */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['OperationAcceptedDTO'];
+        };
+      };
+      /** @description Server, collection, reviewed bytes, frozen manifest or permission changed; inspect the stated problem. */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  getContentPublication: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        publication_id: string;
+        server_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Read registry-checksummed immutable publication metadata; historical setup/content remains independent of current server setup. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ContentPublicationDTO'];
+        };
+      };
+      /** @description Server, collection, reviewed bytes, frozen manifest or permission changed; inspect the stated problem. */
       409: {
         headers: {
           [name: string]: unknown;

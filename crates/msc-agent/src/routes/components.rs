@@ -3,6 +3,7 @@
 
 mod content_install;
 mod content_management;
+mod content_publications;
 mod content_recovery;
 mod content_sources;
 mod pack_retention;
@@ -291,6 +292,26 @@ pub fn router(state: ComponentsRoutesState) -> Router {
         .route(
             "/servers/:server_id/content/collection",
             get(content_management::get),
+        )
+        .route(
+            "/servers/:server_id/content/publication-reviews",
+            post(content_publications::review),
+        )
+        .route(
+            "/servers/:server_id/content/publication-reviews/:review_id",
+            get(content_publications::get_review),
+        )
+        .route(
+            "/servers/:server_id/content/publications",
+            get(content_publications::history).post(content_publications::publish),
+        )
+        .route(
+            "/servers/:server_id/content/publications/:publication_id",
+            get(content_publications::get),
+        )
+        .route(
+            "/servers/:server_id/content/publication-datapacks/:slot_id",
+            get(content_publications::datapacks),
         )
         .route(
             "/servers/:server_id/content/pack-replacement-review",

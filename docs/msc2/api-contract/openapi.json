@@ -53,6 +53,276 @@
     }
   },
   "paths": {
+    "/v1/servers/{server_id}/content/publication-reviews": {
+      "post": {
+        "operationId": "reviewContentPublication",
+        "tags": [
+          "Content"
+        ],
+        "description": "Review selected audiences, exact bytes, configuration selection and redistribution evidence. Optional content is selected by default. Operation result supplies reviewId; unresolved content is explicit.",
+        "parameters": [
+          {
+            "name": "server_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Review selected audiences, exact bytes, configuration selection and redistribution evidence. Optional content is selected by default. Operation result supplies reviewId; unresolved content is explicit.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationAcceptedDTO"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Server, collection, reviewed bytes, frozen manifest or permission changed; inspect the stated problem."
+          }
+        },
+        "x-permission-category": "addons",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublicationReviewRequestDTO"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/servers/{server_id}/content/publication-reviews/{review_id}": {
+      "get": {
+        "operationId": "getPublicationReview",
+        "tags": [
+          "Content"
+        ],
+        "description": "Read a current owner-bound publication review without private source paths.",
+        "parameters": [
+          {
+            "name": "server_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "review_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Read a current owner-bound publication review without private source paths.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicationReviewResultDTO"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Server, collection, reviewed bytes, frozen manifest or permission changed; inspect the stated problem."
+          }
+        },
+        "x-permission-category": "addons"
+      }
+    },
+    "/v1/servers/{server_id}/content/publications": {
+      "post": {
+        "operationId": "publishContent",
+        "tags": [
+          "Content"
+        ],
+        "description": "Freeze a current review into independent dated content and guide copies. Revalidate bytes/permissions before atomic registry commit. Unresolved selected content requires explicit incompleteConsent.",
+        "parameters": [
+          {
+            "name": "server_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Freeze a current review into independent dated content and guide copies. Revalidate bytes/permissions before atomic registry commit. Unresolved selected content requires explicit incompleteConsent.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationAcceptedDTO"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Server, collection, reviewed bytes, frozen manifest or permission changed; inspect the stated problem."
+          }
+        },
+        "x-permission-category": "addons",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublishContentDTO"
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "getContentPublications",
+        "tags": [
+          "Content"
+        ],
+        "description": "List frozen manifest summaries and detect current unpublished changes against the latest snapshot. Corrupt/missing manifests are reported as unavailable; old publication reads do not require current source files or provider access.",
+        "parameters": [
+          {
+            "name": "server_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 0
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 50
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List frozen manifest summaries and detect current unpublished changes against the latest snapshot. Corrupt/missing manifests are reported as unavailable; old publication reads do not require current source files or provider access.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicationHistoryDTO"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Server, collection, reviewed bytes, frozen manifest or permission changed; inspect the stated problem."
+          }
+        },
+        "x-permission-category": "addons"
+      }
+    },
+    "/v1/servers/{server_id}/content/publications/{publication_id}": {
+      "get": {
+        "operationId": "getContentPublication",
+        "tags": [
+          "Content"
+        ],
+        "description": "Read registry-checksummed immutable publication metadata; historical setup/content remains independent of current server setup.",
+        "parameters": [
+          {
+            "name": "server_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "publication_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Read registry-checksummed immutable publication metadata; historical setup/content remains independent of current server setup.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContentPublicationDTO"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Server, collection, reviewed bytes, frozen manifest or permission changed; inspect the stated problem."
+          }
+        },
+        "x-permission-category": "addons"
+      }
+    },
+    "/v1/servers/{server_id}/content/publication-datapacks/{slot_id}": {
+      "get": {
+        "operationId": "getPublicationDatapacks",
+        "tags": [
+          "Content"
+        ],
+        "description": "Inspect only datapack files in an explicit server world slot. Active world content is preferred over old archives; saved worlds are not extracted wholesale. Returns exact per-file identities for selection.",
+        "parameters": [
+          {
+            "name": "server_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "slot_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Inspect only datapack files in an explicit server world slot. Active world content is preferred over old archives; saved worlds are not extracted wholesale. Returns exact per-file identities for selection.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicationDatapackInventoryDTO"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Server, collection, reviewed bytes, frozen manifest or permission changed; inspect the stated problem."
+          }
+        },
+        "x-permission-category": "addons"
+      }
+    },
     "/v1/servers/{server_id}/content/pack-replacement-review": {
       "post": {
         "operationId": "reviewPackReplacement",
@@ -10087,6 +10357,591 @@
   },
   "components": {
     "schemas": {
+      "PublicationApprovalDTO": {
+        "type": "object",
+        "properties": {
+          "audience": {
+            "type": "string",
+            "enum": [
+              "players",
+              "server"
+            ]
+          },
+          "path": {
+            "type": "string"
+          },
+          "sha512": {
+            "type": "string"
+          },
+          "redistributionEvidence": {
+            "type": "string"
+          },
+          "reviewedConfiguration": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "audience",
+          "path",
+          "sha512",
+          "redistributionEvidence"
+        ]
+      },
+      "PublicationExclusionDTO": {
+        "type": "object",
+        "properties": {
+          "audience": {
+            "type": "string",
+            "enum": [
+              "players",
+              "server"
+            ]
+          },
+          "path": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "audience",
+          "path"
+        ]
+      },
+      "PublicationDatapackDTO": {
+        "type": "object",
+        "properties": {
+          "slotId": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "sha512": {
+            "type": "string"
+          },
+          "redistributionEvidence": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "slotId",
+          "path",
+          "sha512",
+          "redistributionEvidence"
+        ]
+      },
+      "PublicationReviewRequestDTO": {
+        "type": "object",
+        "properties": {
+          "audiences": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "players",
+                "server"
+              ]
+            },
+            "default": [
+              "players",
+              "server"
+            ]
+          },
+          "collectionRevision": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "versionName": {
+            "type": "string",
+            "nullable": true
+          },
+          "approvals": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PublicationApprovalDTO"
+            }
+          },
+          "excluded": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PublicationExclusionDTO"
+            }
+          },
+          "serverPaths": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "datapacks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PublicationDatapackDTO"
+            }
+          }
+        },
+        "required": [
+          "collectionRevision"
+        ]
+      },
+      "PublishContentDTO": {
+        "type": "object",
+        "properties": {
+          "reviewId": {
+            "type": "string"
+          },
+          "incompleteConsent": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "reviewId"
+        ]
+      },
+      "PublicationIssueDTO": {
+        "type": "object",
+        "properties": {
+          "audience": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string",
+            "nullable": true
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "audience",
+          "path",
+          "required",
+          "reason"
+        ]
+      },
+      "PublishedFileDTO": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "sha512": {
+            "type": "string"
+          },
+          "sha1": {
+            "type": "string"
+          },
+          "byteSize": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "optional": {
+            "type": "boolean"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "source": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ContentSourceDTO"
+              }
+            ],
+            "nullable": true
+          },
+          "classificationEvidence": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "redistributionEvidence": {
+            "type": "string"
+          },
+          "worldSlot": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "path",
+          "sha512",
+          "sha1",
+          "byteSize",
+          "optional",
+          "enabled",
+          "source",
+          "classificationEvidence",
+          "redistributionEvidence",
+          "worldSlot"
+        ]
+      },
+      "PublicationReviewedFileDTO": {
+        "type": "object",
+        "properties": {
+          "audience": {
+            "type": "string"
+          },
+          "file": {
+            "$ref": "#/components/schemas/PublishedFileDTO"
+          }
+        },
+        "required": [
+          "audience",
+          "file"
+        ]
+      },
+      "PublicationReviewResultDTO": {
+        "type": "object",
+        "properties": {
+          "reviewId": {
+            "type": "string"
+          },
+          "serverId": {
+            "type": "string"
+          },
+          "collectionRevision": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "versionName": {
+            "type": "string",
+            "nullable": true
+          },
+          "audiences": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "files": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PublicationReviewedFileDTO"
+            }
+          },
+          "contentBytes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "complete": {
+            "type": "boolean"
+          },
+          "issues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PublicationIssueDTO"
+            }
+          },
+          "exclusions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PublicationIssueDTO"
+            }
+          },
+          "guideVersion": {
+            "type": "string"
+          },
+          "guideStatus": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "reviewId",
+          "serverId",
+          "collectionRevision",
+          "versionName",
+          "audiences",
+          "files",
+          "contentBytes",
+          "complete",
+          "issues",
+          "exclusions",
+          "guideVersion",
+          "guideStatus"
+        ]
+      },
+      "PublicationGuideFileDTO": {
+        "type": "object",
+        "properties": {
+          "sha512": {
+            "type": "string"
+          },
+          "byteSize": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "required": [
+          "sha512",
+          "byteSize"
+        ]
+      },
+      "ContentPublicationDTO": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": {
+            "type": "integer"
+          },
+          "id": {
+            "type": "string"
+          },
+          "serverId": {
+            "type": "string"
+          },
+          "serverName": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "audiences": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "collectionRevision": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "publicationRevision": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "versionName": {
+            "type": "string",
+            "nullable": true
+          },
+          "minecraftVersion": {
+            "type": "string",
+            "nullable": true
+          },
+          "loader": {
+            "type": "string"
+          },
+          "loaderVersion": {
+            "type": "string",
+            "nullable": true
+          },
+          "guideVersion": {
+            "type": "string"
+          },
+          "guideAssets": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/PublicationGuideFileDTO"
+            }
+          },
+          "incompleteConsent": {
+            "type": "boolean"
+          },
+          "issues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PublicationIssueDTO"
+            }
+          },
+          "exclusions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PublicationIssueDTO"
+            }
+          },
+          "contentFingerprint": {
+            "type": "string"
+          },
+          "reviewedServerPaths": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "reviewedDatapacks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PublicationDatapackDTO"
+            }
+          },
+          "playerFiles": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/PublishedFileDTO"
+            }
+          },
+          "serverFiles": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/PublishedFileDTO"
+            }
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "id",
+          "serverId",
+          "serverName",
+          "createdAt",
+          "audiences",
+          "collectionRevision",
+          "publicationRevision",
+          "versionName",
+          "minecraftVersion",
+          "loader",
+          "loaderVersion",
+          "guideVersion",
+          "guideAssets",
+          "incompleteConsent",
+          "issues",
+          "exclusions",
+          "contentFingerprint",
+          "reviewedServerPaths",
+          "reviewedDatapacks",
+          "playerFiles",
+          "serverFiles"
+        ]
+      },
+      "PublicationSummaryDTO": {
+        "type": "object",
+        "properties": {
+          "publicationId": {
+            "type": "string"
+          },
+          "available": {
+            "type": "boolean",
+            "description": "Frozen manifest is readable and registry-verified. Payload bytes are verified when exporting."
+          },
+          "error": {
+            "type": "string"
+          },
+          "publicationRevision": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "collectionRevision": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "versionName": {
+            "type": "string",
+            "nullable": true
+          },
+          "audiences": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "complete": {
+            "type": "boolean"
+          },
+          "issues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PublicationIssueDTO"
+            }
+          },
+          "playerFileCount": {
+            "type": "integer"
+          },
+          "serverFileCount": {
+            "type": "integer"
+          },
+          "contentBytes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "guideVersion": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "publicationId",
+          "available"
+        ]
+      },
+      "PublicationHistoryDTO": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PublicationSummaryDTO"
+            }
+          },
+          "offset": {
+            "type": "integer"
+          },
+          "limit": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer"
+          },
+          "unpublishedChanges": {
+            "type": "boolean"
+          },
+          "comparisonError": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "items",
+          "offset",
+          "limit",
+          "total",
+          "unpublishedChanges",
+          "comparisonError"
+        ]
+      },
+      "PublicationDatapackFileDTO": {
+        "type": "object",
+        "properties": {
+          "slotId": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "sha512": {
+            "type": "string"
+          },
+          "sha1": {
+            "type": "string"
+          },
+          "byteSize": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "required": [
+          "slotId",
+          "path",
+          "sha512",
+          "sha1",
+          "byteSize"
+        ]
+      },
+      "PublicationDatapackInventoryDTO": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PublicationDatapackFileDTO"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
       "PackReplacementReviewDTO": {
         "type": "object",
         "properties": {
@@ -11229,6 +12084,7 @@
       "ContentCatalogCapabilityDTO": {
         "type": "object",
         "properties": {
+          "contentPublications": { "type": "boolean" },
           "reviewedPackReplacement": { "type": "boolean" },
           "reviewedPackUpdates": { "type": "boolean" },
           "playerContentRecovery": { "type": "boolean" },

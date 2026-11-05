@@ -126,14 +126,14 @@ commits per turn. Rolling-plan statuses and Git history remain the step record.
 
 | Field | Current value |
 |---|---|
-| Run state | executing — P24.10 implemented; autonomous goal active |
-| Current step | P24.15 |
-| Next action | Implement immutable dated publication snapshots and readiness review, then ZIP/.mrpack/save/CLI foundations in the authorized reordered sequence. Continue without routine handoff; first desktop UI checkpoint remains P24.11 after foundations. |
-| Last implementation commit | P24.10: replace base packs through a content review |
+| Run state | executing — P24.15 implemented; autonomous goal active |
+| Current step | P24.16 |
+| Next action | Implement streaming Player/Server ZIP export from frozen publications with manifest, truthful frozen instruction assets and no runtime/world/private content. Then P24.17 .mrpack, P24.18 saving and P24.21 CLI before the first UI checkpoint. Continue without routine handoff. |
+| Last implementation commit | P24.15: publish immutable dated content revisions |
 | Pending UI review | none |
-| Candidate base commit / changed files | P24.10 committed; next slice P24.15 |
+| Candidate base commit / changed files | P24.15 committed; next slice P24.16 |
 | Owner approval evidence | none |
-| Checks and outcomes | P24.10 focused agent Clippy passed; API generation/frontend check passed (10 existing CSS warnings); schema references resolve. Existing P24.9 safety tests reused; no tests run. |
+| Checks and outcomes | P24.15 focused agent Clippy passed; API generation/frontend check passed (10 existing CSS warnings); schema references resolve. Three essential publication safety tests added, not run. Text-v1 guides explicitly lack owner screenshots; P24.20 acceptance remains open. |
 | External prerequisites | owner screenshots for P24.20; usable provider key/content for live acceptance |
 | Deferred owner acceptance | all physical feature/platform scenarios |
 

@@ -128,3 +128,19 @@ check passed (10 existing CSS warnings); schema references resolve. Existing
 P24.9 comparison/activation safety coverage is reused, with no new duplicate
 tests and no test commands run. Physical replacement/compatibility, providers,
 permissions, cancellations, interruption recovery and platforms are unverified.
+
+P24.15: exact-byte/audience publication review and immutable dated snapshots are
+wired with read/history/datapack inventory APIs and capability discovery. Config
+review and redistribution evidence are pinned; known restrictions cannot be
+attested away, and selected missing content requires incomplete consent. Copies
+are independent, manifests are registry-checksummed, sources are revalidated
+before registry commit, and current edits can be detected without rewriting old
+snapshots. Explicit world-slot datapacks are read without whole-world extraction;
+live removals do not resurrect stale archived datapacks. Text-v1 instruction assets
+are frozen and explicitly labeled as a development text fallback. Illustrated
+launcher guides and owner screenshots remain P24.20. Focused agent Clippy,
+generated API and frontend checks passed (10 existing CSS warnings); schema
+references resolve. Three essential local safety tests cover source independence,
+manifest integrity and restriction/consent boundaries, expected <100 ms each,
+not run. Publication/revocation/cancellation flows, large worlds/packs, resource
+limits/disk exhaustion, platform behavior and all owner acceptance are pending.

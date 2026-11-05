@@ -72,6 +72,7 @@ Every entry records **Origin** (where the idea came from), **Approved by**, and 
 | D-042 | Retire modded map repair and private client capture | **Approved** | 2026-10-06 |
 | D-043 | Restore a host-local full-screen terminal client | **Approved** | 2026-10-26 |
 | D-044 | Server-specific Java selection; host default is fallback only | **Approved** | 2026-11-03 |
+| D-045 | Modpack discovery, player content and file exports | **Approved** product direction; implementation plan awaiting Read | 2026-11-05 |
 
 ---
 
@@ -1438,3 +1439,34 @@ Recorded because each produced a confident wrong answer, and each is the kind of
 **Reason.** The owner observed that creating Paper with downloaded Java 25 silently reverted to the host's Java 21. The create-only selection and host-wide Java editor do not express the intended server-specific ownership. This owner amendment supersedes earlier host-wide Java editor notes.
 
 **API/CLI.** `GET/POST /v1/config/java-runtime?serverId=<id>` targets a specific Java server. Omitting the ID retains the host-default contract. `msc java get/set --server <id>` provides the same explicit scope.
+
+
+## D-045 — Modpack discovery, player content and file exports
+
+**Status:** Approved product direction · **Origin:** owner discussion ·
+**Approved by:** Cameron Temple · **Date:** 2026-11-05.
+
+**Decision.** Extend Modrinth/CurseForge browsing across existing content surfaces,
+including modpacks in the add-content creation step. Show incompatible packs;
+offer trying the selected setup or automatically matching the chosen pack's
+Minecraft/loader requirements. Maintain one base pack and separately editable
+Server/Players/Both collections with owner-selected optional player content.
+Preserve customizations during updates with per-item upstream restoration;
+review pack replacement. Check player requirements when server mods change.
+Recover older servers from installed content and optional original packs.
+
+Publish dated immutable content revisions and export local/selected-host files,
+not invitation links. ZIPs contain organized content, offline illustrated/text
+instructions and optional .mrpack. Server exports exclude runtime/world data.
+Keep optional player shaders/resource packs inactive where supported. Permit
+clearly incomplete exports while unresolved required content blocks complete
+publication. Initial guides cover Minecraft Launcher, Prism, Modrinth App,
+CurseForge App and SKlauncher with owner-provided screenshots.
+
+**Boundaries.** Existing no-hosted-backend and no-browser-management decisions
+remain. This does not authorize implementation, tests or release changes.
+[Phase 24 scope](addons/phase24-scope.md) separates the approved behavior from
+proposed engineering mechanisms; the step list awaits the owner's Read.
+
+**Revisit if:** provider/launcher format or distribution restrictions make an
+agreed behavior impossible; explain the concrete limit before narrowing scope.

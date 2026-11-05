@@ -403,3 +403,40 @@ Handbook, interactive Router Guide, and console tools; onboarding is omitted.
 **Acceptance:** Cameron confirmed the current TUI is accepted on 2026-10-30.
 That acceptance closes the Phase 22 implementation work; it does not by itself
 assert release packaging or row-by-row parity in the client-capability matrix.
+
+
+## Phase 24 — Modpack management and content exports
+
+**State:** planned 2026-11-05, awaiting owner Read; D-045 records owner direction.
+**Scope:** [Phase 24 contract](addons/phase24-scope.md).
+**Steps:** P24.1–P24.24 in [rolling plan](rolling-plan.md).
+
+**Exit gate:** Modrinth and CurseForge discovery, details, file selection,
+installation, dependencies, identification and updates work throughout their
+supported content surfaces, including creation and Java world datapacks; all
+inventoried Modrinth integrations have an implemented counterpart or an explicit
+provider limitation accepted by Cameron. Creation shows incompatible packs and
+supports both owner-approved mismatch choices without silently altering choices.
+One base pack, complete separate player retention, independent player content,
+server-mod player checks and non-destructive older-server recovery work.
+Updates preserve customizations with per-item upstream restoration; replacement
+reviews old pack removal and retained owner additions without touching worlds.
+
+Dated immutable publications produce audience-correct content-only ZIPs with
+organized folders, manifests, useful offline text/illustrated instructions and
+optional valid .mrpack from the same revision. Required gaps prevent complete
+publication; incomplete exports and format/distribution limits are explicit.
+Five launcher guides use Cameron's screenshots and verified launcher versions.
+Re-export is independent of current server content. No private files or keys
+leak; datapacks respect world-slot ownership. Local desktop and selected-host
+save work with bounded streaming, authorization, cancellation/recovery and stale
+host/server/destination refusal. Retained data participates safely in Storage.
+
+Desktop, host-local CLI and TUI expose the agreed operations with explicit
+capabilities and old-agent degradation. Cameron records representative
+macOS/Windows/Linux, provider, local/remote, launcher, customization, restricted
+file, failure/restart and large-pack evidence; missing screenshots, provider
+access or unverified scenarios remain open. The other agent reviews this gate
+when requested. Step statuses/builds alone do not satisfy it. No public sharing
+links, hosted backend, launcher implementation, full server/runtime export,
+automatically authorized tests or new CI/release gates.

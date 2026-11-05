@@ -31,6 +31,23 @@ pub(super) async fn export(
     else {
         return invalid_body("server_unavailable", "Server not found");
     };
+    let host_destination = body.host_destination.as_ref().map(|destination| {
+        msc_application::content_export_saving::HostDestination {
+            relative_path: destination.relative_path.clone(),
+            replace_sha512: destination.replace_sha512.clone(),
+        }
+    });
+    let host_target = if let Some(destination) = &host_destination {
+        if let Some(response) = require_permission(&credential, PermissionCategoryDto::Admin) {
+            return response;
+        }
+        match msc_application::content_export_saving::validate(&server, destination) {
+            Ok(path) => Some(path),
+            Err(error) => return invalid_body("invalid_host_destination", &error),
+        }
+    } else {
+        None
+    };
     let operations = state.lifecycle.operations();
     let operation = match operations.begin_lifecycle(
         "content-export",
@@ -62,11 +79,18 @@ pub(super) async fn export(
             cancel()
                 || !auth.stream_retains_permissions(&identity)
                 || state.lifecycle.servers_root() != root
+                || !publication_bound(&state, &server, &body.publication_id)
         };
         let id = Uuid::new_v4().to_string();
-        let destination = staging_root(&root)
-            .join("downloads")
-            .join(format!("{id}.zip"));
+        let destination = host_target
+            .as_ref()
+            .and_then(|target| target.parent())
+            .map(|parent| parent.join(format!(".msc-export-{id}.zip")))
+            .unwrap_or_else(|| {
+                staging_root(&root)
+                    .join("downloads")
+                    .join(format!("{id}.zip"))
+            });
         let mut last = 0u64;
         let result = msc_application::content_archives::build_with_options(
             &server,
@@ -91,29 +115,53 @@ pub(super) async fn export(
                 }
             },
         );
-        let bound = state
-            .lifecycle
-            .app_config_servers()
-            .into_iter()
-            .find(|current| current.id == server_id)
-            .is_some_and(|current| {
-                let old = server.content_collection.as_ref();
-                let fresh = current.content_collection.as_ref();
-                current.server_dir == server.server_dir
-                    && fresh.is_some_and(|collection| {
-                        collection.publication_ids.contains(&body.publication_id)
-                    })
-                    && old
-                        .and_then(|collection| collection.extra.get("publicationManifestHashes"))
-                        .and_then(|hashes| hashes.get(&body.publication_id))
-                        == fresh
-                            .and_then(|collection| {
-                                collection.extra.get("publicationManifestHashes")
-                            })
-                            .and_then(|hashes| hashes.get(&body.publication_id))
-            });
+        let bound = publication_bound(&state, &server, &body.publication_id);
         match result {
             Ok(archive) if !cancelled() && bound => {
+                if let Some(host_destination) = &host_destination {
+                    match msc_application::content_export_saving::commit(
+                        &server,
+                        host_destination,
+                        &destination,
+                        &cancelled,
+                    ) {
+                        Ok(path) => {
+                            let result = BTreeMap::from([
+                                ("savedOnHost".into(), "true".into()),
+                                ("hostPath".into(), path.to_string_lossy().into_owned()),
+                                ("fileName".into(), archive.file_name),
+                                ("byteSize".into(), archive.byte_size.to_string()),
+                                ("publicationId".into(), body.publication_id),
+                                ("audience".into(), body.audience),
+                                ("complete".into(), archive.complete.to_string()),
+                                (
+                                    "mrpackIncluded".into(),
+                                    archive.mrpack_file_name.is_some().to_string(),
+                                ),
+                            ]);
+                            let _ = operations.succeed(
+                                &operation,
+                                "Content ZIP saved on selected host",
+                                result,
+                            );
+                        }
+                        Err(mut error) => {
+                            if let Err(cleanup) = std::fs::remove_file(&destination)
+                                && cleanup.kind() != std::io::ErrorKind::NotFound
+                            {
+                                error
+                                    .push_str(&format!("; host staging cleanup failed: {cleanup}"));
+                            }
+                            if cancel() {
+                                let _ = operations.cancel(&operation, &error);
+                            } else {
+                                let _ =
+                                    operations.fail(&operation, "host_export_save_failed", error);
+                            }
+                        }
+                    }
+                    return;
+                }
                 let expiry = now_unix() + STAGING_TTL_SECONDS;
                 state.staging.downloads.lock().unwrap().insert(
                     id.clone(),
@@ -203,4 +251,70 @@ pub(super) async fn eligibility(
         .into_response(),
         Err(error) => invalid_body("publication_unavailable", &error),
     }
+}
+
+#[derive(serde::Deserialize)]
+pub(super) struct DestinationQuery {
+    path: String,
+}
+pub(super) async fn destination(
+    State(state): State<ComponentsRoutesState>,
+    Extension(credential): Extension<AuthenticatedCredential>,
+    AxumPath(server_id): AxumPath<String>,
+    Query(query): Query<DestinationQuery>,
+) -> Response {
+    for permission in [PermissionCategoryDto::Addons, PermissionCategoryDto::Admin] {
+        if let Some(response) = require_permission(&credential, permission) {
+            return response;
+        }
+    }
+    let Some(server) = state
+        .lifecycle
+        .app_config_servers()
+        .into_iter()
+        .find(|server| server.id == server_id)
+    else {
+        return invalid_body("server_unavailable", "Server not found");
+    };
+    match tokio::task::spawn_blocking(move || {
+        msc_application::content_export_saving::inspect(&server, query.path)
+    })
+    .await
+    {
+        Ok(Ok(value)) => Json(value).into_response(),
+        Ok(Err(error)) => invalid_body("invalid_host_destination", &error),
+        Err(_) => invalid_body(
+            "host_destination_unavailable",
+            "Could not review host destination",
+        ),
+    }
+}
+
+fn publication_bound(
+    state: &ComponentsRoutesState,
+    server: &msc_domain::app_config_schema::ConfigServer,
+    publication_id: &str,
+) -> bool {
+    state
+        .lifecycle
+        .app_config_servers()
+        .into_iter()
+        .find(|current| current.id == server.id)
+        .is_some_and(|current| {
+            let old = server.content_collection.as_ref();
+            let fresh = current.content_collection.as_ref();
+            current.server_dir == server.server_dir
+                && fresh.is_some_and(|collection| {
+                    collection
+                        .publication_ids
+                        .iter()
+                        .any(|id| id == publication_id)
+                })
+                && old
+                    .and_then(|collection| collection.extra.get("publicationManifestHashes"))
+                    .and_then(|hashes| hashes.get(publication_id))
+                    == fresh
+                        .and_then(|collection| collection.extra.get("publicationManifestHashes"))
+                        .and_then(|hashes| hashes.get(publication_id))
+        })
 }

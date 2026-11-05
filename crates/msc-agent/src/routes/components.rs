@@ -299,6 +299,10 @@ pub fn router(state: ComponentsRoutesState) -> Router {
             get(content_archives::eligibility),
         )
         .route(
+            "/servers/:server_id/content/export-destination",
+            get(content_archives::destination),
+        )
+        .route(
             "/servers/:server_id/content/exports",
             post(content_archives::export),
         )

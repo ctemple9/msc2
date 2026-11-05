@@ -53,6 +53,42 @@
     }
   },
   "paths": {
+    "/v1/servers/{server_id}/content/export-destination": {
+      "get": {
+        "operationId": "getContentExportDestination",
+        "description": "Admin and Add-ons permissions required. Inspect a destination within the selected server exports root before saving.",
+        "parameters": [
+          {
+            "name": "server_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Destination and exact existing-file overwrite identity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContentHostDestinationResultDTO"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/servers/{server_id}/content/publications/{publication_id}/mrpack-eligibility": {
       "get": {
         "operationId": "getContentMrpackEligibility",
@@ -10449,6 +10485,42 @@
   },
   "components": {
     "schemas": {
+      "ContentHostDestinationResultDTO": {
+        "type": "object",
+        "properties": {
+          "root": {
+            "type": "string"
+          },
+          "relativePath": {
+            "type": "string"
+          },
+          "existingSha512": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "root",
+          "relativePath"
+        ]
+      },
+      "ContentHostDestinationDTO": {
+        "type": "object",
+        "properties": {
+          "relativePath": {
+            "type": "string",
+            "description": "ZIP path relative to selected server exports directory; parent must exist."
+          },
+          "replaceSha512": {
+            "type": "string",
+            "nullable": true,
+            "description": "Existing exact SHA512 from destination review; omission requires an absent destination."
+          }
+        },
+        "required": [
+          "relativePath"
+        ]
+      },
       "ContentMrpackEligibilityDTO": {
         "type": "object",
         "properties": {
@@ -10531,6 +10603,14 @@
           "includeMrpack": {
             "type": "boolean",
             "default": false
+          },
+          "hostDestination": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ContentHostDestinationDTO"
+              }
+            ],
+            "nullable": true
           }
         },
         "required": [
@@ -12298,6 +12378,7 @@
         "properties": {
           "contentZipExports": { "type": "boolean" },
           "contentMrpackExports": { "type": "boolean" },
+          "contentHostSaves": { "type": "boolean" },
           "contentPublications": { "type": "boolean" },
           "reviewedPackReplacement": { "type": "boolean" },
           "reviewedPackUpdates": { "type": "boolean" },

@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: 0dae3637d313a967cdcd677506b821cf95680df78b2acecf957e1aa51009d2d9
+// Contract SHA-256: 6c38186969089ea465f301e820675ba4fdbcc0e5cb7cc4be03a5297258585b21
 
 export interface paths {
   '/v1/active-server': {
@@ -5352,6 +5352,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/v1/servers/{server_id}/content/export-destination': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description Admin and Add-ons permissions required. Inspect a destination within the selected server exports root before saving. */
+    get: operations['getContentExportDestination'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/v1/servers/{server_id}/content/exports': {
     parameters: {
       query?: never;
@@ -8944,6 +8961,7 @@ export interface components {
       [key: string]: unknown;
     };
     ContentCatalogCapabilityDTO: {
+      contentHostSaves?: boolean;
       contentMrpackExports?: boolean;
       contentPublications?: boolean;
       contentZipExports?: boolean;
@@ -9051,9 +9069,25 @@ export interface components {
       allowIncomplete: boolean;
       /** @enum {string} */
       audience: 'players' | 'server';
+      hostDestination?: components['schemas']['ContentHostDestinationDTO'] | null;
       /** @default false */
       includeMrpack: boolean;
       publicationId: string;
+    } & {
+      [key: string]: unknown;
+    };
+    ContentHostDestinationDTO: {
+      /** @description ZIP path relative to selected server exports directory; parent must exist. */
+      relativePath: string;
+      /** @description Existing exact SHA512 from destination review; omission requires an absent destination. */
+      replaceSha512?: string | null;
+    } & {
+      [key: string]: unknown;
+    };
+    ContentHostDestinationResultDTO: {
+      existingSha512?: string | null;
+      relativePath: string;
+      root: string;
     } & {
       [key: string]: unknown;
     };
@@ -13061,6 +13095,30 @@ export interface operations {
           [name: string]: unknown;
         };
         content?: never;
+      };
+    };
+  };
+  getContentExportDestination: {
+    parameters: {
+      query: {
+        path: string;
+      };
+      header?: never;
+      path: {
+        server_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Destination and exact existing-file overwrite identity */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ContentHostDestinationResultDTO'];
+        };
       };
     };
   };

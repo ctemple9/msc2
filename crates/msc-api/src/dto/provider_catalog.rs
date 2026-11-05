@@ -80,6 +80,8 @@ pub struct ContentCatalogCapabilityDto {
     pub content_zip_exports: bool,
     #[serde(default)]
     pub content_mrpack_exports: bool,
+    #[serde(default)]
+    pub content_host_saves: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -339,6 +341,7 @@ pub struct PublishContentDto {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ContentExportRequestDto {
+    pub host_destination: Option<ContentHostDestinationDto>,
     #[serde(default)]
     pub include_mrpack: bool,
     pub publication_id: String,
@@ -352,4 +355,11 @@ pub struct ContentExportRequestDto {
 pub struct PublicationPlayerSetupDto {
     pub loader: String,
     pub loader_version: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ContentHostDestinationDto {
+    pub relative_path: String,
+    pub replace_sha512: Option<String>,
 }

@@ -241,12 +241,14 @@ checks when no affected source has changed. New module paths are proposals.
 
 ### P24.18 — Save exports locally or on the selected host
 
-**Status:** planned — not started
+**Status:** implemented — awaiting owner verification
 **Files:** crates/msc-agent/src/routes/components.rs; clients/desktop-web/src-tauri/src/native_transfer/; clients/desktop-web/src/lib/platform/; clients/desktop-web/src/lib/api/
 **What:** Use authenticated bounded binary transfer for desktop-local saves from any paired agent; add authorized host-local export destination handling. Revalidate host/server/publication/destination and overwrite consent; atomic completion, progress, cancellation and disconnect/disk-full cleanup. Preserve older export clients explicitly.
 **Verify:** `cargo check -p msc-agent && cargo check --manifest-path clients/desktop-web/src-tauri/Cargo.toml`. Cameron also verifies the corresponding behavior scenarios in `addons/phase24-scope.md` and the P24.1 acceptance record.
 **Commit:** `P24.18: save exports locally or on the selected host`
 **Batch:** A — autonomous foundations; no routine owner handoff
+
+**Implementation evidence:** Added selected-host saves within the existing admin-authorized server filesystem root at exports/, including existing subfolders. Addons plus Admin permission is mandatory; absolute paths, traversal, symlink destinations and missing parent directories are refused. Destination inspection returns exact existing-file SHA512; overwrite requires the matching value and revalidation immediately before atomic completion. Generation uses a private sibling file and never replaces an existing destination on failed/cancelled work. Host/server/publication registry and credential permissions are checked throughout generation and at commit. Selected-host operations report their actual host path; ordinary staged-download clients remain unchanged. Added typed API helpers that pass completed exports into the existing native binary save picker (local or remote agent), preserving bounded transport, digest validation, progress, cancellation and partial cleanup without JS archive buffers. Agent Clippy, native desktop cargo check and frontend check passed; existing SDK discovery warnings and 10 CSS warnings remain. Essential local host-save test protects stale overwrite consent/cancellation/path escape; existing native tests do not cover agent destinations, expected <50ms, not run. Physical overwrite/disk-full/disconnection/cancellation and Windows/macOS/Linux acceptance remain pending.
 
 ### P24.19 — Add the publish and export review sheet
 

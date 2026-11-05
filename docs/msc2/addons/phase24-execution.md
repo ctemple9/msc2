@@ -126,14 +126,14 @@ commits per turn. Rolling-plan statuses and Git history remain the step record.
 
 | Field | Current value |
 |---|---|
-| Run state | executing — P24.9 implemented; autonomous goal active |
-| Current step | P24.10 |
-| Next action | Implement replacement through the shared reviewed pack transaction: one base pack, compatible owner additions, explicit conflicts and world compatibility warning. Continue without routine handoff. No UI checkpoint yet. |
-| Last implementation commit | P24.9: preview and apply upstream pack updates |
+| Run state | executing — P24.10 implemented; autonomous goal active |
+| Current step | P24.15 |
+| Next action | Implement immutable dated publication snapshots and readiness review, then ZIP/.mrpack/save/CLI foundations in the authorized reordered sequence. Continue without routine handoff; first desktop UI checkpoint remains P24.11 after foundations. |
+| Last implementation commit | P24.10: replace base packs through a content review |
 | Pending UI review | none |
-| Candidate base commit / changed files | P24.9 committed; next slice P24.10 |
+| Candidate base commit / changed files | P24.10 committed; next slice P24.15 |
 | Owner approval evidence | none |
-| Checks and outcomes | P24.9 focused agent Clippy passed; API generation/frontend check passed (10 existing CSS warnings); schema references resolve. Three essential comparison tests and two generic activation safety tests added, not run. |
+| Checks and outcomes | P24.10 focused agent Clippy passed; API generation/frontend check passed (10 existing CSS warnings); schema references resolve. Existing P24.9 safety tests reused; no tests run. |
 | External prerequisites | owner screenshots for P24.20; usable provider key/content for live acceptance |
 | Deferred owner acceptance | all physical feature/platform scenarios |
 

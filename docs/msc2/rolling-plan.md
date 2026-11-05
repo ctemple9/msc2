@@ -161,12 +161,14 @@ checks when no affected source has changed. New module paths are proposals.
 
 ### P24.10 — Replace base packs through a content review
 
-**Status:** planned — not started
-**Files:** crates/msc-application/src/modpacks.rs; crates/msc-agent/src/routes/components.rs
+**Status:** implemented — awaiting owner verification
+**Files:** crates/msc-application/src/pack_review.rs; crates/msc-agent/src/routes/components/pack_updates.rs and router/capabilities; provider DTOs; OpenAPI/generated clients
 **What:** Enforce one base pack. Preview removal of old owned paths, compatible owner additions and conflicts; preserve unknown files and worlds, warn about world compatibility, and apply through the same recoverable transaction as updates.
 **Verify:** `cargo check -p msc-agent`. Cameron also verifies the corresponding behavior scenarios in `addons/phase24-scope.md` and the P24.1 acceptance record.
 **Commit:** `P24.10: replace base packs through a content review`
 **Batch:** A — autonomous foundations; no routine owner handoff
+
+**Implementation evidence:** Added explicit replacement review/apply endpoints using P24.9 staging, manual recovery and rollback. Update/replacement intent is persisted and cannot be interchanged at apply. One new base identity/baseline replaces the current one; historical retained roots remain protected. Old unmodified pack-owned paths are removed, while owner changes/additions and unknown paths remain preserved. Matching game/loader setup is enforced; retained owner mods require per-path exact-hash compatibility confirmation, and known project-version/incompatibility conflicts remain blocking. Replacement requires acknowledgment that changing packs may make existing worlds incompatible; worlds are excluded from mutation. Current legacy pack identity/name/version are updated together. A fresh review can reuse a pinned prior archive after owner edits while apply still rejects stale byte/collection baselines. Focused agent Clippy and frontend type-check passed (10 existing CSS warnings); schema references resolve. Reused P24.9 comparison/activation safety coverage rather than adding duplicate tests; no tests run. Owner physical replacement, compatibility evidence, cancellations/recovery and all platforms remain pending.
 
 ### P24.11 — Browse both providers in desktop content screens
 

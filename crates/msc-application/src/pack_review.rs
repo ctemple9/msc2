@@ -12,6 +12,8 @@ use std::path::Path;
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Review {
+    #[serde(default)]
+    pub replacement: bool,
     pub id: String,
     pub owner: String,
     pub created_unix: u64,
@@ -116,22 +118,112 @@ pub fn prepare(
     secrets: &dyn SecretStore,
     cancelled: &dyn Fn() -> bool,
 ) -> Result<Review, String> {
+    prepare_inner(
+        server,
+        owner,
+        revision,
+        inspection,
+        retained,
+        restore_server,
+        restore_player,
+        audiences,
+        confirm_unverified_origin,
+        None,
+        transport,
+        secrets,
+        cancelled,
+    )
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReplacementChoices {
+    pub confirm_world_compatibility: bool,
+    pub preserve_additions: BTreeMap<String, String>,
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn prepare_replacement(
+    server: &ConfigServer,
+    owner: &str,
+    revision: u64,
+    inspection: &crate::modpacks::ModpackInspection,
+    retained: Option<pack_retention::RetainedPack>,
+    restore_server: &[String],
+    restore_player: &[String],
+    audiences: &BTreeMap<String, ContentAudience>,
+    confirm_unverified_origin: bool,
+    choices: &ReplacementChoices,
+    transport: &dyn AddonTransport,
+    secrets: &dyn SecretStore,
+    cancelled: &dyn Fn() -> bool,
+) -> Result<Review, String> {
+    if !choices.confirm_world_compatibility {
+        return Err("Confirm that changing packs may make the existing world incompatible; MSC does not convert or replace the world".into());
+    }
+    prepare_inner(
+        server,
+        owner,
+        revision,
+        inspection,
+        retained,
+        restore_server,
+        restore_player,
+        audiences,
+        confirm_unverified_origin,
+        Some(choices),
+        transport,
+        secrets,
+        cancelled,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn prepare_inner(
+    server: &ConfigServer,
+    owner: &str,
+    revision: u64,
+    inspection: &crate::modpacks::ModpackInspection,
+    retained: Option<pack_retention::RetainedPack>,
+    restore_server: &[String],
+    restore_player: &[String],
+    audiences: &BTreeMap<String, ContentAudience>,
+    confirm_unverified_origin: bool,
+    replacement: Option<&ReplacementChoices>,
+    transport: &dyn AddonTransport,
+    secrets: &dyn SecretStore,
+    cancelled: &dyn Fn() -> bool,
+) -> Result<Review, String> {
     if restore_server.len() + restore_player.len() + audiences.len() > 2048 {
         return Err("Too many explicit pack review choices".into());
     }
-    crate::content_recovery::compatible(server, inspection)?;
-    let previous = server
-        .content_collection
-        .as_ref()
-        .ok_or("Recover the original pack baseline before updating")?;
+    let mut setup = server.clone();
+    if replacement.is_some()
+        && let Some(collection) = setup.content_collection.as_mut()
+    {
+        collection.upstream = None;
+    }
+    crate::content_recovery::compatible(&setup, inspection)?;
+    let fallback = ContentCollection::default();
+    let previous = match server.content_collection.as_ref() {
+        Some(collection) => collection,
+        None if replacement.is_some() => &fallback,
+        None => return Err("Recover the original pack baseline before updating".into()),
+    };
     if previous.revision != revision {
         return Err("Content changed; refresh pack review".into());
     }
-    if previous.upstream_files.is_empty() && previous.upstream_player_files.is_empty() {
+    if replacement.is_none()
+        && previous.upstream_files.is_empty()
+        && previous.upstream_player_files.is_empty()
+    {
         return Err("There is no original pack baseline to compare".into());
     }
     let mut warnings = Vec::new();
-    if previous.upstream.is_none() || inspection.origin.is_none() {
+    if replacement.is_some() {
+        warnings.push("Replacing the base pack may make existing worlds incompatible. Worlds are left untouched; MSC does not convert them.".into());
+    }
+    if inspection.origin.is_none() || (replacement.is_none() && previous.upstream.is_none()) {
         if !confirm_unverified_origin {
             return Err("Explicitly confirm that this unverified archive is an update of the current base pack; its title is not identity evidence".into());
         }
@@ -305,9 +397,74 @@ pub fn prepare(
             missing.push(format!("{}: {error}", entry.path));
         }
     }
+    if let Some(choices) = replacement {
+        for (side, files, upstream) in [
+            ("server", &collection.current_files, &new_server),
+            ("players", &collection.player_files, &new_player),
+        ] {
+            for (path, entry) in files {
+                if !path.starts_with("mods/")
+                    || upstream
+                        .get(path)
+                        .is_some_and(|incoming| incoming.sha512 == entry.sha512)
+                {
+                    continue;
+                }
+                let key = format!("{side}/{path}");
+                if choices.preserve_additions.get(&key) != Some(&entry.sha512) {
+                    missing.push(format!(
+                        "Review compatibility of preserved owner mod: {key}"
+                    ));
+                }
+            }
+            let mut projects: BTreeMap<(String, String), std::collections::BTreeSet<String>> =
+                BTreeMap::new();
+            for entry in files.values() {
+                if let Some(source) = &entry.source {
+                    projects
+                        .entry((source.provider.clone(), source.project_id.clone()))
+                        .or_default()
+                        .insert(source.version_id.clone());
+                }
+            }
+            for ((provider, project), versions) in &projects {
+                if versions.len() > 1 {
+                    missing.push(format!(
+                        "Conflicting versions of {provider} project {project} in {side}"
+                    ));
+                }
+            }
+            for (path, entry) in files {
+                let Some(source) = &entry.source else {
+                    continue;
+                };
+                for project in entry
+                    .extra
+                    .get("incompatibleProjects")
+                    .and_then(serde_json::Value::as_array)
+                    .into_iter()
+                    .flatten()
+                    .filter_map(serde_json::Value::as_str)
+                {
+                    if projects.contains_key(&(source.provider.clone(), project.to_string())) {
+                        missing.push(format!("Known incompatible content must be resolved in {side}: {path} conflicts with {} project {project}", source.provider));
+                    }
+                }
+            }
+        }
+        collection.extra.insert(
+            "replacementCompatibilityConfirmations".into(),
+            serde_json::to_value(&choices.preserve_additions).map_err(|error| error.to_string())?,
+        );
+        collection.extra.insert(
+            "worldCompatibilityAcknowledged".into(),
+            serde_json::Value::Bool(true),
+        );
+    }
     collection.validate()?;
     let id = uuid::Uuid::new_v4().to_string();
     let review = Review {
+        replacement: replacement.is_some(),
         id: id.clone(),
         owner: owner.into(),
         created_unix: now(),
@@ -344,7 +501,7 @@ pub fn prepare(
     Ok(review)
 }
 
-pub fn load(server: &ConfigServer, id: &str, owner: &str) -> Result<Review, String> {
+pub fn load_reference(server: &ConfigServer, id: &str, owner: &str) -> Result<Review, String> {
     use msc_infrastructure::fs::FileSystem;
     let bytes = msc_infrastructure::fs::StdFileSystem
         .read_bounded(&path(server, id)?, 32 * 1024 * 1024)
@@ -358,10 +515,17 @@ pub fn load(server: &ConfigServer, id: &str, owner: &str) -> Result<Review, Stri
         || review.minecraft_version != server.minecraft_version
         || review.loader_version != server.loader_version
         || review.flavor != format!("{:?}", server.java_flavor)
-        || review.source_collection != server.content_collection
         || now().saturating_sub(review.created_unix) > 1800
     {
         return Err("Pack review expired or server changed".into());
+    }
+    Ok(review)
+}
+
+pub fn load(server: &ConfigServer, id: &str, owner: &str) -> Result<Review, String> {
+    let review = load_reference(server, id, owner)?;
+    if review.source_collection != server.content_collection {
+        return Err("Pack collection changed; prepare a fresh review".into());
     }
     if management::snapshot(server)?.server_baseline != review.inventory_baseline {
         return Err("Server inventory changed after pack review".into());

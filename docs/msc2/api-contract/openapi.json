@@ -53,6 +53,96 @@
     }
   },
   "paths": {
+    "/v1/servers/{server_id}/content/pack-replacement-review": {
+      "post": {
+        "operationId": "reviewPackReplacement",
+        "tags": [
+          "Content"
+        ],
+        "description": "Prepare one-base-pack replacement with explicit world compatibility acknowledgment. Preserve edited/unknown owner content and review old-pack removals. Operation result supplies reviewId; read it through the shared pack-reviews endpoint.",
+        "parameters": [
+          {
+            "name": "server_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PackReplacementReviewDTO"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Prepare one-base-pack replacement with explicit world compatibility acknowledgment. Preserve edited/unknown owner content and review old-pack removals. Operation result supplies reviewId; read it through the shared pack-reviews endpoint.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationAcceptedDTO"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Review, world compatibility acknowledgment, owner mod compatibility or server state requires resolution."
+          }
+        },
+        "x-permission-category": "addons"
+      }
+    },
+    "/v1/servers/{server_id}/content/pack-replacement": {
+      "post": {
+        "operationId": "applyPackReplacement",
+        "tags": [
+          "Content"
+        ],
+        "description": "Apply a current complete replacement review with the server stopped, using the shared staged file transaction and recovery journal. Worlds remain untouched. Update reviews cannot be used as replacement reviews.",
+        "parameters": [
+          {
+            "name": "server_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContentInstallApplyDTO"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Apply a current complete replacement review with the server stopped, using the shared staged file transaction and recovery journal. Worlds remain untouched. Update reviews cannot be used as replacement reviews.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationAcceptedDTO"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Review, world compatibility acknowledgment, owner mod compatibility or server state requires resolution."
+          }
+        },
+        "x-permission-category": "addons"
+      }
+    },
     "/v1/servers/{server_id}/content/pack-update-review": {
       "post": {
         "operationId": "reviewPackUpdate",
@@ -9997,6 +10087,64 @@
   },
   "components": {
     "schemas": {
+      "PackReplacementReviewDTO": {
+        "type": "object",
+        "properties": {
+          "collectionRevision": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "stagedUploadId": {
+            "type": "string",
+            "nullable": true
+          },
+          "previousReviewId": {
+            "type": "string",
+            "nullable": true
+          },
+          "restoreServer": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "restorePlayer": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "audiences": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string",
+              "enum": [
+                "server",
+                "players",
+                "both"
+              ]
+            }
+          },
+          "confirmUnverifiedOrigin": {
+            "type": "boolean"
+          },
+          "confirmWorldCompatibility": {
+            "type": "boolean",
+            "description": "Must be true: changing base packs may make the existing world incompatible; MSC does not convert the world."
+          },
+          "preserveAdditions": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Exact SHA512 confirmations keyed by server/<content path> or players/<content path> for preserved owner mods. Known incompatibilities remain blocking."
+          }
+        },
+        "required": [
+          "collectionRevision",
+          "confirmWorldCompatibility"
+        ]
+      },
       "PackPathChangeDTO": {
         "type": "object",
         "properties": {
@@ -10094,6 +10242,7 @@
       "PackUpdateReviewResultDTO": {
         "type": "object",
         "properties": {
+          "replacement": { "type": "boolean" },
           "reviewId": {
             "type": "string"
           },
@@ -10142,6 +10291,7 @@
           }
         },
         "required": [
+          "replacement",
           "reviewId",
           "serverId",
           "collectionRevision",
@@ -11079,6 +11229,7 @@
       "ContentCatalogCapabilityDTO": {
         "type": "object",
         "properties": {
+          "reviewedPackReplacement": { "type": "boolean" },
           "reviewedPackUpdates": { "type": "boolean" },
           "playerContentRecovery": { "type": "boolean" },
           "playerContentManagement": { "type": "boolean" },

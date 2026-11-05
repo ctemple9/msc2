@@ -72,6 +72,8 @@ pub struct ContentCatalogCapabilityDto {
     pub player_content_recovery: bool,
     #[serde(default)]
     pub reviewed_pack_updates: bool,
+    #[serde(default)]
+    pub reviewed_pack_replacement: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -259,6 +261,10 @@ pub struct ContentRecoveryReviewDto {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct PackUpdateReviewDto {
+    #[serde(default)]
+    pub confirm_world_compatibility: bool,
+    #[serde(default)]
+    pub preserve_additions: std::collections::BTreeMap<String, String>,
     pub collection_revision: u64,
     pub staged_upload_id: Option<String>,
     pub previous_review_id: Option<String>,

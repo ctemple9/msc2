@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: 00602edb283d301d08540c781e1792092e261416018e2a76f4b24859abab52d2
+// Contract SHA-256: c4eea8f6d02464aa77d64404f204c3af67ad2cae3c5cba8c5cd10cefa18b44c7
 
 export interface paths {
   '/v1/active-server': {
@@ -5437,6 +5437,40 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/v1/servers/{server_id}/content/pack-replacement': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** @description Apply a current complete replacement review with the server stopped, using the shared staged file transaction and recovery journal. Worlds remain untouched. Update reviews cannot be used as replacement reviews. */
+    post: operations['applyPackReplacement'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/servers/{server_id}/content/pack-replacement-review': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** @description Prepare one-base-pack replacement with explicit world compatibility acknowledgment. Preserve edited/unknown owner content and review old-pack removals. Operation result supplies reviewId; read it through the shared pack-reviews endpoint. */
+    post: operations['reviewPackReplacement'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/v1/servers/{server_id}/content/pack-reviews/{review_id}': {
     parameters: {
       query?: never;
@@ -8798,6 +8832,7 @@ export interface components {
       providers: string[];
       retainedPackRecovery?: boolean;
       reviewedInstalls?: string[];
+      reviewedPackReplacement?: boolean;
       reviewedPackUpdates?: boolean;
       reviewedUpdates?: string[];
       sourceIdentification?: string[];
@@ -9631,6 +9666,26 @@ export interface components {
     } & {
       [key: string]: unknown;
     };
+    PackReplacementReviewDTO: {
+      audiences?: {
+        [key: string]: 'server' | 'players' | 'both';
+      };
+      /** Format: int64 */
+      collectionRevision: number;
+      confirmUnverifiedOrigin?: boolean;
+      /** @description Must be true: changing base packs may make the existing world incompatible; MSC does not convert the world. */
+      confirmWorldCompatibility: boolean;
+      /** @description Exact SHA512 confirmations keyed by server/<content path> or players/<content path> for preserved owner mods. Known incompatibilities remain blocking. */
+      preserveAdditions?: {
+        [key: string]: string;
+      };
+      previousReviewId?: string | null;
+      restorePlayer?: string[];
+      restoreServer?: string[];
+      stagedUploadId?: string | null;
+    } & {
+      [key: string]: unknown;
+    };
     PackUpdateReviewDTO: {
       audiences?: {
         [key: string]: 'server' | 'players' | 'both';
@@ -9653,6 +9708,7 @@ export interface components {
       name: string;
       packId: string;
       playerChanges: components['schemas']['PackPathChangeDTO'][];
+      replacement: boolean;
       reviewId: string;
       serverChanges: components['schemas']['PackPathChangeDTO'][];
       serverId: string;
@@ -12852,6 +12908,72 @@ export interface operations {
         content?: never;
       };
       /** @description Server selection/state/review or content changed; review again. */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  applyPackReplacement: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        server_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ContentInstallApplyDTO'];
+      };
+    };
+    responses: {
+      /** @description Apply a current complete replacement review with the server stopped, using the shared staged file transaction and recovery journal. Worlds remain untouched. Update reviews cannot be used as replacement reviews. */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['OperationAcceptedDTO'];
+        };
+      };
+      /** @description Review, world compatibility acknowledgment, owner mod compatibility or server state requires resolution. */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  reviewPackReplacement: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        server_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['PackReplacementReviewDTO'];
+      };
+    };
+    responses: {
+      /** @description Prepare one-base-pack replacement with explicit world compatibility acknowledgment. Preserve edited/unknown owner content and review old-pack removals. Operation result supplies reviewId; read it through the shared pack-reviews endpoint. */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['OperationAcceptedDTO'];
+        };
+      };
+      /** @description Review, world compatibility acknowledgment, owner mod compatibility or server state requires resolution. */
       409: {
         headers: {
           [name: string]: unknown;

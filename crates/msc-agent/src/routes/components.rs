@@ -293,6 +293,14 @@ pub fn router(state: ComponentsRoutesState) -> Router {
             get(content_management::get),
         )
         .route(
+            "/servers/:server_id/content/pack-replacement-review",
+            post(pack_updates::replacement_review),
+        )
+        .route(
+            "/servers/:server_id/content/pack-replacement",
+            post(pack_updates::replacement_apply),
+        )
+        .route(
             "/servers/:server_id/content/pack-update-review",
             post(pack_updates::review),
         )

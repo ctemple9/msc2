@@ -4,7 +4,7 @@ use super::*;
 use msc_api::dto::{ContentInstallApplyDto, PackUpdateReviewDto};
 use msc_application::{pack_activation, pack_retention, pack_review as service};
 fn public_review(review: service::Review) -> serde_json::Value {
-    serde_json::json!({"reviewId":review.id,"serverId":review.activation.server_id,"collectionRevision":review.activation.collection_revision,"packId":review.retained_pack.id,"name":review.retained_pack.name,"version":review.retained_pack.version,"serverChanges":review.server_changes,"playerChanges":review.player_changes,"missing":review.missing,"warnings":review.warnings,"collection":review.activation.collection})
+    serde_json::json!({"replacement":review.replacement,"reviewId":review.id,"serverId":review.activation.server_id,"collectionRevision":review.activation.collection_revision,"packId":review.retained_pack.id,"name":review.retained_pack.name,"version":review.retained_pack.version,"serverChanges":review.server_changes,"playerChanges":review.player_changes,"missing":review.missing,"warnings":review.warnings,"collection":review.activation.collection})
 }
 pub(super) async fn get(
     State(state): State<ComponentsRoutesState>,
@@ -40,6 +40,43 @@ pub(super) async fn review(
     Extension(auth): Extension<crate::auth::AuthState>,
     AxumPath(server_id): AxumPath<String>,
     body: Result<Json<PackUpdateReviewDto>, JsonRejection>,
+) -> Response {
+    review_mode(
+        State(state),
+        Extension(credential),
+        Extension(auth),
+        AxumPath(server_id),
+        body,
+        false,
+    )
+    .await
+}
+
+pub(super) async fn replacement_review(
+    State(state): State<ComponentsRoutesState>,
+    Extension(credential): Extension<AuthenticatedCredential>,
+    Extension(auth): Extension<crate::auth::AuthState>,
+    AxumPath(server_id): AxumPath<String>,
+    body: Result<Json<PackUpdateReviewDto>, JsonRejection>,
+) -> Response {
+    review_mode(
+        State(state),
+        Extension(credential),
+        Extension(auth),
+        AxumPath(server_id),
+        body,
+        true,
+    )
+    .await
+}
+
+async fn review_mode(
+    State(state): State<ComponentsRoutesState>,
+    Extension(credential): Extension<AuthenticatedCredential>,
+    Extension(auth): Extension<crate::auth::AuthState>,
+    AxumPath(server_id): AxumPath<String>,
+    body: Result<Json<PackUpdateReviewDto>, JsonRejection>,
+    replacement: bool,
 ) -> Response {
     if let Some(response) = require_permission(&credential, PermissionCategoryDto::Addons) {
         return response;
@@ -101,9 +138,17 @@ pub(super) async fn review(
     };
     let operations = state.lifecycle.operations();
     let operation = match operations.begin_lifecycle(
-        "addon-pack-update-review",
+        if replacement {
+            "addon-pack-replacement-review"
+        } else {
+            "addon-pack-update-review"
+        },
         Some(server_id.clone()),
-        "Preparing pack update review",
+        if replacement {
+            "Preparing base pack replacement review"
+        } else {
+            "Preparing pack update review"
+        },
     ) {
         Ok(operation) => operation,
         Err(error) => return crate::routes::operations::operation_error_response(error),
@@ -117,7 +162,11 @@ pub(super) async fn review(
         &state.lifecycle,
         &credential,
         "POST",
-        "/v1/servers/:server_id/content/pack-update-review",
+        if replacement {
+            "/v1/servers/:server_id/content/pack-replacement-review"
+        } else {
+            "/v1/servers/:server_id/content/pack-update-review"
+        },
         response.status(),
     );
     tokio::task::spawn_blocking(move || {
@@ -141,7 +190,10 @@ pub(super) async fn review(
                 .map_err(|_| "Provider secret storage unavailable".to_string())?;
             let transport = HttpTransport::new();
             let retained = if let Some(id) = &body.previous_review_id {
-                let previous = service::load(&server, id, &credential.credential_id)?;
+                let previous = service::load_reference(&server, id, &credential.credential_id)?;
+                if previous.replacement != replacement {
+                    return Err("Previous review belongs to a different pack action".into());
+                }
                 Some(service::retained_for_review(&server, &previous)?)
             } else {
                 None
@@ -169,20 +221,41 @@ pub(super) async fn review(
                 inspection
             };
             staging = Some(inspection.staged_dir.clone());
-            let review = service::prepare(
-                &server,
-                &credential.credential_id,
-                body.collection_revision,
-                &inspection,
-                retained,
-                &body.restore_server,
-                &body.restore_player,
-                &audiences,
-                body.confirm_unverified_origin,
-                &transport,
-                secrets.as_ref(),
-                &cancelled,
-            )?;
+            let review = if replacement {
+                service::prepare_replacement(
+                    &server,
+                    &credential.credential_id,
+                    body.collection_revision,
+                    &inspection,
+                    retained,
+                    &body.restore_server,
+                    &body.restore_player,
+                    &audiences,
+                    body.confirm_unverified_origin,
+                    &service::ReplacementChoices {
+                        confirm_world_compatibility: body.confirm_world_compatibility,
+                        preserve_additions: body.preserve_additions.clone(),
+                    },
+                    &transport,
+                    secrets.as_ref(),
+                    &cancelled,
+                )?
+            } else {
+                service::prepare(
+                    &server,
+                    &credential.credential_id,
+                    body.collection_revision,
+                    &inspection,
+                    retained,
+                    &body.restore_server,
+                    &body.restore_player,
+                    &audiences,
+                    body.confirm_unverified_origin,
+                    &transport,
+                    secrets.as_ref(),
+                    &cancelled,
+                )?
+            };
             let fresh = content_install::selected(&state, &server_id).map_err(str::to_string)?;
             if fresh != server || cancelled() {
                 return Err("Server changed during pack review".into());
@@ -217,6 +290,43 @@ pub(super) async fn apply(
     AxumPath(server_id): AxumPath<String>,
     body: Result<Json<ContentInstallApplyDto>, JsonRejection>,
 ) -> Response {
+    apply_mode(
+        State(state),
+        Extension(credential),
+        Extension(auth),
+        AxumPath(server_id),
+        body,
+        false,
+    )
+    .await
+}
+
+pub(super) async fn replacement_apply(
+    State(state): State<ComponentsRoutesState>,
+    Extension(credential): Extension<AuthenticatedCredential>,
+    Extension(auth): Extension<crate::auth::AuthState>,
+    AxumPath(server_id): AxumPath<String>,
+    body: Result<Json<ContentInstallApplyDto>, JsonRejection>,
+) -> Response {
+    apply_mode(
+        State(state),
+        Extension(credential),
+        Extension(auth),
+        AxumPath(server_id),
+        body,
+        true,
+    )
+    .await
+}
+
+async fn apply_mode(
+    State(state): State<ComponentsRoutesState>,
+    Extension(credential): Extension<AuthenticatedCredential>,
+    Extension(auth): Extension<crate::auth::AuthState>,
+    AxumPath(server_id): AxumPath<String>,
+    body: Result<Json<ContentInstallApplyDto>, JsonRejection>,
+    replacement: bool,
+) -> Response {
     if let Some(response) = require_permission(&credential, PermissionCategoryDto::Addons) {
         return response;
     }
@@ -229,9 +339,17 @@ pub(super) async fn apply(
     }
     let operations = state.lifecycle.operations();
     let operation = match operations.begin_lifecycle(
-        "addon-pack-update",
+        if replacement {
+            "addon-pack-replacement"
+        } else {
+            "addon-pack-update"
+        },
         Some(server_id.clone()),
-        "Applying reviewed pack update",
+        if replacement {
+            "Applying reviewed base pack replacement"
+        } else {
+            "Applying reviewed pack update"
+        },
     ) {
         Ok(operation) => operation,
         Err(error) => return crate::routes::operations::operation_error_response(error),
@@ -245,7 +363,11 @@ pub(super) async fn apply(
         &state.lifecycle,
         &credential,
         "POST",
-        "/v1/servers/:server_id/content/pack-update",
+        if replacement {
+            "/v1/servers/:server_id/content/pack-replacement"
+        } else {
+            "/v1/servers/:server_id/content/pack-update"
+        },
         response.status(),
     );
     tokio::task::spawn_blocking(move || {
@@ -263,6 +385,9 @@ pub(super) async fn apply(
             pack_activation::recover(&server)?;
             msc_application::content_install::recover_activation(&server)?;
             let review = service::load(&server, &body.review_id, &credential.credential_id)?;
+            if review.replacement != replacement {
+                return Err("Pack review belongs to a different action".into());
+            }
             if !review.missing.is_empty() {
                 return Err("Resolve missing content/classification and prepare a fresh pack review before activation".into());
             }
@@ -293,6 +418,16 @@ pub(super) async fn apply(
                         current.pack_managed = true;
                         current.pack_name = Some(review.retained_pack.name.clone());
                         current.pack_version = Some(review.retained_pack.version.clone());
+                        current.modpack_identity =
+                            Some(msc_domain::modpack::ModpackIdentity::source(
+                                if review.retained_pack.format == "mrpack" {
+                                    "modrinth"
+                                } else {
+                                    "curseforge"
+                                },
+                                Some(&review.retained_pack.name),
+                                Some(&review.retained_pack.version),
+                            ));
                         Ok(())
                     })
                     .map_err(|_| "Could not save updated pack metadata".to_string())
@@ -300,7 +435,15 @@ pub(super) async fn apply(
         })();
         match result {
             Ok(()) => {
-                let _ = operations.succeed(&operation, "Pack update applied", BTreeMap::new());
+                let _ = operations.succeed(
+                    &operation,
+                    if replacement {
+                        "Base pack replacement applied; worlds unchanged"
+                    } else {
+                        "Pack update applied"
+                    },
+                    BTreeMap::new(),
+                );
             }
             Err(error) => {
                 let _ = operations.fail(&operation, "pack_update_failed", error);

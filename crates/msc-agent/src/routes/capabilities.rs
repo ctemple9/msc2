@@ -160,6 +160,7 @@ async fn capabilities_for_query(
             player_content_management: true,
             player_content_recovery: true,
             reviewed_pack_updates: true,
+            reviewed_pack_replacement: true,
             pack_acquisition: credential
                 .permissions
                 .contains(&msc_api::dto::PermissionCategoryDto::Addons),

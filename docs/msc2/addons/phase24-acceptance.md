@@ -115,3 +115,16 @@ generic activation safety tests (<100 ms each) were added, not run. Existing
 single-file/JAR tests lack old upstream baselines and generic config activation.
 Live providers, manual flows, interrupted large-pack updates, disk exhaustion,
 permissions, cancellation, physical platforms and all owner acceptance are pending.
+
+P24.10: replacement review/apply use the shared durable pack transaction with
+separate persisted intent. One active base identity/baseline is retained; old
+owned files, owner changes/additions and known provider conflicts are reviewed.
+World compatibility acknowledgment and exact-hash confirmations for retained
+owner mods are required. Worlds remain outside mutation; old retained roots
+remain protected. Current legacy pack identity is updated with name/version.
+Strict apply bindings remain separate from a prior archive reference used to
+prepare a fresh review after edits. Focused Clippy, API generation and frontend
+check passed (10 existing CSS warnings); schema references resolve. Existing
+P24.9 comparison/activation safety coverage is reused, with no new duplicate
+tests and no test commands run. Physical replacement/compatibility, providers,
+permissions, cancellations, interruption recovery and platforms are unverified.

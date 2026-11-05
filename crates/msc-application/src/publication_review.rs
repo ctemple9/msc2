@@ -32,6 +32,7 @@ pub struct Request {
     pub audiences: Vec<String>,
     pub collection_revision: u64,
     pub version_name: Option<String>,
+    pub player_setup: Option<crate::content_environment::PlayerSetup>,
     #[serde(default)]
     pub approvals: Vec<Approval>,
     #[serde(default)]
@@ -55,6 +56,7 @@ pub struct Review {
     pub source_collection: Option<ContentCollection>,
     pub inventory_baseline: BTreeMap<String, String>,
     pub content_fingerprint: String,
+    pub player_setup: Option<crate::content_environment::PlayerSetup>,
     pub request: Request,
     pub files: Vec<PreparedPublicationFile>,
     pub issues: Vec<PublicationIssue>,
@@ -177,6 +179,12 @@ pub fn prepare(
     {
         return Err("Server paths/datapacks require the server publication audience".into());
     }
+    if let Some(setup) = &request.player_setup {
+        setup.validate()?;
+        if !audiences.contains("players") {
+            return Err("Player setup requires the player publication audience".into());
+        }
+    }
     let snapshot = management::snapshot(server)?;
     if request.collection_revision != snapshot.collection.revision {
         return Err("Content changed; refresh publication review".into());
@@ -235,10 +243,38 @@ pub fn prepare(
                 extra: BTreeMap::new(),
             });
     }
+    let has_player_mods = snapshot.collection.player_files.values().any(|entry| {
+        entry.path.starts_with("mods/")
+            && !entry.path.ends_with(".disabled")
+            && entry
+                .extra
+                .get("enabled")
+                .and_then(serde_json::Value::as_bool)
+                != Some(false)
+    });
+    let player_setup = request.player_setup.clone().or_else(|| {
+        crate::content_environment::infer(
+            server.java_flavor.raw_value(),
+            server.loader_version.as_deref(),
+            has_player_mods,
+        )
+    });
     let mut files = Vec::new();
     let mut issues = Vec::new();
     let mut exclusions = Vec::new();
-    if server.minecraft_version.is_none() {
+    if audiences.contains("players") {
+        match &player_setup {
+            None=>issues.push(issue("players",None,true,"Exact player loader/version needs review; a server platform alone does not identify a loader for independent client mods")),
+            Some(setup) if setup.loader=="vanilla" && has_player_mods=>issues.push(issue("players",None,true,"Vanilla player setup cannot load the selected client mod JARs")),
+            Some(setup) if matches!(server.java_flavor.raw_value(),"fabric"|"forge"|"neoforge"|"quilt") && setup.loader!=server.java_flavor.raw_value() && snapshot.collection.current_files.values().any(|entry|entry.audience==ContentAudience::Both && entry.extra.get("serverEnabled").and_then(serde_json::Value::as_bool)!=Some(false))=>issues.push(issue("players",None,true,"Player loader differs from the server while shared server mods are selected")),
+            _=>{},
+        }
+    }
+    if !server
+        .minecraft_version
+        .as_deref()
+        .is_some_and(crate::content_environment::exact_version)
+    {
         issues.push(issue(
             "all",
             None,
@@ -332,6 +368,22 @@ pub fn prepare(
                 continue;
             }
             let key = scoped(audience, path)?;
+            if audience == "players"
+                && path.starts_with("mods/")
+                && !entry.optional
+                && entry
+                    .extra
+                    .get("enabled")
+                    .and_then(serde_json::Value::as_bool)
+                    == Some(false)
+            {
+                issues.push(issue(
+                    audience,
+                    Some(path),
+                    true,
+                    "Required player mod is disabled",
+                ));
+            }
             if excluded.contains(&key) {
                 exclusions.push(issue(
                     audience,
@@ -545,6 +597,7 @@ pub fn prepare(
         source_collection: server.content_collection.clone(),
         inventory_baseline: snapshot.server_baseline,
         content_fingerprint,
+        player_setup,
         request,
         files,
         issues,

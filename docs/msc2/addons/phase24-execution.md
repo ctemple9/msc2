@@ -126,12 +126,12 @@ commits per turn. Rolling-plan statuses and Git history remain the step record.
 
 | Field | Current value |
 |---|---|
-| Run state | executing — P24.16 implemented; autonomous goal active |
-| Current step | P24.17 |
-| Next action | Implement optional nested .mrpack from the exact same frozen publication/audience, with pinned game/loader metadata and eligible bytes. Explain unsupported plugin/server bundles explicitly; then continue saving and CLI foundations. No UI checkpoint yet. |
-| Last implementation commit | P24.16: generate reviewed player and server zip archives |
+| Run state | executing — P24.17 implemented; autonomous execution active |
+| Current step | P24.18 |
+| Next action | Implement desktop-local binary saving and authorized selected-host destination support, then P24.21 CLI. No UI checkpoint yet. |
+| Last implementation commit | P24.17: include optional launcher importable mrpack files |
 | Pending UI review | none |
-| Candidate base commit / changed files | P24.16 committed; next slice P24.17 |
+| Candidate base commit / changed files | P24.17 committed; next slice P24.18 |
 | Owner approval evidence | none |
 | Checks and outcomes | P24.16 focused agent Clippy passed; API generation/frontend check passed (10 existing CSS warnings); schema references resolve. Two essential archive tests added, not run. Export layout zip-v1 and frozen text-v1 guides are pinned; screenshots remain P24.20. |
 | External prerequisites | owner screenshots for P24.20; usable provider key/content for live acceptance |

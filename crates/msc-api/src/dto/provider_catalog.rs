@@ -78,6 +78,8 @@ pub struct ContentCatalogCapabilityDto {
     pub content_publications: bool,
     #[serde(default)]
     pub content_zip_exports: bool,
+    #[serde(default)]
+    pub content_mrpack_exports: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -313,6 +315,7 @@ pub struct PublicationReviewRequestDto {
     pub audiences: Vec<String>,
     pub collection_revision: u64,
     pub version_name: Option<String>,
+    pub player_setup: Option<PublicationPlayerSetupDto>,
     #[serde(default)]
     pub approvals: Vec<PublicationApprovalDto>,
     #[serde(default)]
@@ -336,8 +339,17 @@ pub struct PublishContentDto {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ContentExportRequestDto {
+    #[serde(default)]
+    pub include_mrpack: bool,
     pub publication_id: String,
     pub audience: String,
     #[serde(default)]
     pub allow_incomplete: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PublicationPlayerSetupDto {
+    pub loader: String,
+    pub loader_version: Option<String>,
 }

@@ -163,6 +163,7 @@ async fn capabilities_for_query(
             reviewed_pack_replacement: true,
             content_publications: true,
             content_zip_exports: true,
+            content_mrpack_exports: true,
             pack_acquisition: credential
                 .permissions
                 .contains(&msc_api::dto::PermissionCategoryDto::Addons),

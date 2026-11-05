@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: e6ab350bc78f84a8e1277439fa3921a3d497f53190a421483d8f600f97fbdb24
+// Contract SHA-256: 0dae3637d313a967cdcd677506b821cf95680df78b2acecf957e1aa51009d2d9
 
 export interface paths {
   '/v1/active-server': {
@@ -5676,6 +5676,22 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/v1/servers/{server_id}/content/publications/{publication_id}/mrpack-eligibility': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations['getContentMrpackEligibility'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/v1/servers/{server_id}/content/recovery-review': {
     parameters: {
       query?: never;
@@ -8928,6 +8944,7 @@ export interface components {
       [key: string]: unknown;
     };
     ContentCatalogCapabilityDTO: {
+      contentMrpackExports?: boolean;
       contentPublications?: boolean;
       contentZipExports?: boolean;
       packAcquisition: boolean;
@@ -9034,6 +9051,8 @@ export interface components {
       allowIncomplete: boolean;
       /** @enum {string} */
       audience: 'players' | 'server';
+      /** @default false */
+      includeMrpack: boolean;
       publicationId: string;
     } & {
       [key: string]: unknown;
@@ -9103,6 +9122,18 @@ export interface components {
     } & {
       [key: string]: unknown;
     };
+    ContentMrpackEligibilityDTO: {
+      complete: boolean;
+      dependencies: {
+        [key: string]: string;
+      };
+      embeddedFileCount: number;
+      reasons: string[];
+      supported: boolean;
+      warnings: string[];
+    } & {
+      [key: string]: unknown;
+    };
     ContentPublicationDTO: {
       archiveLayoutVersion: string;
       audiences: string[];
@@ -9124,6 +9155,8 @@ export interface components {
       playerFiles: {
         [key: string]: components['schemas']['PublishedFileDTO'];
       };
+      playerSetup?: components['schemas']['PublicationPlayerSetupDTO'] | null;
+      playerSetupReviewed?: boolean;
       /** Format: int64 */
       publicationRevision: number;
       reviewedDatapacks: components['schemas']['PublicationDatapackDTO'][];
@@ -10182,6 +10215,13 @@ export interface components {
     } & {
       [key: string]: unknown;
     };
+    PublicationPlayerSetupDTO: {
+      /** @enum {string} */
+      loader: 'vanilla' | 'fabric' | 'forge' | 'neoforge' | 'quilt';
+      loaderVersion?: string | null;
+    } & {
+      [key: string]: unknown;
+    };
     PublicationReviewedFileDTO: {
       audience: string;
       file: components['schemas']['PublishedFileDTO'];
@@ -10201,6 +10241,7 @@ export interface components {
       collectionRevision: number;
       datapacks?: components['schemas']['PublicationDatapackDTO'][];
       excluded?: components['schemas']['PublicationExclusionDTO'][];
+      playerSetup?: components['schemas']['PublicationPlayerSetupDTO'] | null;
       serverPaths?: string[];
       versionName?: string | null;
     } & {
@@ -10218,6 +10259,7 @@ export interface components {
       guideStatus: string;
       guideVersion: string;
       issues: components['schemas']['PublicationIssueDTO'][];
+      playerSetup?: components['schemas']['PublicationPlayerSetupDTO'] | null;
       reviewId: string;
       serverId: string;
       versionName: string | null;
@@ -13696,6 +13738,31 @@ export interface operations {
           [name: string]: unknown;
         };
         content?: never;
+      };
+    };
+  };
+  getContentMrpackEligibility: {
+    parameters: {
+      query: {
+        audience: 'players' | 'server';
+      };
+      header?: never;
+      path: {
+        publication_id: string;
+        server_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Frozen publication format eligibility */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ContentMrpackEligibilityDTO'];
+        };
       };
     };
   };

@@ -53,6 +53,53 @@
     }
   },
   "paths": {
+    "/v1/servers/{server_id}/content/publications/{publication_id}/mrpack-eligibility": {
+      "get": {
+        "operationId": "getContentMrpackEligibility",
+        "parameters": [
+          {
+            "name": "server_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "publication_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "audience",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "players",
+                "server"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Frozen publication format eligibility",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContentMrpackEligibilityDTO"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/servers/{server_id}/content/exports": {
       "post": {
         "operationId": "exportContentPublication",
@@ -10402,6 +10449,68 @@
   },
   "components": {
     "schemas": {
+      "ContentMrpackEligibilityDTO": {
+        "type": "object",
+        "properties": {
+          "supported": {
+            "type": "boolean"
+          },
+          "complete": {
+            "type": "boolean"
+          },
+          "reasons": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "dependencies": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "embeddedFileCount": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "supported",
+          "complete",
+          "reasons",
+          "warnings",
+          "dependencies",
+          "embeddedFileCount"
+        ]
+      },
+      "PublicationPlayerSetupDTO": {
+        "type": "object",
+        "properties": {
+          "loader": {
+            "type": "string",
+            "enum": [
+              "vanilla",
+              "fabric",
+              "forge",
+              "neoforge",
+              "quilt"
+            ]
+          },
+          "loaderVersion": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "loader"
+        ]
+      },
       "ContentExportRequestDTO": {
         "type": "object",
         "properties": {
@@ -10416,6 +10525,10 @@
             ]
           },
           "allowIncomplete": {
+            "type": "boolean",
+            "default": false
+          },
+          "includeMrpack": {
             "type": "boolean",
             "default": false
           }
@@ -10545,6 +10658,14 @@
             "items": {
               "$ref": "#/components/schemas/PublicationDatapackDTO"
             }
+          },
+          "playerSetup": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PublicationPlayerSetupDTO"
+              }
+            ],
+            "nullable": true
           }
         },
         "required": [
@@ -10714,6 +10835,14 @@
           },
           "guideStatus": {
             "type": "string"
+          },
+          "playerSetup": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PublicationPlayerSetupDTO"
+              }
+            ],
+            "nullable": true
           }
         },
         "required": [
@@ -10750,7 +10879,9 @@
       "ContentPublicationDTO": {
         "type": "object",
         "properties": {
-          "archiveLayoutVersion": { "type": "string" },
+          "archiveLayoutVersion": {
+            "type": "string"
+          },
           "schemaVersion": {
             "type": "integer"
           },
@@ -10845,6 +10976,17 @@
             "additionalProperties": {
               "$ref": "#/components/schemas/PublishedFileDTO"
             }
+          },
+          "playerSetup": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PublicationPlayerSetupDTO"
+              }
+            ],
+            "nullable": true
+          },
+          "playerSetupReviewed": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -12155,6 +12297,7 @@
         "type": "object",
         "properties": {
           "contentZipExports": { "type": "boolean" },
+          "contentMrpackExports": { "type": "boolean" },
           "contentPublications": { "type": "boolean" },
           "reviewedPackReplacement": { "type": "boolean" },
           "reviewedPackUpdates": { "type": "boolean" },

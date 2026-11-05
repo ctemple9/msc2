@@ -1,7 +1,7 @@
 //! Versioned text fallback. Illustrated launcher-specific guides are supplied
 //! in P24.20; these files make that limitation explicit without remote assets.
 use crate::content_publications::Publication;
-pub const VERSION: &str = "text-v1";
+pub const VERSION: &str = "text-v2";
 pub struct Asset {
     pub path: String,
     pub bytes: Vec<u8>,
@@ -19,8 +19,25 @@ pub fn assets(publication: &Publication) -> Vec<Asset> {
             .as_deref()
             .unwrap_or("not recorded")
     );
+    let player_setup = crate::content_environment::for_publication(publication);
+    let player_header = format!(
+        "Minecraft: {}\nPlayer loader: {}\nPlayer loader version: {}\n",
+        publication
+            .minecraft_version
+            .as_deref()
+            .unwrap_or("UNKNOWN — resolve before playing"),
+        player_setup
+            .as_ref()
+            .map_or("UNKNOWN — review player setup", |setup| setup
+                .loader
+                .as_str()),
+        player_setup
+            .as_ref()
+            .and_then(|setup| setup.loader_version.as_deref())
+            .unwrap_or("not required or not recorded")
+    );
     let mut player = format!(
-        "PLAYER CONTENT\n\n{setup}\nCreate a separate instance in your compatible launcher with the exact Minecraft and loader versions above. Open that instance's Minecraft folder. Copy the exported mods, config, scripts, kubejs, defaultconfigs, resourcepacks and shaderpacks folders into their matching locations, preserving subfolders.\n\nUse a clean instance for updates so old mod versions do not remain alongside new ones. Back up personal settings before replacing configuration. Compare the manifest with the files you copied before joining the server.\n\nOwner-selected optional content is included when eligible. Leave optional shader/resource packs inactive until you choose to enable them in Minecraft. A launcher may not automatically disable optional mod JARs; check the manifest and choose which optional mods to use.\n\n"
+        "PLAYER CONTENT\n\n{player_header}\nCreate a separate instance in your compatible launcher with the exact Minecraft and loader versions above. Open that instance's Minecraft folder. Copy the exported mods, config, scripts, kubejs, defaultconfigs, resourcepacks and shaderpacks folders into their matching locations, preserving subfolders.\n\nUse a clean instance for updates so old mod versions do not remain alongside new ones. Back up personal settings before replacing configuration. Compare the manifest with the files you copied before joining the server.\n\nOwner-selected optional content is included when eligible. Leave optional shader/resource packs inactive until you choose to enable them in Minecraft. A launcher may not automatically disable optional mod JARs; check the manifest and choose which optional mods to use.\n\n"
     );
     for file in publication.player_files.values() {
         player.push_str(&format!(
@@ -57,5 +74,5 @@ pub fn assets(publication: &Publication) -> Vec<Asset> {
             server.push_str(&line);
         }
     }
-    vec![Asset {path:"PLAYER.txt".into(),bytes:player.into_bytes()},Asset {path:"SERVER.txt".into(),bytes:server.into_bytes()},Asset {path:"GUIDE-STATUS.txt".into(),bytes:b"Text fallback guide version text-v1. Launcher-specific illustrated instructions and owner-provided screenshots are not included in this development guide version. Read the publication manifest for missing content and exact setup. No network assets are required to read these files.\n".to_vec()}]
+    vec![Asset {path:"PLAYER.txt".into(),bytes:player.into_bytes()},Asset {path:"SERVER.txt".into(),bytes:server.into_bytes()},Asset {path:"GUIDE-STATUS.txt".into(),bytes:b"Text fallback guide version text-v2. Launcher-specific illustrated instructions and owner-provided screenshots are not included in this development guide version. Read the publication manifest for missing content and exact setup. No network assets are required to read these files.\n".to_vec()}]
 }

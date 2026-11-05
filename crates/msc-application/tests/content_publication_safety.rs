@@ -90,6 +90,10 @@ fn freeze(
         5,
         None,
         vec!["players".into()],
+        Some(msc_application::content_environment::PlayerSetup {
+            loader: "fabric".into(),
+            loader_version: Some("0.16.0".into()),
+        }),
         msc_application::content_guides::VERSION,
         &[prepared],
         Vec::new(),
@@ -158,6 +162,7 @@ fn attestation_cannot_embed_known_restricted_content_or_skip_incomplete_consent(
         audiences: vec!["players".into()],
         collection_revision: 5,
         version_name: None,
+        player_setup: None,
         approvals: vec![review::Approval {
             audience: "players".into(),
             path: "config/example.toml".into(),
@@ -178,6 +183,10 @@ fn attestation_cannot_embed_known_restricted_content_or_skip_incomplete_consent(
             5,
             None,
             vec!["players".into()],
+            Some(msc_application::content_environment::PlayerSetup {
+                loader: "fabric".into(),
+                loader_version: Some("0.16.0".into())
+            }),
             msc_application::content_guides::VERSION,
             &reviewed.files,
             reviewed.issues,

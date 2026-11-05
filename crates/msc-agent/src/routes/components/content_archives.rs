@@ -68,11 +68,12 @@ pub(super) async fn export(
             .join("downloads")
             .join(format!("{id}.zip"));
         let mut last = 0u64;
-        let result = msc_application::content_archives::build(
+        let result = msc_application::content_archives::build_with_options(
             &server,
             &body.publication_id,
             &body.audience,
             body.allow_incomplete,
+            body.include_mrpack,
             &destination,
             &cancelled,
             &mut |current, total| {
@@ -126,6 +127,13 @@ pub(super) async fn export(
                 let mut result = BTreeMap::new();
                 result.insert("stagedDownloadId".into(), id.clone());
                 result.insert("downloadPath".into(), format!("/v1/staged-downloads/{id}"));
+                result.insert(
+                    "mrpackIncluded".into(),
+                    archive.mrpack_file_name.is_some().to_string(),
+                );
+                if let Some(name) = archive.mrpack_file_name {
+                    result.insert("mrpackFileName".into(), name);
+                }
                 result.insert("fileName".into(), archive.file_name);
                 result.insert("byteSize".into(), archive.byte_size.to_string());
                 result.insert("publicationId".into(), body.publication_id);
@@ -164,4 +172,35 @@ pub(super) async fn export(
         }
     });
     response
+}
+
+#[derive(serde::Deserialize)]
+pub(super) struct EligibilityQuery {
+    audience: String,
+}
+pub(super) async fn eligibility(
+    State(state): State<ComponentsRoutesState>,
+    Extension(credential): Extension<AuthenticatedCredential>,
+    AxumPath((server_id, publication_id)): AxumPath<(String, String)>,
+    Query(query): Query<EligibilityQuery>,
+) -> Response {
+    if let Some(response) = require_permission(&credential, PermissionCategoryDto::Addons) {
+        return response;
+    }
+    let Some(server) = state
+        .lifecycle
+        .app_config_servers()
+        .into_iter()
+        .find(|server| server.id == server_id)
+    else {
+        return invalid_body("server_unavailable", "Server not found");
+    };
+    match msc_application::content_publications::load(&server, &publication_id) {
+        Ok(publication) => Json(msc_application::content_mrpack::eligibility(
+            &publication,
+            &query.audience,
+        ))
+        .into_response(),
+        Err(error) => invalid_body("publication_unavailable", &error),
+    }
 }

@@ -52,6 +52,10 @@ pub struct Publication {
     pub minecraft_version: Option<String>,
     pub loader: String,
     pub loader_version: Option<String>,
+    #[serde(default)]
+    pub player_setup: Option<crate::content_environment::PlayerSetup>,
+    #[serde(default)]
+    pub player_setup_reviewed: bool,
     pub guide_version: String,
     #[serde(default = "archive_layout_version")]
     pub archive_layout_version: String,
@@ -181,9 +185,10 @@ pub fn freeze(
     revision: u64,
     version_name: Option<String>,
     audiences: Vec<String>,
+    player_setup: Option<crate::content_environment::PlayerSetup>,
     guide_version: &str,
     prepared: &[PreparedPublicationFile],
-    issues: Vec<PublicationIssue>,
+    mut issues: Vec<PublicationIssue>,
     exclusions: Vec<PublicationIssue>,
     content_fingerprint: String,
     reviewed_server_paths: Vec<String>,
@@ -203,10 +208,21 @@ pub fn freeze(
     if prepared.len() > 50_000 || issues.len() > 50_000 {
         return Err("Publication exceeds its file/issue limit".into());
     }
+    if audiences.iter().any(|audience| audience == "players") && player_setup.is_none() {
+        issues.push(PublicationIssue {
+            audience: "players".into(),
+            path: None,
+            required: true,
+            reason: "Exact player loader/version needs review".into(),
+        });
+    }
     if !issues.is_empty() && !incomplete_consent {
         return Err(
             "Unresolved selected content needs explicit incomplete-publication consent".into(),
         );
+    }
+    if let Some(setup) = &player_setup {
+        setup.validate()?;
     }
     if version_name
         .as_ref()
@@ -251,6 +267,8 @@ pub fn freeze(
         minecraft_version: server.minecraft_version.clone(),
         loader: server.java_flavor.raw_value().into(),
         loader_version: server.loader_version.clone(),
+        player_setup,
+        player_setup_reviewed: true,
         guide_version: guide_version.into(),
         archive_layout_version: archive_layout_version(),
         guide_assets: BTreeMap::new(),

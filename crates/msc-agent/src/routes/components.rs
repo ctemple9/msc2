@@ -295,6 +295,10 @@ pub fn router(state: ComponentsRoutesState) -> Router {
             get(content_management::get),
         )
         .route(
+            "/servers/:server_id/content/publications/:publication_id/mrpack-eligibility",
+            get(content_archives::eligibility),
+        )
+        .route(
             "/servers/:server_id/content/exports",
             post(content_archives::export),
         )

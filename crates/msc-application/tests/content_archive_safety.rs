@@ -79,6 +79,10 @@ fn fixture() -> (Fixture, ConfigServer, publications::Publication) {
         1,
         None,
         vec!["players".into(), "server".into()],
+        Some(msc_application::content_environment::PlayerSetup {
+            loader: "fabric".into(),
+            loader_version: Some("0.16.0".into()),
+        }),
         msc_application::content_guides::VERSION,
         &files,
         Vec::new(),
@@ -172,4 +176,58 @@ fn cancellation_leaves_no_admitted_archive_or_partial_file() {
                 .extension()
                 .is_some_and(|extension| extension == "part"))
     );
+}
+
+// Essential P24.17: a nested launcher archive must carry the same frozen player
+// bytes without server leakage, and pin the real loader. Reuses tiny local
+// fixtures; no external launcher/network/timing dependency; expected <150ms.
+#[test]
+fn nested_mrpack_pins_setup_and_preserves_player_scope() {
+    let (fixture, server, publication) = fixture();
+    let output = fixture.0.join("exports/nested.zip");
+    let result = archives::build_with_options(
+        &server,
+        &publication.id,
+        "players",
+        false,
+        true,
+        &output,
+        &|| false,
+        &mut |_, _| {},
+    )
+    .unwrap();
+    let mut outer = zip::ZipArchive::new(std::fs::File::open(output).unwrap()).unwrap();
+    let mut bytes = Vec::new();
+    outer
+        .by_name(result.mrpack_file_name.as_deref().unwrap())
+        .unwrap()
+        .read_to_end(&mut bytes)
+        .unwrap();
+    let mut inner = zip::ZipArchive::new(std::io::Cursor::new(bytes)).unwrap();
+    let index: serde_json::Value =
+        serde_json::from_reader(inner.by_name("modrinth.index.json").unwrap()).unwrap();
+    assert_eq!(index["formatVersion"], 1);
+    assert_eq!(index["dependencies"]["minecraft"], "1.21.1");
+    assert_eq!(index["dependencies"]["fabric-loader"], "0.16.0");
+    assert_eq!(index["files"].as_array().unwrap().len(), 0);
+    let mut payload = Vec::new();
+    inner
+        .by_name("client-overrides/optional-content/shaderpacks/example.zip")
+        .unwrap()
+        .read_to_end(&mut payload)
+        .unwrap();
+    assert_eq!(payload, b"player bytes");
+    assert!(
+        inner
+            .file_names()
+            .all(|name| !name.contains("server-only") && !name.contains("world/"))
+    );
+    let mut unsupported = publication.clone();
+    unsupported.loader = "paper".into();
+    assert!(!msc_application::content_mrpack::eligibility(&unsupported, "server").supported);
+    unsupported.player_setup = None;
+    unsupported.player_setup_reviewed = false;
+    let player = msc_application::content_mrpack::eligibility(&unsupported, "players");
+    assert!(player.supported);
+    assert!(!player.dependencies.contains_key("fabric-loader"));
 }

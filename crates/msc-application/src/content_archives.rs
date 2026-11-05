@@ -13,13 +13,14 @@ use std::{
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ArchiveResult {
+    pub mrpack_file_name: Option<String>,
     pub file_name: String,
     pub byte_size: u64,
     pub content_bytes: u64,
     pub file_count: usize,
     pub complete: bool,
 }
-fn options() -> zip::write::SimpleFileOptions {
+pub(crate) fn options() -> zip::write::SimpleFileOptions {
     zip::write::SimpleFileOptions::default()
         .compression_method(zip::CompressionMethod::Deflated)
         .unix_permissions(0o644)
@@ -48,8 +49,8 @@ pub fn export_path_v1(audience: &str, file: &PublishedFile) -> String {
         file.path.clone()
     }
 }
-fn text_entry(
-    zip: &mut zip::ZipWriter<std::fs::File>,
+pub(crate) fn text_entry<W: Write + std::io::Seek>(
+    zip: &mut zip::ZipWriter<W>,
     path: &str,
     bytes: &[u8],
 ) -> Result<(), String> {
@@ -57,8 +58,8 @@ fn text_entry(
         .map_err(|error| error.to_string())?;
     zip.write_all(bytes).map_err(|error| error.to_string())
 }
-fn copy_entry(
-    zip: &mut zip::ZipWriter<std::fs::File>,
+pub(crate) fn copy_entry<W: Write + std::io::Seek>(
+    zip: &mut zip::ZipWriter<W>,
     source: &Path,
     path: &str,
     file: &PublishedFile,
@@ -111,6 +112,28 @@ pub fn build(
     cancelled: &dyn Fn() -> bool,
     progress: &mut dyn FnMut(u64, u64),
 ) -> Result<ArchiveResult, String> {
+    build_with_options(
+        server,
+        publication_id,
+        audience,
+        allow_incomplete,
+        false,
+        destination,
+        cancelled,
+        progress,
+    )
+}
+#[allow(clippy::too_many_arguments)]
+pub fn build_with_options(
+    server: &ConfigServer,
+    publication_id: &str,
+    audience: &str,
+    allow_incomplete: bool,
+    include_mrpack: bool,
+    destination: &Path,
+    cancelled: &dyn Fn() -> bool,
+    progress: &mut dyn FnMut(u64, u64),
+) -> Result<ArchiveResult, String> {
     use msc_infrastructure::fs::FileSystem;
     if !matches!(audience, "players" | "server") {
         return Err("Choose players or server export".into());
@@ -138,14 +161,21 @@ pub fn build(
     } else {
         &publication.server_files
     };
-    let issues: Vec<_> = publication
-        .issues
-        .iter()
-        .filter(|issue| issue.audience == audience || issue.audience == "all")
-        .collect();
+    let issues = crate::content_environment::issues(&publication, audience);
     if !issues.is_empty() && !allow_incomplete {
         return Err("Explicit incomplete-export consent is required for this audience".into());
     }
+    let mrpack = crate::content_mrpack::eligibility(&publication, audience);
+    if include_mrpack && !mrpack.supported {
+        return Err(mrpack.reasons.join("; "));
+    }
+    let mrpack_file_name = include_mrpack.then(|| {
+        format!(
+            "{}{}-pack.mrpack",
+            if issues.is_empty() { "" } else { "incomplete-" },
+            audience
+        )
+    });
     let exclusions: Vec<_> = publication
         .exclusions
         .iter()
@@ -154,6 +184,9 @@ pub fn build(
     let content_bytes = files
         .values()
         .try_fold(0u64, |sum, file| sum.checked_add(file.byte_size))
+        .ok_or("Export size overflow")?;
+    let work_bytes = content_bytes
+        .checked_mul(if include_mrpack { 2 } else { 1 })
         .ok_or("Export size overflow")?;
     let mut exported = BTreeMap::new();
     let mut names = std::collections::BTreeSet::new();
@@ -175,7 +208,29 @@ pub fn build(
         .read_bounded(&guide_path, 16 * 1024 * 1024)
         .map_err(|error| error.to_string())?;
     let guide = String::from_utf8(guide).map_err(|_| "Frozen text guide is not UTF-8")?;
-    let text = format!(
+    let guide = if audience == "players"
+        && publication.guide_version == "text-v1"
+        && matches!(
+            publication.loader.as_str(),
+            "paper" | "purpur" | "pufferfish" | "spigot"
+        ) {
+        let player = crate::content_environment::for_publication(&publication);
+        format!(
+            "PLAYER SETUP CORRECTION FOR ARCHIVED TEXT-V1 GUIDE\nThe archived header below records the server platform. Player loader: {}. Player loader version: {}. Use this player setup when creating a client instance.\n\n{guide}",
+            player
+                .as_ref()
+                .map_or("UNKNOWN — resolve before playing", |setup| setup
+                    .loader
+                    .as_str()),
+            player
+                .as_ref()
+                .and_then(|setup| setup.loader_version.as_deref())
+                .unwrap_or("not required or not recorded")
+        )
+    } else {
+        guide
+    };
+    let mut text = format!(
         "{}\nPublication {} — revision {}\nAudience: {audience}\nStatus: {}\n\n{guide}\nINACTIVE OPTIONAL CONTENT\nFiles under optional-content/resourcepacks and optional-content/shaderpacks are included but inactive. Copy a chosen pack into the matching resourcepacks or shaderpacks folder only when you want to use it. Files ending in .jar.disabled remain disabled until you deliberately remove .disabled.\n",
         publication.server_name,
         publication.id,
@@ -186,11 +241,22 @@ pub fn build(
             "INCOMPLETE — read missing-content reasons before joining"
         }
     );
+    if let Some(name) = &mrpack_file_name {
+        text.push_str(&format!(
+            "\nMRPACK IMPORT\n{name} contains the same frozen {audience} content. {}\n{}\n",
+            if audience == "players" {
+                "Import it into a compatible launcher supporting client-overrides."
+            } else {
+                "Use a dedicated-server installer supporting server-overrides."
+            },
+            mrpack.warnings.join("\n")
+        ));
+    }
     let html = format!(
         "<!doctype html><html lang=\"en\"><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; style-src 'unsafe-inline'\"><title>MSC content instructions</title><style>body{{font-family:system-ui,sans-serif;margin:2rem auto;padding:0 1rem;max-width:72ch;line-height:1.5}}h1{{font-size:1.5rem;font-weight:600}}pre{{font:inherit;white-space:pre-wrap;overflow-wrap:anywhere}}</style><main><h1>MSC content instructions</h1><pre>{}</pre></main></html>",
         escape(&text)
     );
-    let manifest=serde_json::to_vec_pretty(&serde_json::json!({"schemaVersion":1,"publicationId":publication.id,"publicationRevision":publication.publication_revision,"collectionRevision":publication.collection_revision,"createdAt":publication.created_at,"versionName":publication.version_name,"serverName":publication.server_name,"audience":audience,"minecraftVersion":publication.minecraft_version,"loader":publication.loader,"loaderVersion":publication.loader_version,"guideVersion":publication.guide_version,"complete":issues.is_empty(),"incompleteConsent":allow_incomplete,"issues":issues,"exclusions":exclusions,"files":exported})).map_err(|error|error.to_string())?;
+    let manifest=serde_json::to_vec_pretty(&serde_json::json!({"mrpackFileName":mrpack_file_name,"playerSetup":crate::content_environment::for_publication(&publication),"schemaVersion":1,"publicationId":publication.id,"publicationRevision":publication.publication_revision,"collectionRevision":publication.collection_revision,"createdAt":publication.created_at,"versionName":publication.version_name,"serverName":publication.server_name,"audience":audience,"minecraftVersion":publication.minecraft_version,"loader":publication.loader,"loaderVersion":publication.loader_version,"guideVersion":publication.guide_version,"complete":issues.is_empty(),"incompleteConsent":allow_incomplete,"issues":issues,"exclusions":exclusions,"files":exported})).map_err(|error|error.to_string())?;
     let parent = destination
         .parent()
         .ok_or("Export destination has no parent")?;
@@ -200,11 +266,19 @@ pub fn build(
         .values()
         .map(|guide| guide.byte_size)
         .sum();
-    let required = content_bytes
-        .checked_add(content_bytes / 100)
+    let required = work_bytes
+        .checked_add(work_bytes / 100)
         .and_then(|n| n.checked_add(guides_size))
-        .and_then(|n| n.checked_add((files.len() as u64 + 10) * 1024))
-        .and_then(|n| n.checked_add(text.len() as u64 + html.len() as u64 + manifest.len() as u64))
+        .and_then(|n| {
+            n.checked_add((files.len() as u64 + 10) * if include_mrpack { 4096 } else { 1024 })
+        })
+        .and_then(|n| {
+            n.checked_add(
+                text.len() as u64
+                    + html.len() as u64
+                    + manifest.len() as u64 * if include_mrpack { 3 } else { 1 },
+            )
+        })
         .ok_or("Export size overflow")?;
     if fs2::available_space(parent).map_err(|error| error.to_string())? < required {
         return Err("Insufficient space for selected content export".into());
@@ -230,13 +304,34 @@ pub fn build(
         text_entry(&mut zip, "README.html", html.as_bytes())?;
         text_entry(&mut zip, "manifest.json", &manifest)?;
         let mut written = 0u64;
-        progress(0, content_bytes);
+        progress(0, work_bytes);
         for (path, file) in &exported {
             let source = publications::frozen_file_location(server, &publication, file)?;
             copy_entry(&mut zip, &source, path, file, cancelled, &mut |delta| {
                 written += delta;
-                progress(written, content_bytes);
+                progress(written, work_bytes);
             })?;
+        }
+        if let Some(name) = &mrpack_file_name {
+            zip.start_file(
+                name,
+                options()
+                    .compression_method(zip::CompressionMethod::Stored)
+                    .large_file(true),
+            )
+            .map_err(|error| error.to_string())?;
+            crate::content_mrpack::write(
+                &mut zip,
+                server,
+                &publication,
+                audience,
+                allow_incomplete,
+                cancelled,
+                &mut |delta| {
+                    written += delta;
+                    progress(written, work_bytes);
+                },
+            )?;
         }
         for path in publication.guide_assets.keys() {
             if path == "PLAYER.txt" && audience != "players"
@@ -289,6 +384,7 @@ pub fn build(
             label.trim_matches('-')
         };
         Ok(ArchiveResult {
+            mrpack_file_name,
             file_name: format!(
                 "msc-{label}-{}-r{}-{audience}.zip",
                 date, publication.publication_revision

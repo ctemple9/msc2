@@ -230,12 +230,14 @@ checks when no affected source has changed. New module paths are proposals.
 
 ### P24.17 — Include optional launcher importable mrpack files
 
-**Status:** planned — not started
-**Files:** crates/msc-application/src/client_export.rs; crates/msc-domain/src/modpack_manifest.rs; crates/msc-infrastructure/src/
+**Status:** implemented — awaiting owner verification
+**Files:** crates/msc-application/src/content_mrpack.rs; content_environment.rs; content_archives.rs; content_publications.rs; publication_review.rs; content_guides.rs; crates/msc-agent/src/routes/components/; crates/msc-api/src/dto/provider_catalog.rs; API contract/generated client; focused archive/publication test sources
 **What:** Generate optional nested .mrpack from the same revision with hashes, dependencies, environments and appropriate overrides. Resolve public downloads vs permitted embedded content, no credentials. Report per-file/launcher limitations and incomplete eligibility; no falsely importable plugin/server bundle.
 **Verify:** `cargo check -p msc-agent`. Cameron also verifies the corresponding behavior scenarios in `addons/phase24-scope.md` and the P24.1 acceptance record.
 **Commit:** `P24.17: include optional launcher importable mrpack files`
 **Batch:** A — autonomous foundations; no routine owner handoff
+
+**Implementation evidence:** Optional nested .mrpack streams the same frozen audience bytes into a stored outer ZIP entry; SHA1/SHA512 are rechecked without an inner temporary pack or full-pack memory buffer. Native format v1 index pins Minecraft and supported loader dependencies; files are embedded in client/server override layers, with exact per-file hashes, source and optional/side flags in the MSC manifest. Permitted bytes require the publication redistribution review; no provider credentials or mutable download URLs are needed. Eligibility reports unsupported plugin platforms and world-slot datapacks rather than producing a misleading import. Added explicit player loader metadata so Paper-family players use vanilla unless independent client mods require a reviewed loader. Legacy frozen guides remain intact with a visible player-header correction; new text-v2 guides use player setup. Required disabled mods/missing setup make readiness incomplete; native unsupported setup blocks .mrpack while ZIP remains available with explicit incomplete consent. Agent Clippy and frontend check passed (10 existing CSS warnings); no tests run. One essential small local nested-archive test protects byte identity, scope, inactive shaders and pinned setup, which existing outer-ZIP tests miss; expected <150ms. Actual launcher imports, large archives and platforms remain owner verification.
 
 ### P24.18 — Save exports locally or on the selected host
 

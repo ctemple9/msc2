@@ -1,7 +1,7 @@
 //! Versioned text fallback. Illustrated launcher-specific guides are supplied
 //! in P24.20; these files make that limitation explicit without remote assets.
 use crate::content_publications::Publication;
-pub const VERSION: &str = "text-v2";
+pub const VERSION: &str = "text-v3-launchers";
 pub struct Asset {
     pub path: String,
     pub bytes: Vec<u8>,
@@ -74,5 +74,78 @@ pub fn assets(publication: &Publication) -> Vec<Asset> {
             server.push_str(&line);
         }
     }
-    vec![Asset {path:"PLAYER.txt".into(),bytes:player.into_bytes()},Asset {path:"SERVER.txt".into(),bytes:server.into_bytes()},Asset {path:"GUIDE-STATUS.txt".into(),bytes:b"Text fallback guide version text-v2. Launcher-specific illustrated instructions and owner-provided screenshots are not included in this development guide version. Read the publication manifest for missing content and exact setup. No network assets are required to read these files.\n".to_vec()}]
+    let mut result = vec![
+        Asset {path:"PLAYER.txt".into(),bytes:player.into_bytes()},
+        Asset {path:"SERVER.txt".into(),bytes:server.into_bytes()},
+        Asset {path:"GUIDE-STATUS.txt".into(),bytes:format!("Guide version {VERSION}. Offline launcher-specific text and HTML drafts are included. Owner screenshots and exact installed launcher-build verification are still pending; this version is not an illustrated guide. No remote assets are required to read these instructions. Read the publication manifest for exact setup and missing content.\n").into_bytes()},
+    ];
+    let guides = [
+        (
+            "minecraft-launcher",
+            "Minecraft Launcher",
+            include_str!("../../../docs/msc2/addons/launcher-guides/minecraft-launcher.txt"),
+        ),
+        (
+            "prism",
+            "Prism Launcher",
+            include_str!("../../../docs/msc2/addons/launcher-guides/prism.txt"),
+        ),
+        (
+            "modrinth-app",
+            "Modrinth App",
+            include_str!("../../../docs/msc2/addons/launcher-guides/modrinth-app.txt"),
+        ),
+        (
+            "curseforge-app",
+            "CurseForge App",
+            include_str!("../../../docs/msc2/addons/launcher-guides/curseforge-app.txt"),
+        ),
+        (
+            "sklauncher",
+            "SKlauncher",
+            include_str!("../../../docs/msc2/addons/launcher-guides/sklauncher.txt"),
+        ),
+    ];
+    let mut index = format!(
+        "<p>Guide version {VERSION}. Text drafts; owner screenshots and exact launcher-build verification are pending.</p><p>Read the <a href=\"../README.html\">publication instructions</a> first for exact setup, content, optional files and missing items.</p><ul>"
+    );
+    for (name, title, text) in guides {
+        result.push(Asset {
+            path: format!("{name}.txt"),
+            bytes: text.as_bytes().to_vec(),
+        });
+        result.push(Asset {
+            path: format!("{name}.html"),
+            bytes: html(
+                title,
+                &format!(
+                    "<p><a href=\"INDEX.html\">All launchers</a></p><pre>{}</pre>",
+                    escape(text)
+                ),
+            )
+            .into_bytes(),
+        });
+        index.push_str(&format!(
+            "<li><a href=\"{name}.html\">{title}</a> (<a href=\"{name}.txt\">text</a>)</li>"
+        ));
+    }
+    index.push_str("</ul><p>The ordinary MSC content ZIP is a folder-copy bundle. Only a separately included .mrpack is offered for compatible pack import. Installation can require network downloads even though these instructions are readable offline.</p>");
+    result.push(Asset {
+        path: "INDEX.html".into(),
+        bytes: html("Launcher instructions", &index).into_bytes(),
+    });
+    result
+}
+fn escape(text: &str) -> String {
+    text.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+}
+fn html(title: &str, body: &str) -> String {
+    format!(
+        "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data:; base-uri 'none'; form-action 'none'\"><title>{}</title><style>body{{font:16px/1.6 system-ui,sans-serif;max-width:54rem;margin:2rem auto;padding:0 1.25rem;color:#222;background:#fff}}h1{{font-size:1.6rem}}pre{{font:inherit;white-space:pre-wrap;overflow-wrap:anywhere}}a{{color:#164c91}}</style></head><body><h1>{}</h1>{body}</body></html>",
+        escape(title),
+        escape(title)
+    )
 }

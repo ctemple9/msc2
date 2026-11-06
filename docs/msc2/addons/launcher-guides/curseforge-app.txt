@@ -1,0 +1,20 @@
+CURSEFORGE APP — MANUAL CONTENT INSTALL
+
+Guide text draft. Exact custom-profile controls, app build and screenshots await
+owner verification.
+
+1. Read PLAYER.txt for the Minecraft and player loader versions.
+2. Create a separate custom Minecraft profile using that setup. If the app
+   cannot create the required loader/version, use another compatible launcher.
+3. Open the profile's game folder, close the game, and copy exported content
+   folders into matching locations as described in PLAYER.txt.
+4. Inspect the installed mod list and manifest, then launch the profile.
+
+CurseForge's profile import expects its own manifest-based exported ZIP structure.
+The ordinary MSC content ZIP is not that structure. Do not rename an MSC ZIP or
+.mrpack to claim compatibility. This guide uses the manual-copy route and does
+not promise direct .mrpack import into CurseForge App.
+
+Keep optional resource packs/shaders inactive until chosen in Minecraft. Review
+optional mods explicitly. For a later dated publication, create a clean profile
+so obsolete mod JARs do not remain alongside their replacements.

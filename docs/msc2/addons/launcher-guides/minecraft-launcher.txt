@@ -1,0 +1,20 @@
+MINECRAFT LAUNCHER — MANUAL CONTENT INSTALL
+
+Guide text draft. Launcher build and screenshots await owner verification.
+
+1. Read PLAYER.txt for this publication's Minecraft and player loader versions.
+2. Install that exact loader using its own client installer, then select its
+   installation in Minecraft Launcher. The game version alone does not install
+   Fabric, Forge, NeoForge or Quilt.
+3. Use Java Edition → Installations to create/edit a dedicated installation.
+   Give it a separate game directory so other installations keep their own mods.
+   Open the installation folder using the launcher's folder control.
+4. Close the game. Copy the exported content into that game directory following
+   PLAYER.txt. Copy the contents of the audience folder, not the outer export ZIP
+   or its audience folder as another nested directory.
+5. Start that installation and compare the mod list with the manifest before
+   joining. Use a clean installation when applying a later published revision.
+
+Use this manual route for the MSC content ZIP. This guide does not claim that
+Minecraft Launcher can import the ZIP or .mrpack directly. Shaders require a
+compatible shader mod; supplying a shader ZIP alone does not install one.

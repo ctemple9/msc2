@@ -1,0 +1,20 @@
+MODRINTH APP — IMPORT OR MANUAL CONTENT INSTALL
+
+Guide text draft. Exact import controls, app build and screenshots await owner
+verification; labels may differ between app versions.
+
+If this export includes a player .mrpack, first extract it from the outer ZIP.
+Use the app's local modpack-file import action to select the .mrpack and create
+an instance. Check Minecraft, loader and content against PLAYER.txt and the
+publication manifest before joining. The ordinary MSC content ZIP is not itself
+a Modrinth modpack archive.
+
+For manual installation, create a separate instance with the recorded player
+setup, open that instance's Minecraft directory using its file controls, close
+the game, and copy the exported content folders into matching locations.
+
+Optional resource packs/shaders remain a player choice. Optional mod handling
+can vary by importer; consult the manifest. A new dated publication is a separate
+snapshot: install it into a clean instance and keep the old instance as a backup
+until the new one works. No MSC account, invitation link or live synchronization
+is required to use the exported content.

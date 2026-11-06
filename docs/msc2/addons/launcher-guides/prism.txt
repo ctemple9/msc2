@@ -1,0 +1,18 @@
+PRISM LAUNCHER — IMPORT OR MANUAL CONTENT INSTALL
+
+Guide text draft. Launcher build and screenshots await owner verification.
+
+If this export contains a player .mrpack:
+1. Extract the outer MSC ZIP so the .mrpack is available as a separate file.
+2. In Prism choose Add Instance → Import, then select that .mrpack.
+3. Let import finish, inspect the instance's Minecraft and loader versions,
+   and compare its content with PLAYER.txt and the publication manifest.
+
+For the ordinary MSC content ZIP, create an isolated instance with the setup
+recorded in PLAYER.txt, open its Minecraft folder, close the game, and copy the
+exported content folders there. An arbitrary content ZIP is not a Prism instance
+archive simply because its extension is .zip.
+
+Optional resource packs/shaders stay inactive until selected in Minecraft.
+Check optional mods against the manifest. For updates, create a new instance
+from the new dated export rather than overlaying old and new mod JARs.

@@ -1,0 +1,21 @@
+SKLAUNCHER — MANUAL CONTENT INSTALL
+
+Guide text draft. Stable 3.2 documentation was consulted; the installed build and
+screenshots await owner verification. 4.0 is documented separately as an open
+beta; its import/instance controls must not be assumed to match 3.2.
+
+For stable 3.2, open Installations Manager, create an installation, select the
+exact Minecraft and loader setup from PLAYER.txt, and set a separate game
+folder. In its Fabric selector, Minecraft and Fabric Loader have separate
+version choices. Select matching versions; a recommended star is not proof that
+it matches this publication. Save the installation.
+
+Open that installation's game folder, close the game, and copy the exported
+content folders into their matching locations. A custom game directory or
+separate-instance option changes the destination; do not automatically use a
+shared default .minecraft folder. Check the manifest before launching.
+
+This guide uses manual copy. It does not promise direct .mrpack import for 3.2
+or invent beta import controls. Optional resource packs/shaders stay inactive
+until chosen; review optional mods explicitly. Use a clean installation for
+updates and retain the previous instance until the new revision works.

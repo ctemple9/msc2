@@ -288,12 +288,14 @@ checks when no affected source has changed. New module paths are proposals.
 
 ### P24.20 — Bundle illustrated offline launcher instructions
 
-**Status:** planned — not started
-**Files:** docs/msc2/addons/launcher-guides/; clients/desktop-web/static/; crates/msc-application/src/client_export.rs
+**Status:** prepared — incomplete; awaiting owner screenshots and launcher-build verification
+**Files:** docs/msc2/addons/launcher-guides/; crates/msc-application/src/content_guides.rs
 **What:** With Cameron-supplied screenshots, create versioned offline HTML/text guides for Minecraft Launcher, Prism, Modrinth App, CurseForge App and SKlauncher. Verify exact launcher import capabilities; show manual copy and optional .mrpack routes, correct loader, isolated installs, optional content and clean updates. Add separate Server instructions; no external assets or invitation links. Do not complete this step without screenshots.
 **Verify:** `cargo check -p msc-application`. Cameron also verifies the corresponding behavior scenarios in `addons/phase24-scope.md` and the P24.1 acceptance record.
-**Commit:** `P24.20: bundle illustrated offline launcher instructions`
+**Commit:** `P24.20: prepare offline launcher instructions`
 **Batch:** C — screenshot prerequisite and offline guide review
+
+**Preparation evidence:** Added five launcher-specific text drafts and bundled local-only HTML/text assets with an index, exact publication setup readme, manual-copy route, compatible .mrpack route, separate instance/update and optional-content guidance. Official primary documentation was checked on 2026-11-06; direct .mrpack import is not claimed for Minecraft Launcher, CurseForge App or stable SKlauncher 3.2. SKlauncher 4.0 beta is kept distinct. New publications freeze text-v3-launchers; historical guide bytes remain unchanged. HTML escapes text, disables scripts/remote assets and uses only bundled local navigation. Focused Clippy passed; no tests or physical launcher verification run. Owner screenshots, exact installed launcher build validation, illustrated asset integration/render review remain required. This preparation commit does not complete P24.20 or its illustrated-guide gate.
 
 ### P24.21 — Expose content and export operations in the cli
 

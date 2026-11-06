@@ -1,5 +1,9 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
+  import PlayerContentSheet from '../components/PlayerContentSheet.svelte';
+  import PluginBrowserSheet from '../components/PluginBrowserSheet.svelte';
+  import ContentSourcesSheet from '../components/ContentSourcesSheet.svelte';
+  import { addOnKind } from '../components/model';
   import ActionButton from '../../components/ActionButton.svelte';
   import { discardUpload } from '../shared/upload-source';
   import { reportTransferFailure } from '../shared/transfer-notices';
@@ -12,9 +16,13 @@
   import { addonPaths, demoAddons } from './model';
 
   export let api: ScreenProps['api'] = undefined;
+  export let serverId = '';
+  let browserOpen = false;
+  let sourcesOpen = false;
+  let playersOpen = false;
+  let server: Schema['ServerDTO'] | undefined;
+  let minecraftVersion: string | undefined;
   let addons: Schema['AddonItemDTO'][] = demoAddons;
-  let catalog: Schema['CatalogItemDTO'][] = [];
-  let query = '';
   let pack: Schema['ModpackInspectionResultDTO'] | null = null;
   let transferApi: ScreenProps['api'];
   let stagedPack = '';
@@ -40,25 +48,43 @@
       addonPaths.list,
     );
     addons = result.addons;
+    await refreshCatalogContext();
   });
-  async function search(): Promise<void> {
-    const result = await call<Schema['CatalogSearchResponseDTO']>(
-      api,
-      { supportsAddons: true, results: [] },
-      `${addonPaths.search}${encodeURIComponent(query)}`,
-    );
-    catalog = result.results ?? [];
-  }
-  async function install(item: Schema['CatalogItemDTO']): Promise<void> {
+  async function refreshCatalogContext(): Promise<void> {
+    if (!api || api.isCurrent?.() === false) return;
+    const scoped = api.snapshot?.() ?? api;
     try {
-      const result = await mutate<Schema['CatalogInstallResultDTO']>(api, addonPaths.install, {
-        projectId: item.projectId,
-        slug: item.slug,
-        title: item.title,
-      });
-      notice = result.message;
+      const [servers, versions] = await Promise.all([
+        scoped.get<Schema['ServerDTO'][]>('/v1/servers'),
+        scoped.get<Schema['VersionsResponseDTO']>('/v1/versions'),
+      ]);
+      if (scoped.isCurrent?.() === false) return;
+      server = servers.find((item) => item.id === serverId);
+      minecraftVersion = versions.currentVersion ?? undefined;
     } catch (error) {
       notice = errorMessage(error);
+    }
+  }
+  async function catalogChanged(): Promise<void> {
+    if (!api || api.isCurrent?.() === false) return;
+    const scoped = api.snapshot?.() ?? api;
+    try {
+      const [result, content] = await Promise.all([
+        scoped.get<Schema['AddonsResponseDTO']>(addonPaths.list),
+        scoped.get<{ requirements: { state: string }[] }>(
+          `/v1/servers/${encodeURIComponent(serverId)}/content/collection`,
+        ),
+      ]);
+      if (scoped.isCurrent?.() === false) return;
+      addons = result.addons;
+      const count = content.requirements.filter(
+        (item) => !['matched', 'serverOnly', 'optionalMissing'].includes(item.state),
+      ).length;
+      notice = count
+        ? `${count} player content requirements need review. Open Player content.`
+        : 'Content changed; player requirements checked.';
+    } catch (error) {
+      if (scoped.isCurrent?.() !== false) notice = errorMessage(error);
     }
   }
   async function toggle(addon: Schema['AddonItemDTO']): Promise<void> {
@@ -166,32 +192,25 @@
     </table>
   </section>
   <section class="screen-card">
-    <div class="screen-card-header">
-      <h3>Catalog</h3>
-      <div class="inline-form">
-        <div class="field">
-          <label for="catalog-search">Search provider catalog</label><input
-            id="catalog-search"
-            bind:value={query}
-            placeholder="Lithium, performance…"
-          />
-        </div>
-        <ActionButton label="Search" onclick={search}>Search</ActionButton>
-      </div>
-    </div>
-    <div class="screen-grid" style="margin-top: 1rem">
-      {#each catalog as item (item.projectId)}<article class="screen-card">
-          <h3>{item.title}</h3>
-          <p>{item.description}</p>
-          <small>{item.author} · {item.downloads.toLocaleString()} downloads</small>
-          <div class="screen-actions" style="margin-top: .7rem">
-            <ActionButton label={`Install ${item.title}`} onclick={() => install(item)}
-              >Install</ActionButton
-            >
-          </div>
-        </article>{:else}<p class="muted">
-          Search only when the connected agent advertises an add-on provider.
-        </p>{/each}
+    <div class="screen-card-header"><h3>Catalog</h3></div>
+    <div class="screen-actions">
+      <ActionButton
+        label="Browse mods or plugins"
+        disabled={!server}
+        onclick={() => (browserOpen = true)}>Browse Modrinth or CurseForge…</ActionButton
+      >
+      <ActionButton
+        kind="quiet"
+        label="Player content"
+        disabled={!server}
+        onclick={() => (playersOpen = true)}>Player content…</ActionButton
+      >
+      <ActionButton
+        kind="quiet"
+        label="Content sources and updates"
+        disabled={!server}
+        onclick={() => (sourcesOpen = true)}>Content sources and updates…</ActionButton
+      >
     </div>
   </section>
   <section class="screen-card">
@@ -226,3 +245,35 @@
     message="Provider-unavailable, dependency, pack-managed, cancellation, and provenance messages come from the agent response and remain visible here."
   />
 </div>
+
+{#if browserOpen && server}
+  <PluginBrowserSheet
+    {api}
+    {serverId}
+    serverName={server.name}
+    addOnKind={addOnKind(server.javaFlavor)}
+    javaFlavor={server.javaFlavor ?? undefined}
+    serverMinecraftVersion={minecraftVersion}
+    onClose={() => (browserOpen = false)}
+    onInstalled={() => void catalogChanged()}
+  />
+{/if}
+{#if sourcesOpen && api}
+  <ContentSourcesSheet
+    {api}
+    {serverId}
+    onClose={() => (sourcesOpen = false)}
+    onChanged={() => void catalogChanged()}
+  />
+{/if}
+
+{#if playersOpen && api && server}
+  <PlayerContentSheet
+    {api}
+    {serverId}
+    javaFlavor={server.javaFlavor ?? ''}
+    minecraftVersion={minecraftVersion ?? ''}
+    onClose={() => (playersOpen = false)}
+    onChanged={() => void catalogChanged()}
+  />
+{/if}

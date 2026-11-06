@@ -2002,7 +2002,7 @@ impl Wizard {
                     x + 2,
                     y + 7,
                     w - 4,
-                    "Add local files now, or skip and add them after the server is created. Modrinth browsing is omitted from this TUI flow.",
+                    "Browse Modrinth or CurseForge, add a local file, or skip and add content after creation.",
                     Color::DarkGrey,
                 )?;
             } else if world_page {

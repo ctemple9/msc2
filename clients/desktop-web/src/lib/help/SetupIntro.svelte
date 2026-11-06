@@ -434,7 +434,7 @@
           <ul class="feature-list">
             <li>Start and stop Java and Bedrock servers with one click</li>
             <li>Invite friends via tunnels, port forwarding, or Xbox Broadcast</li>
-            <li>Install plugins, mods, and resource packs from Modrinth</li>
+            <li>Browse mods, plugins, modpacks, and Java datapacks from Modrinth or CurseForge</li>
             <li>Schedule backups and manage multiple worlds</li>
           </ul>
         </Card>

@@ -159,3 +159,103 @@ scope/frozen-byte integrity/inactive assets/HTML safety and deterministic cancel
 cleanup, expected <150 ms each, not run. Large-file/resource limits, cleanup
 failures, revoked credentials, transfer disconnects and physical platforms remain
 unverified. Launcher screenshots/illustrated guide acceptance remains P24.20.
+
+## Final implementation candidate — 2026-11-06
+
+This is a handoff for owner verification, **not Phase 24 acceptance or closure**.
+P24.1–19 and P24.21–23 have implementation candidates. P24.20 has text/HTML
+preparation only and remains incomplete without owner screenshots and exact
+launcher-build verification. P24.24 records this evidence, not invented results.
+The owner explicitly deferred intermediate UI reviews to this final handoff.
+
+Only these physical results are supported by the conversation: Cameron approved
+provider discovery/shared project details (“ui passes”), rejected routine
+CurseForge install confirmation, and confirmed the reported 302 download repair
+(“nice it worked”). These do not establish all-provider/all-platform acceptance.
+
+### Start the candidate
+
+From `clients/desktop-web`, run `npx tauri dev`. The updated development agent is
+built and staged, but the assistant did not install/restart the running service.
+If the connected service is older, stop its servers and use **Agent… → Repair
+agent**, then reconnect. Update a remote host's agent separately before testing
+new capabilities. Never treat a running service's version label alone as proof
+that it is this build.
+
+Local candidate: macOS Intel, MSC 0.1.43 development build. SHA-256 of both
+`target/debug/msc` and the staged desktop `Resources/agent/msc`:
+`08fc7d712e5a4aea19a4fb33356fa7eb52b29bf43828e5134b12c02e7cef38b2`.
+No beta/release was published. Native desktop type-check, frontend build and
+agent/sidecar development staging succeeded. Existing CSS/chunk and Xcode/Swift
+warnings remain warnings; they are not physical behavior evidence.
+
+### Requirement-to-candidate review map
+
+Use disposable servers, packs and destinations. Record exact agent hash, host OS,
+launcher build, selected project/release IDs, date and observed outcome for each
+scenario. Leave failures and unexercised cases visible.
+
+| Contract item | Implementation evidence / navigation | Owner evidence still required |
+|---|---|---|
+| Both providers across discovery/detail/releases | Shared ProjectDetailSheet and catalog adapter; Components → Browse mods/plugins; legacy Add-ons Catalog now opens that same browser | Same sheet geometry, icons, paging, stable-only, errors and missing-key-only controls |
+| Exact installation/dependencies | content_install, addon_dependencies, ProviderCatalogBrowser; compatible Add runs directly | Required/shared/cyclic/conflicting dependencies, actual bytes, restricted/manual files and mismatch consent |
+| Identification/manual hints/updates | content_sources; Content sources and updates, explicit hash/release review | Exact matching vs ambiguous hints, disabled state, update/rename/manual files and owner edits |
+| Diagnostics counterpart | health repair returns provider review requirement; Health now opens the shared CurseForge browser or source/update screen on that response | Actual diagnosed CurseForge offender; no Modrinth substitution; original host/server retained |
+| Creation/local import | Add Server → Add-ons → Browse modpacks; catalog acquisition and setup review; existing archive import remains | Both mismatch choices, exact loader/version change, staged conflicts kept/removed, retries and one-base-pack limit |
+| Complete retention | pack_retention, retained pack status/retry/manual APIs | Client/shared/server overrides with different bytes, missing client content and server-only pack evidence |
+| Separate player collection | Player content; content_management, content_recovery | Player-only additions/options/removal/restore; unchanged server bytes; audience and unknown evidence |
+| Server mod player checks | Components post-install/update checks; legacy Add-ons and diagnostic repairs now read requirements too | Required dependency missing/different/disabled; optional classification and honest review prompt |
+| Existing server recovery | Player content → Recover/update/replace pack | Original client archive and retained recovery; no live mod/config/world mutation; missing/uncertain origin |
+| Update preserves customization | PackChangesSheet; pack_review, pack_updates, pack_activation | Edit/removal tombstones, custom config, per-path restore; stale review rejected |
+| One-base replacement | Same pack comparison, distinct replacement intent | Old owned removal, retained additions and exact compatibility acknowledgment; worlds untouched |
+| Java world datapacks | WorldPackBrowserSheet, WorldStep; world-slot scoped routes | Both providers, explicit slot, edited content restoration, manual ZIP, dependencies; Bedrock unchanged |
+| Immutable dated publication | ContentExportSheet; publication_review/content_publications | Date/revision collision handling, permission/config review, outside edits and historical independence |
+| Player/Server content ZIP | content_archives; Export content audience | Only eligible audience folders, private/runtime/world exclusions, manifest/missing reasons, optional inactive content |
+| Optional nested .mrpack | content_mrpack eligibility and export | Same frozen revision/files/setup, imports in actual compatible launchers; known restriction cannot be overridden |
+| Local and remote destinations | Native transfer and content_export_saving; Export content destination | Remote agent → this computer; host exports folder; changed destination hash/review; partial writes/disconnect |
+| CLI/TUI | phase24-cli.md; phase24-tui.md; `msc tui` → server workspace → Shift-P | Host-local/SSH behavior, creation staging, exact manual files, review choices, stale/old-agent states, export paths |
+| Storage accounting/cleanup | storage discover rules and Storage view; existing transfer-owner exact cleanup | Parent/child/hard-link totals, active readers/reservations, unknown/rollback/reference protection, no history deletion |
+| Offline launcher guides | Frozen text-v3-launchers HTML/text drafts; launcher-guides/README.md | **Missing:** owner screenshots, exact five launcher builds, illustrated integration and offline render/installation review |
+| Cross-cutting safety/resources | Existing operation/auth/admission/journal boundaries and bounded copies | Revocation, cancellation/restart, disk full, concurrent edits/host switching, large packs and memory/disk measurements |
+| Supported platforms | Build evidence on macOS Intel only | Actual macOS/Windows/Linux behavior, local/remote paths, launcher and terminal behavior; no platform pass inferred |
+
+### Final UI route checklist
+
+1. Add Server → Add-ons: both-provider individual browsing and modpack setup.
+2. Components → Browse: same shared project sheet for both providers; no routine
+   install-confirmation sheet. Exercise the conditional manual-file exception.
+3. Components → Content sources and updates; diagnostic repair; legacy Add-ons
+   Catalog: verify these use the same provider-aware flows.
+4. Components → Player content: independent items plus retained recovery,
+   update/replacement and individual upstream restore choices.
+5. Worlds → slot → Datapacks: provider catalog and explicit modified-file restore.
+6. Components → Export content: publication review, dated history, incomplete
+   consent, eligibility and both save destinations.
+7. Settings → Storage: retained content/publications/rollback and transfer cleanup.
+8. Terminal → server workspace → Shift-P, plus creation's catalog action.
+9. Open the exported README and instructions/INDEX.html offline. Current assets
+   are explicitly text drafts; do not approve the illustrated-guide gate yet.
+
+### Check record and remaining prerequisites
+
+Permitted checks passed: `cargo fmt --all`, focused `cargo clippy -p msc-agent --
+-D warnings`, `npm --prefix clients/desktop-web run check` (0 errors, 10 existing
+CSS warnings), frontend build, native desktop `cargo check --locked`, and
+`npm --prefix clients/desktop-web run prepare:agent` including local sidecar
+staging. No test, smoke-suite, live content mutation, cleanup, service restart,
+release workflow, tag or publication was run by the assistant in this handoff.
+
+P24.22 added terminal counterparts; P24.23 added disjoint content accounting and
+reference protection. Its existing tiny storage discovery fixture was extended
+(expected <1 second, not run). P24.20 prepared five local-only draft guides while
+keeping screenshots/build verification missing. Final integration inspection
+found and repaired the older Add-ons catalog and diagnostic navigation gaps;
+these reuse existing sheets and retain host/server-scoped API snapshots. Old
+Modrinth-only help/TUI copy was corrected. No duplicate UI tests were added for
+these bindings; physical navigation remains in the owner checklist.
+
+Before phase acceptance: supply the five sets of screenshots listed in
+launcher-guides/README.md, integrate approved assets under a new guide version,
+record the physical scenarios above, and request the other agent's phase-gate
+review. The implementing agent has not performed that independent review and
+has not marked a step or phase accepted.

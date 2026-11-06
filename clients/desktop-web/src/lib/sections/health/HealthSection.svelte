@@ -1,9 +1,13 @@
 <script lang="ts">
+  import PluginBrowserSheet from '../components/PluginBrowserSheet.svelte';
+  import ContentSourcesSheet from '../components/ContentSourcesSheet.svelte';
+  import { addOnKind } from '../components/model';
+  import { ApiError } from '../../api/client';
   import { onMount } from 'svelte';
   import ActionButton from '../../components/ActionButton.svelte';
   import ScreenHeader from '../shared/ScreenHeader.svelte';
   import HelpLink from '../../help/HelpLink.svelte';
-  import type { Schema, ScreenProps } from '../shared/types';
+  import type { Schema, ScreenProps, ScreenApi } from '../shared/types';
   import { call, errorMessage, mutate } from '../shared/types';
 
   export let api: ScreenProps['api'] = undefined;
@@ -23,19 +27,73 @@
     serverType: 'paper',
   };
   let notice = '';
+  let contentRepair:
+    { api: ScreenApi; server: Schema['ServerDTO']; version?: string; update: boolean } | undefined;
+  async function refreshAfterContent(): Promise<void> {
+    const scoped = contentRepair?.api;
+    if (!scoped || scoped.isCurrent?.() === false) return;
+    try {
+      const [nextHealth, nextProblems, content] = await Promise.all([
+        scoped.get<Schema['HealthResponseDTO']>('/v1/health'),
+        scoped.get<Schema['HealthProblemsResponseDTO']>('/v1/health/problems'),
+        scoped.get<{ requirements: { state: string }[] }>(
+          `/v1/servers/${encodeURIComponent(serverId)}/content/collection`,
+        ),
+      ]);
+      if (scoped.isCurrent?.() === false) return;
+      health = nextHealth;
+      problems = nextProblems;
+      const count = content.requirements.filter(
+        (item) => !['matched', 'serverOnly', 'optionalMissing'].includes(item.state),
+      ).length;
+      notice = count
+        ? `Content changed. ${count} player requirements need review in Components → Player content.`
+        : 'Content changed; player requirements checked.';
+    } catch (error) {
+      if (scoped.isCurrent?.() !== false) notice = errorMessage(error);
+    }
+  }
   onMount(async () => {
     health = await call(api, health, '/v1/health');
     problems = await call(api, problems, '/v1/health/problems');
   });
   async function repair(problem: Schema['StartupProblemDTO'], action: string): Promise<void> {
+    const scoped = api?.snapshot?.() ?? api;
+    if (!scoped || scoped.isCurrent?.() === false) return;
     try {
-      const result = await mutate<Schema['HealthRepairResultDTO']>(api, '/v1/health/repair', {
+      const result = await mutate<Schema['HealthRepairResultDTO']>(scoped, '/v1/health/repair', {
         problemId: problem.id,
         action,
       });
       notice = result.message;
     } catch (error) {
       notice = errorMessage(error);
+      if (error instanceof ApiError && error.error.code === 'content_review_required' && api) {
+        const details = error.error.details as { provider?: string; serverId?: string } | undefined;
+        if (
+          details?.provider !== 'curseforge' ||
+          details.serverId !== serverId ||
+          scoped.isCurrent?.() === false
+        )
+          return;
+        try {
+          const [servers, versions] = await Promise.all([
+            scoped.get<Schema['ServerDTO'][]>('/v1/servers'),
+            scoped.get<Schema['VersionsResponseDTO']>('/v1/versions'),
+          ]);
+          if (scoped.isCurrent?.() === false) return;
+          const server = servers.find((item) => item.id === serverId);
+          if (server)
+            contentRepair = {
+              api: scoped,
+              server,
+              version: versions.currentVersion ?? undefined,
+              update: action === 'update',
+            };
+        } catch (cause) {
+          notice = errorMessage(cause);
+        }
+      }
     }
   }
 </script>
@@ -101,3 +159,26 @@
       </div>{:else}<p class="muted">No startup problems are recorded for this server.</p>{/each}
   </section>
 </div>
+
+{#if contentRepair}
+  {#if contentRepair.update}
+    <ContentSourcesSheet
+      api={contentRepair.api}
+      serverId={contentRepair.server.id}
+      onClose={() => (contentRepair = undefined)}
+      onChanged={() => void refreshAfterContent()}
+    />
+  {:else}
+    <PluginBrowserSheet
+      api={contentRepair.api}
+      serverId={contentRepair.server.id}
+      serverName={contentRepair.server.name}
+      addOnKind={addOnKind(contentRepair.server.javaFlavor)}
+      javaFlavor={contentRepair.server.javaFlavor ?? undefined}
+      serverMinecraftVersion={contentRepair.version}
+      initialProvider="curseforge"
+      onClose={() => (contentRepair = undefined)}
+      onInstalled={() => void refreshAfterContent()}
+    />
+  {/if}
+{/if}

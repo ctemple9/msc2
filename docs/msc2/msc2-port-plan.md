@@ -407,9 +407,7 @@ assert release packaging or row-by-row parity in the client-capability matrix.
 
 ## Phase 24 — Modpack management and content exports
 
-**State:** planned 2026-11-05; owner-authorized autonomous execution protocol
-recorded in [execution plan](addons/phase24-execution.md). Implementation not
-started. D-045 records product direction and the workflow amendment.
+**State:** final implementation candidate 2026-11-06; owner verification and independent gate review pending. Illustrated launcher guides remain incomplete without owner screenshots/build verification. See the [acceptance packet](addons/phase24-acceptance.md) and [execution ledger](addons/phase24-execution.md). D-045 records product direction and workflow amendments.
 **Scope:** [Phase 24 contract](addons/phase24-scope.md).
 **Steps:** P24.1–P24.24 in [rolling plan](rolling-plan.md).
 

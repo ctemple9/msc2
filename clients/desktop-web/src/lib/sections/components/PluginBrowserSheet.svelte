@@ -63,7 +63,8 @@
       ) => void)
     | undefined = undefined;
 
-  let provider: 'modrinth' | 'curseforge' = 'modrinth';
+  export let initialProvider: 'modrinth' | 'curseforge' = 'modrinth';
+  let provider: 'modrinth' | 'curseforge' = initialProvider;
   let detailItem: Schema['CatalogItemDTO'] | undefined;
 
   const noun = addOnKind === 'mod' ? 'mods' : 'plugins';

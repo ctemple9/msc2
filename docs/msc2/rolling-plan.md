@@ -31,11 +31,11 @@ This table is the quick map; detailed steps and historical findings are linked f
 | 21 | Storage inventory and management | Implementation records archived |
 | 22 | Restored full-screen TUI | Accepted by Cameron 2026-10-30; implementation records archived |
 | 23 | Repository presentation, agent indicator and release follow-ups | Complete; records archived at Cameron’s request 2026-11-05 |
-| 24 | Modpack management and content exports | Foundations implemented; P24.11 discovery approved; installation sheet awaiting review |
+| 24 | Modpack management and content exports | Implementation candidate ready for final owner review; illustrated guides and physical acceptance incomplete |
 
 ## Phase 24 — Modpack management and content exports
 
-**State:** autonomous execution in progress, 2026-11-05. P24.1–10, P24.15–18 and P24.21 implemented with owner verification pending. P24.11 discovery view is approved; the installation sheet is runnable and awaiting review; follow the ledger before resuming.
+**State:** final implementation candidate, 2026-11-06. P24.1–19 and P24.21–23 implemented with owner verification pending. P24.20 has offline text/HTML preparation but remains incomplete without owner screenshots and exact launcher-build verification. P24.24 records final candidate/physical acceptance evidence; no phase closure or independent review claimed.
 **Scope:** [owner-agreed behavior and implementation boundaries](addons/phase24-scope.md).
 **Gate:** [port plan](msc2-port-plan.md#phase-24--modpack-management-and-content-exports).
 
@@ -47,8 +47,8 @@ this dependency order (step numbers remain stable):
 
 Keep one commit per step; each implemented status remains awaiting owner
 verification. Routine verification does not require an owner prompt before the
-next step. New sheets/views require runnable owner review before continuing;
-a step with several new surfaces may have several reviews but one final commit.
+next step. Cameron’s later final-review amendment defers all intermediate
+sheet/view stops to the final owner review; it does not authorize tests or closure.
 See the ledger for exact stop/resume rules. Read antiAIslop.md for frontend work.
 
 Every backend slice updates DTO/OpenAPI, capability and generated clients as
@@ -332,9 +332,11 @@ checks when no affected source has changed. New module paths are proposals.
 
 ### P24.24 — Record integrated owner acceptance and gate evidence
 
-**Status:** planned — not started
-**Files:** docs/msc2/addons/phase24-acceptance.md; docs/msc2/client-capability-matrix.csv; docs/msc2/rolling-plan.md
+**Status:** candidate packet prepared — awaiting owner physical acceptance; gate remains open
+**Files:** docs/msc2/addons/phase24-acceptance.md; phase24-execution.md; phase24-contract.md; client-capability-matrix.csv; rolling-plan.md; msc2-port-plan.md; desktop AddonsSection/HealthSection/PluginBrowserSheet/SetupIntro; tui/create.rs
 **What:** Prepare and record Cameron-run physical scenarios listed in scope across supported OSes, local/remote and real launchers using disposable content. Record missing screenshots/provider prerequisites and unresolved results honestly. No automated tests, release runs or step/phase closure by the implementing agent. Other agent gate review follows only when Cameron requests it.
 **Verify:** `git diff HEAD^ -- docs/msc2/addons/phase24-acceptance.md docs/msc2/client-capability-matrix.csv docs/msc2/rolling-plan.md`. Cameron also verifies the corresponding behavior scenarios in `addons/phase24-scope.md` and the P24.1 acceptance record.
 **Commit:** `P24.24: record integrated owner acceptance and gate evidence`
 **Batch:** D — final owner acceptance; no agent phase closure
+
+**Final candidate evidence:** Added requirement-to-source/navigation/physical-evidence map, exact staged development agent hash, final UI route checklist, permitted check results and explicit missing screenshot/platform/launcher acceptance. Final source inspection found two omitted consumer integrations: legacy Add-ons still had independent Modrinth-only search, and diagnostic CurseForge repair only displayed a review-required error. Reused the shared provider browser/source-update/player screens in Add-ons; Health now follows the provider-qualified error into those same scoped flows and checks player requirements after content changes. Added initialProvider to the shared browser, corrected obsolete Modrinth-only help/TUI text, and updated capability notes. Formatting/focused Clippy, frontend check/build, native check and development agent/sidecar staging passed; target and staged SHA256 match. No tests, live mutations, service restart, releases or independent phase review run. P24.20 and all unrecorded physical results remain incomplete; this packet is not acceptance or phase closure.

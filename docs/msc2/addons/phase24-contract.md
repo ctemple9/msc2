@@ -129,6 +129,11 @@ Rollback, references and unfinished staging remain protected from cleanup.
 
 ## UI review inventory
 
+Owner final-review amendment (2026-11-05) supersedes the intermediate stops
+described below: all candidates proceed to final UI review. See the execution
+ledger and final acceptance packet; no unreviewed surface is marked approved.
+
+
 Runnable review stops: creation pack browser/compatibility mode; player content
 management; original-pack recovery review; upstream conflict review; base-pack
 replacement review; publish/export sheet; corresponding new TUI dialogs/views.

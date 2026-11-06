@@ -3451,6 +3451,7 @@ players need the mods",
             } else {
                 Some(self.get("bedrock_version").into())
             },
+            try_pack_with_current_setup: None,
             world_settings: Some(world),
             ..Default::default()
         };

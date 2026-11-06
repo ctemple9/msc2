@@ -10,7 +10,7 @@
   // for actually exists.
   //
   // Real gap found and fixed, not worked around: an earlier version of this
-  // step dropped Browse Modrinth entirely, because GET /v1/catalog/search and
+  // step dropped Browse mods/plugins entirely, because GET /v1/catalog/search and
   // POST /v1/components/install both hard-required an already-active server
   // (crates/msc-agent/src/routes/components.rs), which doesn't exist yet
   // during the wizard. the owner asked for real parity with MSC 1 here --
@@ -54,7 +54,15 @@
   import { errorMessage, mutate } from '../../shared/types';
   import { addonPaths } from '../../addons/model';
   import PluginBrowserSheet from '../../components/PluginBrowserSheet.svelte';
-  import { discardWizardInput, retainWizardUpload } from './model';
+  import PackCatalogSheet from '../../components/PackCatalogSheet.svelte';
+  import { loadCatalogProjectPage } from '../../components/catalog-project';
+  import Sheet from '../../../components/base/Sheet.svelte';
+  import {
+    discardWizardInput,
+    retainWizardUpload,
+    retainWizardUploadApi,
+    javaSelectionKey,
+  } from './model';
   import StagedUploadSheet from '../../components/StagedUploadSheet.svelte';
   import {
     hasStagedSimpleVoiceChat,
@@ -78,6 +86,136 @@
   let pendingJarSource: UploadSource | undefined;
   let stageError: string | undefined;
   let showBrowser = false;
+  let showPacks = false;
+  let packCandidate:
+    | { id: string; name: string; inspection: Schema['ModpackInspectionResultDTO']; api: ScreenApi }
+    | undefined;
+  let reviewedStaged = false;
+  let omitted = new Set<string>();
+  let resolvedLoaderVersion: string | undefined;
+  let stagedCompatibility: Record<string, string> = {};
+  let checkingStaged = false;
+  let acceptingPack = false;
+  async function recheckStaged(candidate: NonNullable<typeof packCandidate>): Promise<void> {
+    checkingStaged = true;
+    const notes: Record<string, string> = {};
+    for (const item of draft.pendingAddOns) {
+      if (disposed || packCandidate !== candidate) return;
+      if (item.kind === 'localFile') {
+        notes[item.id] = 'Local file: compatibility unknown; review before keeping.';
+        continue;
+      }
+      try {
+        const page = await loadCatalogProjectPage(candidate.api, item.provider ?? 'modrinth', {
+          projectId: item.projectId,
+          title: item.title,
+          projectType: addOnKind,
+        });
+        const version = page.versions.find((value) => value.id === item.versionId);
+        if (!version) {
+          notes[item.id] = 'Exact staged release not returned; compatibility unknown.';
+          continue;
+        }
+        const matches = (mc: string | undefined, loader: string | undefined) =>
+          !!mc && version.gameVersions.includes(mc) && !!loader && version.loaders.includes(loader);
+        notes[item.id] =
+          `Pack setup: ${matches(candidate.inspection.minecraftVersion, candidate.inspection.loaderName?.toLowerCase()) ? 'matches declared versions' : 'does not match declared versions'}. Current setup: ${matches(resolvedMcVersion, draft.javaFlavor) ? 'matches declared versions' : 'does not match declared versions'}.`;
+      } catch (cause) {
+        notes[item.id] = `Compatibility unknown: ${errorMessage(cause)}`;
+      }
+    }
+    if (!disposed && packCandidate === candidate) {
+      stagedCompatibility = notes;
+      checkingStaged = false;
+    }
+  }
+  function reviewPack(
+    id: string,
+    name: string,
+    inspection: Schema['ModpackInspectionResultDTO'],
+    scoped: ScreenApi,
+  ): void {
+    if (draft.stagedModpack)
+      throw new Error('Remove the current base pack before selecting another.');
+    retainWizardUploadApi(draft, scoped, id);
+    packCandidate = { id, name, inspection, api: scoped };
+    reviewedStaged = draft.pendingAddOns.length === 0;
+    omitted = new Set();
+    showPacks = false;
+    stagedCompatibility = {};
+    void recheckStaged(packCandidate);
+  }
+  async function acceptPack(mode: 'matching' | 'current'): Promise<void> {
+    if (!packCandidate || !reviewedStaged || checkingStaged || acceptingPack) return;
+    acceptingPack = true;
+    const candidate = packCandidate;
+    try {
+      const caps = await candidate.api.get<Schema['CapabilitiesDTO']>('/v1/capabilities');
+      if (!caps.contentCatalog?.creationPackSetup)
+        throw new Error('Update this agent before selecting a catalog pack setup.');
+      const loader = candidate.inspection.loaderName?.toLowerCase();
+      if (!['fabric', 'forge', 'neoforge'].includes(loader ?? ''))
+        throw new Error('This pack does not declare a supported MSC loader.');
+      if (!candidate.inspection.minecraftVersion || !candidate.inspection.loaderVersion)
+        throw new Error('The pack must declare an exact Minecraft and loader version.');
+      if (mode === 'current' && !resolvedMcVersion)
+        throw new Error('The current Minecraft version could not be resolved.');
+      if (mode === 'current' && draft.javaFlavor !== 'fabric' && !resolvedLoaderVersion)
+        throw new Error('Select an exact loader version in Configure before trying this setup.');
+      const versions = await candidate.api.get<Schema['VersionsResponseDTO']>(
+        versionsForCreatePath(
+          'java',
+          mode === 'matching' ? (loader as typeof draft.javaFlavor) : draft.javaFlavor,
+        ),
+      );
+      const mc = mode === 'matching' ? candidate.inspection.minecraftVersion : resolvedMcVersion;
+      const entry = versions.versions.find(
+        (value) =>
+          value.mcVersion === mc &&
+          (mode === 'current' ||
+            !value.loaderVersion ||
+            value.loaderVersion === candidate.inspection.loaderVersion),
+      );
+      if (!entry)
+        throw new Error('The selected setup is outside the supported Minecraft/loader catalog.');
+      if (disposed || packCandidate !== candidate || candidate.api.isCurrent?.() === false) throw new Error('The selected host or pack changed.');
+      for (const id of omitted) {
+        const item = draft.pendingAddOns.find(value => value.id === id);
+        if (item?.kind === 'localFile') await discardWizardInput(draft, item.stagedUploadId);
+        draft.pendingAddOns = draft.pendingAddOns.filter(value => value.id !== id);
+      }
+      if (mode === 'matching') {
+        draft.javaFlavor = loader as typeof draft.javaFlavor;
+        draft.javaCategory = 'modded';
+        draft.versionId = entry.id;
+        draft.javaPath = undefined;
+        draft.javaSelectionKey = undefined;
+        resolvedMcVersion = mc;
+        resolvedLoaderVersion = candidate.inspection.loaderVersion;
+      }
+      draft.stagedModpack = {
+        fileName: candidate.name,
+        stagedUploadId: candidate.id,
+        inspection: candidate.inspection,
+        setupMode: mode,
+        currentMinecraftVersion: mode === 'current' ? resolvedMcVersion : undefined,
+        currentLoaderVersion: mode === 'current' ? resolvedLoaderVersion : undefined,
+      };
+      draft.stagedModpack.reviewedSetupKey = javaSelectionKey(draft);
+      packCandidate = undefined;
+    } catch (cause) {
+      stageError = errorMessage(cause);
+    } finally { acceptingPack = false; }
+  }
+  async function discardCandidate(): Promise<void> {
+    if (!packCandidate) return;
+    try {
+      await discardWizardInput(draft, packCandidate.id);
+      packCandidate = undefined;
+    } catch (cause) {
+      stageError = errorMessage(cause);
+    }
+  }
   /**
    * The oracle's own `resolvedStagingMCVersion`: the Minecraft version add-on
    * compatibility is checked against here. `draft.versionId` only carries a
@@ -100,6 +238,8 @@
       const picked = draft.versionId
         ? versions.find((entry) => entry.id === draft.versionId)
         : undefined;
+      resolvedLoaderVersion =
+        picked?.loaderVersion ?? versions.find((entry) => entry.isLatest)?.loaderVersion;
       resolvedMcVersion =
         picked?.mcVersion ??
         versions.find((entry) => entry.isLatest)?.mcVersion ??
@@ -152,11 +292,12 @@
       { stagedUploadId },
     );
     retainWizardUpload(draft, pendingModpackSource, stagedUploadId);
-    draft.stagedModpack = {
-      fileName: pendingModpackSource.name,
+    reviewPack(
       stagedUploadId,
+      pendingModpackSource.name,
       inspection,
-    };
+      scoped ?? sourceApi(pendingModpackSource, api) ?? api,
+    );
   }
 
   function closePendingModpack(): void {
@@ -217,12 +358,19 @@
     }
   }
 
-  function handleStage(item: Schema['CatalogItemDTO'], versionId: string | undefined): void {
+  function handleStage(
+    item: Schema['CatalogItemDTO'],
+    versionId: string | undefined,
+    provider: 'modrinth' | 'curseforge' = 'modrinth',
+    allowIncompatible = false,
+  ): void {
     draft.pendingAddOns = [
       ...draft.pendingAddOns,
       {
         id: crypto.randomUUID(),
         kind: 'catalog',
+        provider,
+        allowIncompatible,
         projectId: item.projectId,
         slug: item.slug,
         title: item.title,
@@ -236,6 +384,11 @@
 </script>
 
 <div class="addons" use:onboardingAnchor={'ob_wizard_sheet'}>
+  {#if addOnKind === 'mod' && !draft.stagedModpack}
+    <Button disabled={!api || stagingModpack || !!packCandidate} onclick={() => (showPacks = true)}
+      >Browse modpacks…</Button
+    >
+  {/if}
   {#if addOnKind}
     <div class="header-row">
       <div class="intro">
@@ -247,7 +400,7 @@
         <p>
           {hasAny
             ? 'These install after the server folder is created. You can add more or remove any below.'
-            : `Search Modrinth, add your own files, or skip this and add ${noun} after the server is created.`}
+            : `Search Modrinth or CurseForge, add your own files, or skip this and add ${noun} after the server is created.`}
         </p>
       </div>
       {#if hasAny}
@@ -271,7 +424,7 @@
             </Button>
           {/if}
           <Button size="sm" variant="secondary" onclick={() => (showBrowser = true)}>
-            Browse Modrinth
+            Browse {noun}
           </Button>
         </div>
       {/if}
@@ -280,7 +433,7 @@
     {#if !hasAny}
       <div class="cards">
         <button type="button" class="card" onclick={() => (showBrowser = true)}>
-          <span class="card-title">Browse Modrinth</span>
+          <span class="card-title">Browse {noun}</span>
           <span class="card-subtitle">Search and add {noun} by name or keyword.</span>
         </button>
         {#if addOnKind === 'mod'}
@@ -422,6 +575,69 @@
     onComplete={finishJarUpload}
     onClose={() => (pendingJarSource = undefined)}
   />
+{/if}
+
+{#if showPacks && api}
+  <PackCatalogSheet
+    {api}
+    javaFlavor={draft.javaFlavor}
+    minecraftVersion={resolvedMcVersion}
+    onClose={() => (showPacks = false)}
+    onSelected={reviewPack}
+  />
+{/if}
+{#if packCandidate}
+  <Sheet title="Review modpack setup" size="lg" onClose={acceptingPack ? undefined : () => void discardCandidate()}>
+    <h2>{packCandidate.inspection.packName ?? packCandidate.name}</h2>
+    <p>
+      Pack: Minecraft {packCandidate.inspection.minecraftVersion ?? 'unknown'} · {packCandidate
+        .inspection.loaderName ?? 'unknown'} · loader {packCandidate.inspection.loaderVersion ??
+        'unknown'}
+    </p>
+    <p>
+      Current: Minecraft {resolvedMcVersion ?? 'unknown'} · {draft.javaFlavor}. Matching setup
+      updates Minecraft and loader automatically. Trying the current setup may leave incompatible
+      content and does not prove the pack will run.
+    </p>
+    {#each packCandidate.inspection.warnings ?? [] as warning}<p class="hint warn">
+        {warning}
+      </p>{/each}
+    {#if draft.pendingAddOns.length}
+      <h3>Staged individual content</h3>
+      <p>
+        These selections were made before this pack. Uncheck items to remove them; retained items
+        are checked again when installed. Local files have no proven provider compatibility.
+      </p>
+      {#each draft.pendingAddOns as item (item.id)}
+        <label
+          ><input
+            type="checkbox"
+            checked={!omitted.has(item.id)}
+            onchange={(event) => {
+              const next = new Set(omitted);
+              if (event.currentTarget.checked) next.delete(item.id);
+              else next.add(item.id);
+              omitted = next;
+            }}
+          />{item.kind === 'catalog' ? item.title : item.fileName} — {stagedCompatibility[
+            item.id
+          ] ?? 'Checking compatibility…'}</label
+        >
+      {/each}
+      <label
+        ><input type="checkbox" bind:checked={reviewedStaged} />I reviewed which individual items to
+        keep with this pack.</label
+      >
+    {/if}
+    {#if stageError}<p class="hint warn">{stageError}</p>{/if}
+    <Button disabled={!reviewedStaged || checkingStaged || acceptingPack} onclick={() => void acceptPack('matching')}
+      >Use matching setup</Button
+    >
+    <Button
+      disabled={!reviewedStaged || checkingStaged || acceptingPack || !resolvedMcVersion}
+      onclick={() => void acceptPack('current')}>Try current setup anyway</Button
+    >
+  </Sheet>
 {/if}
 
 <style>

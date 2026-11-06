@@ -635,6 +635,27 @@ pub async fn create(
         .clone()
         .filter(|version| !version.trim().is_empty());
 
+    let pack_setup = if body.try_pack_with_current_setup == Some(true) {
+        let Some(mc) = body
+            .minecraft_version
+            .clone()
+            .filter(|value| !value.trim().is_empty())
+        else {
+            return invalid_body(
+                "missing_pack_setup",
+                "Trying the current setup requires an exact Minecraft version.",
+            );
+        };
+        let loader = specific_loader_version.clone().unwrap_or_default();
+        Some(provisioning::PackRuntimeOverride {
+            flavor,
+            minecraft_version: mc,
+            loader_version: loader,
+        })
+    } else {
+        None
+    };
+
     let port: u16 = match body.port.unwrap_or(25565).try_into() {
         Ok(port) => port,
         Err(_) => return invalid_body("invalid_body", "port must be between 0 and 65535."),
@@ -728,6 +749,7 @@ pub async fn create(
                 home_dir,
                 servers_root,
                 staged_modpack,
+                pack_setup,
                 pending_modpack_imports,
             )
         })
@@ -893,7 +915,8 @@ fn run_create_server(
     check_addon_updates: bool,
     home_dir: PathBuf,
     servers_root: PathBuf,
-    staged_modpack: Option<StagedUpload>,
+    staged_modpack: Option<CreationPackLease>,
+    pack_setup: Option<provisioning::PackRuntimeOverride>,
     pending_modpack_imports: PendingModpackImports,
 ) {
     let should_cancel = state.operations().cancellation_check(&operation_id);
@@ -927,7 +950,7 @@ fn run_create_server(
     };
     let transport = HttpTransport::new();
 
-    if let Some(staged_modpack) = staged_modpack {
+    if let Some(mut staged_modpack) = staged_modpack {
         let addon_transport = AddonHttpTransport::new();
         let secrets = match production_secret_store() {
             Ok(secrets) => secrets,
@@ -950,7 +973,6 @@ fn run_create_server(
         ) {
             Ok(inspection) => inspection,
             Err(error) => {
-                let _ = StdFileSystem.remove(&staged_modpack.path);
                 let _ = state.finish_operation_failure(
                     &operation_id,
                     "invalid_body",
@@ -975,7 +997,7 @@ fn run_create_server(
             world_source: WorldSource::Fresh,
             default_banner_color_hex: &default_banner_color_hex,
         };
-        let result = provisioning::create_server_from_pack(
+        let result = provisioning::create_server_from_pack_with_setup(
             &StdFileSystem,
             &transport,
             &addon_transport,
@@ -985,6 +1007,7 @@ fn run_create_server(
             &servers_root,
             &pack_request,
             &inspection,
+            pack_setup.as_ref(),
             &java_path,
             INSTALLER_TIMEOUT,
             &now,
@@ -993,7 +1016,6 @@ fn run_create_server(
             provisioning::real_unzip_world_backup,
             provisioning::real_copy_existing_world_folder,
         );
-        let _ = StdFileSystem.remove(&staged_modpack.path);
         match result {
             Ok(created_from_pack) => {
                 let unresolved_files = pack_unresolved_files(&created_from_pack.pack_report);
@@ -1020,6 +1042,13 @@ fn run_create_server(
                     enable_voice_chat,
                     Some(pack_summary),
                 );
+                if state
+                    .operations()
+                    .snapshot(operation_id.as_str())
+                    .is_some_and(|value| value.state == msc_api::dto::OperationStateDto::Succeeded)
+                {
+                    staged_modpack.commit();
+                }
                 if !unresolved_files.is_empty() {
                     crate::routes::components::persist_unresolved_modpack_notes(
                         &state,
@@ -1121,10 +1150,41 @@ fn run_create_server(
     }
 }
 
+/// A failed create returns the original archive to staging for a draft retry.
+struct CreationPackLease {
+    entry: StagedUpload,
+    store: StagingStore,
+    id: String,
+    committed: bool,
+}
+impl std::ops::Deref for CreationPackLease {
+    type Target = StagedUpload;
+    fn deref(&self) -> &Self::Target {
+        &self.entry
+    }
+}
+impl CreationPackLease {
+    fn commit(&mut self) {
+        self.committed = true;
+        let _ = StdFileSystem.remove(&self.entry.path);
+    }
+}
+impl Drop for CreationPackLease {
+    fn drop(&mut self) {
+        if !self.committed && self.entry.path.is_file() {
+            self.store
+                .uploads
+                .lock()
+                .unwrap()
+                .restore_creation(self.id.clone(), self.entry.clone());
+        }
+    }
+}
+
 fn redeem_modpack_upload(
     staging: &StagingStore,
     staged_upload_id: Option<&str>,
-) -> Result<Option<StagedUpload>, Box<Response>> {
+) -> Result<Option<CreationPackLease>, Box<Response>> {
     let Some(staged_upload_id) = staged_upload_id.filter(|id| !id.trim().is_empty()) else {
         return Ok(None);
     };
@@ -1156,7 +1216,12 @@ fn redeem_modpack_upload(
             "Unknown or already-redeemed staged upload.",
         )));
     }
-    Ok(Some(entry))
+    Ok(Some(CreationPackLease {
+        entry,
+        store: staging.clone(),
+        id: staged_upload_id.to_owned(),
+        committed: false,
+    }))
 }
 
 fn pack_unresolved_files(
@@ -2817,6 +2882,16 @@ mod tests {
             .expect("a supplied upload produces a staged file");
         assert_eq!(redeemed.path, staged_path);
         assert!(staging.uploads.lock().unwrap().get("pack-upload").is_none());
+        drop(redeemed);
+        assert!(staging.uploads.lock().unwrap().get("pack-upload").is_some());
+        let mut retry = redeem_modpack_upload(&staging, Some("pack-upload"))
+            .unwrap()
+            .unwrap();
+        retry.commit();
+        drop(retry);
+        assert!(staging.uploads.lock().unwrap().get("pack-upload").is_none());
+        assert!(!staged_path.exists());
+        std::fs::remove_dir_all(staged_path.parent().unwrap()).unwrap();
     }
 
     // ---------- P7.23: POST /v1/servers/delete ----------

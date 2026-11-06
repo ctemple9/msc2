@@ -174,10 +174,12 @@
             <div class="row">
               <span class="label">Version</span>
               <span class="value"
-                >{packInspection?.minecraftVersion
-                  ? `${packInspection.minecraftVersion} · ${packInspection.loaderName ?? flavorInfo?.displayName ?? draft.javaFlavor}${packInspection.loaderVersion ? ` ${packInspection.loaderVersion}` : ''}`
-                  : (pinnedVersionLabel ??
-                    `Latest ${flavorInfo?.displayName ?? draft.javaFlavor}`)}</span
+                >{draft.stagedModpack?.setupMode === 'current'
+                  ? `${draft.stagedModpack.currentMinecraftVersion} · ${draft.javaFlavor} · try current setup`
+                  : packInspection?.minecraftVersion
+                    ? `${packInspection.minecraftVersion} · ${packInspection.loaderName ?? flavorInfo?.displayName ?? draft.javaFlavor}${packInspection.loaderVersion ? ` ${packInspection.loaderVersion}` : ''}`
+                    : (pinnedVersionLabel ??
+                      `Latest ${flavorInfo?.displayName ?? draft.javaFlavor}`)}</span
               >
             </div>
             <div class="row">

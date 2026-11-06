@@ -78,7 +78,7 @@
   function compatible(version: Schema['CatalogVersionDTO']): boolean {
     return (
       isVersionCompatible(version, serverMinecraftVersion) &&
-      (provider === 'modrinth' ||
+      ((provider === 'modrinth' && item.projectType !== 'modpack') ||
         item.projectType === 'plugin' ||
         (!!javaFlavor && version.loaders.includes(javaFlavor)))
     );
@@ -88,7 +88,11 @@
       return true;
     if (provider !== 'curseforge') return false;
     const release = releases.get(version.id);
-    return !onInstallProviderVersion || !release?.available || release.serverPack;
+    return (
+      (mode !== 'stage' && !onInstallProviderVersion) ||
+      !release?.available ||
+      (item.projectType !== 'modpack' && release.serverPack)
+    );
   }
 
   $: allInstalledVersionIds = new Set([...knownInstalledVersionIds, ...installedVersionIds]);
@@ -97,8 +101,14 @@
   $: eligibleVersions = requiredVersionLoader
     ? versions.filter((version) => version.loaders.includes(requiredVersionLoader!))
     : versions;
-  $: collapsed = collapseVersions(eligibleVersions, serverLoaders);
-  $: visible = filterVisibleVersions(collapsed, { stableOnly, loaders: loaderFilter });
+  $: collapsed =
+    item.projectType === 'modpack'
+      ? [...eligibleVersions].sort((a, b) => Number(compatible(b)) - Number(compatible(a)))
+      : collapseVersions(eligibleVersions, serverLoaders);
+  $: visible = filterVisibleVersions(collapsed, {
+    stableOnly,
+    loaders: item.projectType === 'modpack' ? new Set<string>() : loaderFilter,
+  });
   $: hasCompatibleVersion = eligibleVersions.some(compatible);
   $: aboutParagraphs = (provider === 'curseforge' ? sanitizeCurseForgeBody : sanitizeModrinthBody)(
     project?.body ?? item.description ?? '',
@@ -108,7 +118,7 @@
   $: modrinthSlug = item.slug ?? project?.slug ?? item.projectId;
   $: projectURL =
     provider === 'curseforge'
-      ? `https://www.curseforge.com/minecraft/${item.projectType === 'plugin' ? 'bukkit-plugins' : 'mc-mods'}/${encodeURIComponent(modrinthSlug)}`
+      ? `https://www.curseforge.com/minecraft/${item.projectType === 'modpack' ? 'modpacks' : item.projectType === 'plugin' ? 'bukkit-plugins' : 'mc-mods'}/${encodeURIComponent(modrinthSlug)}`
       : item.projectType
         ? `https://modrinth.com/${item.projectType}/${modrinthSlug}`
         : `https://modrinth.com/project/${modrinthSlug}`;
@@ -208,7 +218,9 @@
         const installed = await onInstallProviderVersion(version, releases.get(version.id));
         if (current())
           notice = installed
-            ? 'Installed — restart the server to apply.'
+            ? mode === 'stage'
+              ? 'Added to the server draft.'
+              : 'Installed — restart the server to apply.'
             : 'Manual downloads are required to finish this installation.';
       } catch (error) {
         if (current()) notice = error instanceof Error ? error.message : 'Installation failed.';

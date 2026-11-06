@@ -787,6 +787,11 @@ pub struct ServerCreateArgs {
     /// Create the server from a local .mrpack or CurseForge archive.
     #[arg(long = "modpack")]
     modpack: Option<PathBuf>,
+    /// Explicitly try the pack on --flavor/--minecraft-version instead of its pins.
+    #[arg(long, requires_all = ["modpack", "minecraft_version", "flavor"])]
+    try_pack_with_current_setup: bool,
+    #[arg(long, requires = "try_pack_with_current_setup")]
+    minecraft_version: Option<String>,
     /// Print the operation id and return immediately instead of waiting
     /// for creation to finish.
     #[arg(long)]
@@ -3110,13 +3115,14 @@ async fn run_server(common: CommonArgs, command: ServerCommand) -> Result<(), Cl
                 world_name: args.world_name,
                 world_seed: args.world_seed,
                 version_id: args.version_id,
-                minecraft_version: None,
+                minecraft_version: args.minecraft_version,
                 loader_version: args.loader_version,
                 accept_eula: args.accept_eula.then_some(true),
                 bedrock_version: None,
                 docker_image: None,
                 java_path: args.java_path,
                 staged_modpack_upload_id,
+                try_pack_with_current_setup: args.try_pack_with_current_setup.then_some(true),
                 world_settings: None,
             };
             let mut request = serde_json::to_value(body).map_err(|error| {

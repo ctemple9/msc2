@@ -155,6 +155,7 @@ async fn capabilities_for_query(
             providers: vec!["modrinth".into(), "curseforge".into()],
             reviewed_installs: vec!["curseforge".into()],
             incompatible_install_review: true,
+            creation_pack_setup: true,
             source_identification: vec!["curseforge".into()],
             reviewed_updates: vec!["curseforge".into()],
             retained_pack_recovery: true,

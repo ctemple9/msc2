@@ -16,6 +16,10 @@
   export let javaFlavor: string | undefined;
   export let minecraftVersion: string | undefined;
   export let serverId = '';
+  export let mode: 'install' | 'stage' = 'install';
+  export let onStage:
+    | ((item: Schema['CatalogItemDTO'], versionId: string, allowIncompatible: boolean) => void)
+    | undefined = undefined;
   export let serverName = '';
   export let onInstalled: () => void = () => {};
   export let permissions: readonly string[] | undefined = undefined;
@@ -40,6 +44,12 @@
     item: Schema['CatalogItemDTO'],
     release: Schema['ProviderCatalogReleaseDTO'],
   ): Promise<boolean> {
+    if (mode === 'stage' && onStage && current()) {
+      onStage(item, release.version.id, !compatible(release));
+      markInstalled(item, release);
+      status = 'Added to the server draft.';
+      return true;
+    }
     if (!connection || !serverId || !current() || !installSupported)
       throw new Error('Connect to the selected server before installing content.');
     if (installingReleaseId) throw new Error('Another content installation is still in progress.');
@@ -103,7 +113,7 @@
     onInstalled();
   }
   async function add(item: Schema['CatalogItemDTO']): Promise<void> {
-    if (!connection || adding || !serverId || !current()) return;
+    if (!connection || adding || (mode === 'install' && !serverId) || !current()) return;
     adding = item.projectId;
     const request = ++generation;
     error = '';
@@ -216,8 +226,11 @@
       const caps = await connection.get<Schema['CapabilitiesDTO']>('/v1/capabilities');
       if (!current()) return;
       supported = caps.contentCatalog?.providers?.includes('curseforge') ?? false;
-      installSupported = caps.contentCatalog?.reviewedInstalls?.includes('curseforge') ?? false;
-      mismatchSupported = caps.contentCatalog?.incompatibleInstallReview ?? false;
+      installSupported =
+        mode === 'stage' ||
+        (caps.contentCatalog?.reviewedInstalls?.includes('curseforge') ?? false);
+      mismatchSupported =
+        mode === 'stage' || (caps.contentCatalog?.incompatibleInstallReview ?? false);
       ready = true;
       if (!supported) error = 'Update this agent to browse CurseForge mods and plugins.';
       else busy = true;
@@ -348,7 +361,7 @@
           <Button
             size="sm"
             variant="secondary"
-            disabled={busy || !!adding || !serverId || !installSupported}
+            disabled={busy || !!adding || (mode === 'install' && !serverId) || !installSupported}
             onclick={() => void add(item)}
             >{adding === item.projectId
               ? installingReleaseId
@@ -387,9 +400,10 @@
     api={connection}
     item={selected}
     provider="curseforge"
+    {mode}
     {javaFlavor}
     serverMinecraftVersion={minecraftVersion}
-    installActionsAvailable={installSupported && !!serverId}
+    installActionsAvailable={installSupported && (mode === 'stage' || !!serverId)}
     incompatibleInstallAvailable={mismatchSupported}
     knownInstalledVersionIds={[...installedVersions]}
     onInstallProviderVersion={installDetailVersion}

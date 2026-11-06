@@ -1629,8 +1629,86 @@ pub fn create_server_from_pack(
     unzip_world_backup: impl FnOnce(&Path, &Path) -> bool,
     copy_existing_world_folder: impl FnOnce(&Path, &Path, &str) -> bool,
 ) -> Result<CreatedFromPack, CreateFromPackError> {
+    create_server_from_pack_with_setup(
+        fs,
+        jar_transport,
+        addon_transport,
+        secrets,
+        supervisor,
+        home_dir,
+        servers_root,
+        request,
+        inspection,
+        None,
+        java_executable_path,
+        installer_timeout,
+        now,
+        should_cancel,
+        on_output,
+        unzip_world_backup,
+        copy_existing_world_folder,
+    )
+}
+
+/// Explicit runtime choice never rewrites the retained upstream manifest.
+#[derive(Debug, Clone)]
+pub struct PackRuntimeOverride {
+    pub flavor: JavaServerFlavor,
+    pub minecraft_version: String,
+    pub loader_version: String,
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn create_server_from_pack_with_setup(
+    fs: &dyn FileSystem,
+    jar_transport: &dyn Transport,
+    addon_transport: &dyn AddonTransport,
+    secrets: &dyn SecretStore,
+    supervisor: &dyn ProcessSupervisor,
+    home_dir: &Path,
+    servers_root: &Path,
+    request: &PackServerRequest,
+    inspection: &ModpackInspection,
+    setup: Option<&PackRuntimeOverride>,
+    java_executable_path: &str,
+    installer_timeout: Duration,
+    now: &str,
+    should_cancel: &dyn Fn() -> bool,
+    on_output: impl FnMut(OutputStream, &[u8]),
+    unzip_world_backup: impl FnOnce(&Path, &Path) -> bool,
+    copy_existing_world_folder: impl FnOnce(&Path, &Path, &str) -> bool,
+) -> Result<CreatedFromPack, CreateFromPackError> {
     let (loader_flavor, mc_version, loader_version) = pack_loader_pin(&inspection.format)?;
     let flavor = loader_flavor_to_java_flavor(loader_flavor)?;
+    if msc_domain::server_versions::compare_mc_versions(&mc_version, "1.20").is_lt() {
+        return Err(CreateFromPackError::Import(
+            "MSC requires Minecraft 1.20 or newer".into(),
+        ));
+    }
+    let (flavor, mc_version, loader_version) = if let Some(setup) = setup {
+        if !matches!(
+            setup.flavor,
+            JavaServerFlavor::Fabric | JavaServerFlavor::Forge | JavaServerFlavor::NeoForge
+        ) || (setup.loader_version.trim().is_empty() && setup.flavor != JavaServerFlavor::Fabric)
+            || msc_domain::server_versions::compare_mc_versions(&setup.minecraft_version, "1.20")
+                .is_lt()
+            || msc_domain::server_versions::compare_mc_versions(&mc_version, "1.20").is_lt()
+        {
+            return Err(CreateFromPackError::Import("Trying a pack requires a supported mod loader, exact loader version and Minecraft 1.20 or newer for both setups".into()));
+        }
+        (
+            setup.flavor,
+            setup.minecraft_version.clone(),
+            if setup.loader_version.trim().is_empty() {
+                jar_provider::fabric_resolve_loader(jar_transport, &setup.minecraft_version)
+                    .map_err(CreateServerError::from)?
+            } else {
+                setup.loader_version.clone()
+            },
+        )
+    } else {
+        (flavor, mc_version, loader_version)
+    };
 
     let safe_name =
         provisioning::trimmed_server_name(request.name).ok_or(CreateServerError::EmptyName)?;

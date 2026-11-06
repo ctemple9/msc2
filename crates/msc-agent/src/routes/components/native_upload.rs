@@ -105,7 +105,7 @@ impl Session {
 
 /// The final consumer releases staging even on an early return or worker panic.
 /// Drop only signals the reaper; it never performs disk I/O under a map lock.
-pub(crate) struct ConsumedInput(Arc<Session>);
+pub(crate) struct ConsumedInput(Arc<Session>, AtomicBool);
 impl std::fmt::Debug for ConsumedInput {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str("ConsumedInput")
@@ -113,7 +113,9 @@ impl std::fmt::Debug for ConsumedInput {
 }
 impl Drop for ConsumedInput {
     fn drop(&mut self) {
-        self.0.consumer_done.store(true, Ordering::Release);
+        if !self.1.load(Ordering::Acquire) {
+            self.0.consumer_done.store(true, Ordering::Release);
+        }
     }
 }
 
@@ -131,6 +133,35 @@ impl UploadStore {
             return None;
         }
         self.entries.insert(id, upload)
+    }
+    /// Only a consumer holding the exact redeemed entry can return it for retry.
+    pub(crate) fn restore_creation(&mut self, id: String, mut upload: StagedUpload) {
+        if self.entries.contains_key(&id) {
+            return;
+        }
+        if let Some(session) = self.native.get(&id) {
+            let Some(guard) = upload.native_guard.take() else {
+                return;
+            };
+            if !Arc::ptr_eq(&guard.0, session) || upload.path != session.upload.path {
+                return;
+            }
+            // Disable this consumer's eventual cleanup before publishing READY.
+            // A later redemption creates a fresh, independently owned guard.
+            guard.1.store(true, Ordering::Release);
+            if session
+                .phase
+                .compare_exchange(REDEEMED, READY, Ordering::AcqRel, Ordering::Acquire)
+                .is_err()
+            {
+                guard.1.store(false, Ordering::Release);
+                return;
+            }
+            session.consumer_done.store(false, Ordering::Release);
+            session.touch();
+        }
+        upload.expires_at_unix = now_unix() + STAGING_TTL_SECONDS;
+        self.entries.insert(id, upload);
     }
     pub(crate) fn get(&self, id: &str) -> Option<&StagedUpload> {
         if let Some(session) = self.native.get(id) {
@@ -175,7 +206,8 @@ impl UploadStore {
             return None;
         }
         let mut entry = self.entries.remove(id)?;
-        entry.native_guard = session.map(|session| Arc::new(ConsumedInput(session)));
+        entry.native_guard =
+            session.map(|session| Arc::new(ConsumedInput(session, AtomicBool::new(false))));
         Some(entry)
     }
     #[cfg(test)]

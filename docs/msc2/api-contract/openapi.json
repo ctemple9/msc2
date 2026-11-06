@@ -12525,6 +12525,10 @@
               "type": "string"
             }
           },
+          "creationPackSetup": {
+            "type": "boolean",
+            "default": false
+          },
           "incompatibleInstallReview": {
             "type": "boolean"
           }
@@ -13383,6 +13387,10 @@
           },
           "javaPath": {
             "type": "string"
+          },
+          "tryPackWithCurrentSetup": {
+            "type": "boolean",
+            "description": "Explicit mismatch consent for a staged pack: use minecraftVersion, javaFlavor and loaderVersion instead of upstream runtime pins. Fabric resolves its stable loader when loaderVersion is omitted. Original pack metadata is retained."
           },
           "stagedModpackUploadId": {
             "type": "string",

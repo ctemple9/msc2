@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: 7977e30a88a81ac63cf853d9097848320995dba9a2414f5939ab183cd059dcdf
+// Contract SHA-256: bdd499436dcfb0ebefce419e90babc5b56e98259b8c369fad08b42386ff8d765
 
 export interface paths {
   '/v1/active-server': {
@@ -8982,6 +8982,8 @@ export interface components {
       contentMrpackExports?: boolean;
       contentPublications?: boolean;
       contentZipExports?: boolean;
+      /** @default false */
+      creationPackSetup: boolean;
       incompatibleInstallReview?: boolean;
       packAcquisition: boolean;
       playerContentManagement?: boolean;
@@ -10764,6 +10766,8 @@ export interface components {
       serverType?: string;
       /** @description A staged upload (purpose modpack-archive) already inspected via POST /v1/modpacks/inspect. When present, provisioning pins the loader/Minecraft version from the pack and applies its mod list as part of this same create operation (P8.21) -- MSC 1 has no separate create-from-pack primitive; this mirrors createNewServer + applyStagedAddOn composed into one durable operation instead of two. */
       stagedModpackUploadId?: string;
+      /** @description Explicit mismatch consent for a staged pack: use minecraftVersion, javaFlavor and loaderVersion instead of upstream runtime pins. Fabric resolves its stable loader when loaderVersion is omitted. Original pack metadata is retained. */
+      tryPackWithCurrentSetup?: boolean;
       versionId?: string;
       worldName?: string;
       worldSeed?: string;

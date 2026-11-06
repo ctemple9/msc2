@@ -115,3 +115,5 @@ Use `--allow-incomplete` only after reviewing missing-content reasons.
 `--include-mrpack` requires eligible format/setup; a plugin-server bundle stays
 an ordinary ZIP. Player optional shaders/resource packs remain inactive.
 These terminal exports do not use the desktop's local save picker.
+
+Creation-time pack setup (P24.12): `msc server create NAME --modpack PATH --flavor fabric --minecraft-version 1.21.1 --try-pack-with-current-setup` explicitly tries the selected runtime instead of the upstream pack pins. Add `--loader-version` for an exact pin; Forge/NeoForge require it. Without that flag pack creation uses the upstream pins. The retained archive stays unchanged; this flag is not a compatibility guarantee.

@@ -55,8 +55,13 @@
    */
   export let mode: 'install' | 'stage' = 'install';
   export let onStage:
-    ((item: Schema['CatalogItemDTO'], versionId: string | undefined) => void) | undefined =
-    undefined;
+    | ((
+        item: Schema['CatalogItemDTO'],
+        versionId: string | undefined,
+        provider?: 'modrinth' | 'curseforge',
+        allowIncompatible?: boolean,
+      ) => void)
+    | undefined = undefined;
 
   let provider: 'modrinth' | 'curseforge' = 'modrinth';
   let detailItem: Schema['CatalogItemDTO'] | undefined;
@@ -158,31 +163,32 @@
 </script>
 
 <Sheet title={`Browse ${noun}`} size="lg" {onClose}>
-  {#if mode === 'install'}
-    <div class="providers" role="group" aria-label="Content provider">
-      <button
-        type="button"
-        class:chosen={provider === 'modrinth'}
-        aria-pressed={provider === 'modrinth'}
-        onclick={() => {
-          provider = 'modrinth';
-          detailItem = undefined;
-        }}>Modrinth</button
-      >
-      <button
-        type="button"
-        class:chosen={provider === 'curseforge'}
-        aria-pressed={provider === 'curseforge'}
-        onclick={() => {
-          provider = 'curseforge';
-          detailItem = undefined;
-        }}>CurseForge</button
-      >
-    </div>
-  {/if}
+  <div class="providers" role="group" aria-label="Content provider">
+    <button
+      type="button"
+      class:chosen={provider === 'modrinth'}
+      aria-pressed={provider === 'modrinth'}
+      onclick={() => {
+        provider = 'modrinth';
+        detailItem = undefined;
+      }}>Modrinth</button
+    >
+    <button
+      type="button"
+      class:chosen={provider === 'curseforge'}
+      aria-pressed={provider === 'curseforge'}
+      onclick={() => {
+        provider = 'curseforge';
+        detailItem = undefined;
+      }}>CurseForge</button
+    >
+  </div>
   {#if provider === 'curseforge'}
     <ProviderCatalogBrowser
       {api}
+      {mode}
+      onStage={(item, versionId, allowIncompatible) =>
+        onStage?.(item, versionId, 'curseforge', allowIncompatible)}
       kind={addOnKind}
       {javaFlavor}
       minecraftVersion={serverMinecraftVersion}

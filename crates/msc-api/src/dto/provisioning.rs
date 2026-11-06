@@ -72,6 +72,9 @@ pub struct ServerCreateRequestDto {
     pub java_path: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub staged_modpack_upload_id: Option<String>,
+    /// Explicit pack mismatch consent; upstream archive metadata stays intact.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub try_pack_with_current_setup: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub world_settings: Option<ServerCreateWorldSettingsDto>,
 }

@@ -63,6 +63,8 @@ pub struct ContentCatalogCapabilityDto {
     #[serde(default)]
     pub incompatible_install_review: bool,
     #[serde(default)]
+    pub creation_pack_setup: bool,
+    #[serde(default)]
     pub source_identification: Vec<String>,
     #[serde(default)]
     pub reviewed_updates: Vec<String>,

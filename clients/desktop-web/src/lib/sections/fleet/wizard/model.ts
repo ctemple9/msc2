@@ -291,6 +291,10 @@ export interface WizardDraft {
         fileName: string;
         stagedUploadId: string;
         inspection: Schema['ModpackInspectionResultDTO'];
+        setupMode?: 'matching' | 'current';
+        reviewedSetupKey?: string;
+        currentMinecraftVersion?: string;
+        currentLoaderVersion?: string;
       }
     | undefined;
   /**
@@ -359,6 +363,8 @@ export type PendingAddOn =
   | {
       readonly id: string;
       readonly kind: 'catalog';
+      readonly provider?: 'modrinth' | 'curseforge';
+      readonly allowIncompatible?: boolean;
       readonly projectId: string;
       readonly slug: string | undefined;
       readonly title: string;
@@ -637,6 +643,13 @@ export function buildServerCreateRequest(
   draft: WizardDraft,
   displayName: string,
 ): Record<string, unknown> {
+  if (
+    draft.stagedModpack?.reviewedSetupKey &&
+    draft.stagedModpack.reviewedSetupKey !== javaSelectionKey(draft)
+  )
+    throw new Error(
+      'Minecraft or loader setup changed after pack review. Remove and select the pack again to review this setup.',
+    );
   const name = displayName.trim() || draft.serverName.trim();
   const body: Record<string, unknown> = {
     name,
@@ -667,7 +680,14 @@ export function buildServerCreateRequest(
     body.port = draft.javaPort;
     body.enableCrossPlay = draft.enableCrossPlay;
     if (draft.enableCrossPlay) body.crossPlayBedrockPort = draft.crossPlayBedrockPort;
-    if (draft.stagedModpack) body.stagedModpackUploadId = draft.stagedModpack.stagedUploadId;
+    if (draft.stagedModpack) {
+      body.stagedModpackUploadId = draft.stagedModpack.stagedUploadId;
+      if (draft.stagedModpack.setupMode === 'current') {
+        body.tryPackWithCurrentSetup = true;
+        body.minecraftVersion = draft.stagedModpack.currentMinecraftVersion;
+        body.loaderVersion = draft.stagedModpack.currentLoaderVersion;
+      }
+    }
   } else {
     body.bedrockVersion = draft.bedrockVersion.trim() || 'LATEST';
     body.maxPlayers = draft.bedrockMaxPlayers;
@@ -720,7 +740,30 @@ export async function redeemStagedWorldBackup(
 export async function redeemPendingAddOn(
   api: ScreenApi | undefined,
   addOn: PendingAddOn,
+  serverId?: string,
 ): Promise<void> {
+  if (addOn.kind === 'catalog' && addOn.provider === 'curseforge') {
+    if (!api || !serverId || !addOn.versionId)
+      throw new Error('CurseForge staging requires the exact release and newly created server.');
+    const root = `/v1/servers/${encodeURIComponent(serverId)}/content`;
+    const review = await api.post<Schema['ContentInstallReviewDTO']>(`${root}/install-review`, {
+      provider: 'curseforge',
+      projectId: Number(addOn.projectId),
+      versionId: Number(addOn.versionId),
+      ...(addOn.allowIncompatible ? { allowIncompatible: true } : {}),
+    });
+    if (review.files.some((file) => file.manualDownloadRequired))
+      throw new Error(
+        'Author-required manual downloads remain. Open Components → Browse mods → CurseForge for the exact release to finish installation.',
+      );
+    const accepted = await api.post<{ operationId: string }>(`${root}/install`, {
+      reviewId: review.reviewId,
+    });
+    const operation = await pollOperation(api, accepted.operationId);
+    if (operation?.state !== 'succeeded')
+      throw new Error(operation?.error?.message ?? 'CurseForge installation did not complete.');
+    return;
+  }
   const body =
     addOn.kind === 'catalog'
       ? {
@@ -801,7 +844,6 @@ export async function createServerFromDraft(
     fleetMutationPaths.create,
     buildServerCreateRequest(draft, displayName),
   );
-  if (draft.stagedModpack) releaseWizardOwnership(draft, draft.stagedModpack.stagedUploadId);
   if (!result.operationId) {
     if (!result.success) throw new Error(result.message);
     return { warnings: [] };
@@ -816,6 +858,7 @@ export async function createServerFromDraft(
     );
   }
 
+  if (draft.stagedModpack) releaseWizardOwnership(draft, draft.stagedModpack.stagedUploadId);
   const warnings: string[] = [];
   const modpackSummary = operation ? modpackCreationSummary(operation) : undefined;
   let worldReady = true;
@@ -866,7 +909,11 @@ export async function createServerFromDraft(
   for (const addOn of draft.pendingAddOns) {
     try {
       onProgress?.(`Installing ${pendingAddOnLabel(addOn)}…`);
-      await redeemPendingAddOn(api, addOn);
+      await redeemPendingAddOn(
+        api,
+        addOn,
+        typeof operation?.result?.serverId === 'string' ? operation.result.serverId : undefined,
+      );
       if (addOn.kind === 'localFile') releaseWizardOwnership(draft, addOn.stagedUploadId);
     } catch (error) {
       warnings.push(`${pendingAddOnLabel(addOn)}: ${errorMessage(error)}`);

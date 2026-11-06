@@ -617,6 +617,37 @@ impl SharedClient {
         destination: &std::path::Path,
         expected: Option<u64>,
     ) -> Result<u64, CliError> {
+        self.download_file_policy(id, destination, expected, true)
+            .await
+    }
+    /// The TUI's new-file action never replaces a file created during transfer.
+    pub(crate) async fn download_file_new(
+        &self,
+        id: &str,
+        destination: &std::path::Path,
+        expected: Option<u64>,
+    ) -> Result<u64, CliError> {
+        self.download_file_policy(id, destination, expected, false)
+            .await
+    }
+    pub(crate) async fn cancel_download(&self, id: &str) -> Result<(), CliError> {
+        self.request_raw(
+            Method::DELETE,
+            &format!("/v1/staged-downloads/{id}"),
+            None,
+            None,
+            None,
+        )
+        .await
+        .map(|_| ())
+    }
+    async fn download_file_policy(
+        &self,
+        id: &str,
+        destination: &std::path::Path,
+        expected: Option<u64>,
+        overwrite: bool,
+    ) -> Result<u64, CliError> {
         let client = self.clone();
         let id = id.to_string();
         let destination = destination.to_path_buf();
@@ -696,8 +727,16 @@ impl SharedClient {
                 .sync_all()
                 .map_err(|_| CliError::internal("could not sync downloaded archive"))?;
             drop(output);
-            std::fs::rename(&partial, &destination)
-                .map_err(|_| CliError::internal("could not commit downloaded archive"))?;
+            if overwrite {
+                std::fs::rename(&partial, &destination)
+                    .map_err(|_| CliError::internal("could not commit downloaded archive"))?;
+            } else {
+                std::fs::hard_link(&partial, &destination).map_err(|_| {
+                    CliError::usage(
+                        "Destination exists or cannot be created; the existing file was preserved",
+                    )
+                })?;
+            }
             drop(guard);
             Ok(count)
         })

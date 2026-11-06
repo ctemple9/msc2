@@ -4,6 +4,7 @@
 mod app_settings;
 mod chat;
 mod components;
+mod content;
 mod create;
 mod files;
 mod guides;
@@ -108,6 +109,7 @@ struct ViewState<'a> {
     worlds: &'a worlds::WorldsUi,
     performance: &'a performance::PerformanceUi,
     components: &'a components::ComponentsUi,
+    content: &'a content::ContentUi,
     settings: &'a settings::SettingsUi,
     app_settings: &'a app_settings::AppSettingsUi,
     transfer: &'a transfer::TransferUi,
@@ -412,6 +414,7 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
     let mut worlds_ui = worlds::WorldsUi::default();
     let mut performance_ui = performance::PerformanceUi::default();
     let mut components_ui = components::ComponentsUi::default();
+    let mut content_ui = content::ContentUi::default();
     let mut settings_ui = settings::SettingsUi::default();
     let mut app_settings_ui = app_settings::AppSettingsUi::default();
     let mut transfer_ui = transfer::TransferUi::default();
@@ -435,6 +438,7 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
     let mut last_initiate_poll = Instant::now();
 
     loop {
+        content_ui.poll().await;
         if console_view.server_id != snapshot.active_server_id {
             console_view = ConsoleView {
                 server_id: snapshot.active_server_id.clone(),
@@ -475,6 +479,7 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
                 worlds: &worlds_ui,
                 performance: &performance_ui,
                 components: &components_ui,
+                content: &content_ui,
                 settings: &settings_ui,
                 app_settings: &app_settings_ui,
                 transfer: &transfer_ui,
@@ -530,6 +535,19 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
             continue;
         };
         if key.kind != KeyEventKind::Press {
+            continue;
+        }
+        if content_ui.open {
+            content_ui.handle(key.code);
+            if let Some(selection) = content_ui.take_selection()
+                && let Some(draft) = &mut wizard
+            {
+                draft.receive_catalog(selection);
+            }
+            if content_ui.take_refresh() {
+                snapshot_generation += 1;
+                refresh(&mut snapshot, &mut message).await;
+            }
             continue;
         }
         if connections.is_some() {
@@ -595,7 +613,11 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
         }
         if let Some(active) = wizard.as_mut() {
             match active.handle(key, &mut stdout).await {
-                create::Outcome::Stay => {}
+                create::Outcome::Stay => {
+                    if let Some((flavor, game, loader, picks)) = active.take_catalog_request() {
+                        content_ui.open_creation(flavor, game, loader, picks);
+                    }
+                }
                 create::Outcome::Close => {
                     wizard = None;
                     manage_open = true;
@@ -865,6 +887,24 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
                     notes_editor = Some(notes::Editor::new(server));
                 } else {
                     message = "Select a server before editing notes.".into();
+                }
+                continue;
+            }
+            if key.code == KeyCode::Char('P') {
+                if let Some(server) = snapshot.servers.as_ref().and_then(|servers| {
+                    servers
+                        .iter()
+                        .find(|s| Some(&s.id) == snapshot.active_server_id.as_ref())
+                }) {
+                    content_ui.open_server(
+                        server.id.clone(),
+                        server.name.clone(),
+                        server
+                            .java_flavor
+                            .clone()
+                            .unwrap_or_default()
+                            .to_lowercase(),
+                    );
                 }
                 continue;
             }
@@ -1194,6 +1234,7 @@ fn draw(
         if let Some(editor) = view.notes {
             editor.draw(out, width, height)?;
         }
+        view.content.draw(out, width, height)?;
         return out.flush();
     }
     for y in 2..height - 1 {
@@ -1530,6 +1571,7 @@ fn draw(
     if let Some(editor) = view.notes {
         editor.draw(out, width, height)?;
     }
+    view.content.draw(out, width, height)?;
     out.flush()
 }
 
@@ -2277,7 +2319,7 @@ fn draw_workspace(
         main_x,
         height - 2,
         main_w,
-        "1–7 Switch tab   s Start/Stop   c Console   n Notes (Overview)   a Agents   m Manage   Esc Back",
+        "1–7 Tabs   P Content/packs   s Start/Stop   c Console   n Notes   a Agents   m Manage   Esc Back",
         Color::DarkGrey,
     )?;
     Ok(())

@@ -9,11 +9,10 @@ use crossterm::style::Color;
 use crossterm::{cursor::MoveTo, queue, style::Print};
 use msc_api::dto::{
     CapabilitiesResponseDto, JavaRuntimeDto, JavaRuntimeInstallResultDto, JavaRuntimesResponseDto,
-    ModpackInspectionResultDto, OperationDto, OperationStateDto, RemoteApiStatus,
-    ServerCreateRequestDto, ServerCreateResultDto, ServerCreateWorldSettingsDto,
-    ServerImportResultDto, ServerImportScanResponseDto, StagedUploadPurposeDto, VersionEntryDto,
-    VersionsResponseDto, WorldGameplayDto, WorldGenerationDto, WorldIdentityDto,
-    WorldSettingsCapabilitiesDto,
+    ModpackInspectionResultDto, OperationDto, OperationStateDto, ServerCreateRequestDto,
+    ServerCreateResultDto, ServerCreateWorldSettingsDto, ServerImportResultDto,
+    ServerImportScanResponseDto, StagedUploadPurposeDto, VersionEntryDto, VersionsResponseDto,
+    WorldGameplayDto, WorldGenerationDto, WorldIdentityDto, WorldSettingsCapabilitiesDto,
 };
 use serde_json::json;
 
@@ -157,6 +156,12 @@ pub(super) struct Wizard {
     scan: Option<ServerImportScanResponseDto>,
     inspection: Option<ModpackInspectionResultDto>,
     staged_modpack: Option<String>,
+    catalog_requested: bool,
+    catalog_picks: Vec<super::content::Selection>,
+    catalog_current_setup: bool,
+    catalog_game: String,
+    catalog_loader: String,
+    created_server_id: Option<String>,
     submitting: bool,
     confirmation: Option<String>,
     pending_operation_id: Option<String>,
@@ -218,12 +223,103 @@ impl Wizard {
             scan: None,
             inspection: None,
             staged_modpack: None,
+            catalog_requested: false,
+            catalog_picks: Vec::new(),
+            catalog_current_setup: false,
+            catalog_game: String::new(),
+            catalog_loader: String::new(),
+            created_server_id: None,
             submitting: false,
             confirmation: None,
             pending_operation_id: None,
             versions: Vec::new(),
             runtimes: Vec::new(),
             world_capabilities: None,
+        }
+    }
+
+    pub(super) fn take_catalog_request(
+        &mut self,
+    ) -> Option<(String, String, String, Vec<super::content::Selection>)> {
+        if !std::mem::take(&mut self.catalog_requested) {
+            return None;
+        }
+        let selected = self
+            .versions
+            .iter()
+            .find(|v| v.id == self.get("version"))
+            .or_else(|| self.versions.iter().find(|v| v.is_latest));
+        Some((
+            self.get("software").to_lowercase(),
+            selected.map(|v| v.mc_version.clone()).unwrap_or_default(),
+            selected
+                .and_then(|v| v.loader_version.clone())
+                .unwrap_or_default(),
+            self.catalog_picks.clone(),
+        ))
+    }
+    pub(super) fn receive_catalog(&mut self, selection: super::content::Selection) {
+        use super::content::Selection;
+        match selection {
+            Selection::Remove(index) => {
+                if index < self.catalog_picks.len() {
+                    self.catalog_picks.remove(index);
+                }
+            }
+            Selection::Individual { .. } => self.catalog_picks.push(selection),
+            Selection::Pack {
+                upload,
+                inspection,
+                current_setup,
+            } => {
+                if self.staged_modpack.is_some() {
+                    self.message = "One base pack is already selected. Keep it or start a new draft to choose another.".into();
+                    return;
+                }
+                let Ok(info) = serde_json::from_value::<ModpackInspectionResultDto>(inspection)
+                else {
+                    self.message = "Pack inspection was not readable; nothing changed.".into();
+                    return;
+                };
+                if !info.success {
+                    self.message = info.message;
+                    return;
+                }
+                if current_setup {
+                    let selected = self
+                        .versions
+                        .iter()
+                        .find(|v| v.id == self.get("version"))
+                        .or_else(|| self.versions.iter().find(|v| v.is_latest));
+                    self.catalog_game = selected.map(|v| v.mc_version.clone()).unwrap_or_default();
+                    self.catalog_loader = selected
+                        .and_then(|v| v.loader_version.clone())
+                        .unwrap_or_default();
+                    if self.catalog_game.is_empty() {
+                        self.message =
+                            "Choose an exact Minecraft version before trying another pack setup."
+                                .into();
+                        return;
+                    }
+                } else {
+                    self.set(
+                        "software",
+                        info.loader_name
+                            .as_deref()
+                            .unwrap_or("fabric")
+                            .to_lowercase(),
+                    );
+                    self.set(
+                        "version",
+                        info.minecraft_version.clone().unwrap_or_default(),
+                    );
+                    self.set("java", "Automatic");
+                }
+                self.catalog_current_setup = current_setup;
+                self.staged_modpack = Some(upload);
+                self.inspection = Some(info);
+                self.message = "Base pack selected. Browse again to inspect or remove staged individual additions; they are preserved by default.".into();
+            }
         }
     }
 
@@ -944,10 +1040,16 @@ impl Wizard {
             }
             Page::Addons => vec![
                 field(
+                    "browse_content",
+                    "Browse mods or a base pack",
+                    Action,
+                    "Browse Modrinth or CurseForge; manage staged choices before creation.",
+                ),
+                field(
                     "addon",
                     "Local plugin or mod path",
                     Text,
-                    "Optional .jar path on this computer. Modrinth browsing is left out of this terminal flow.",
+                    "Optional .jar path on this computer. Catalog selections are retained separately.",
                 ),
                 field(
                     "skip_addon",
@@ -1211,6 +1313,10 @@ impl Wizard {
             KeyCode::Enter => {
                 if let Some(field) = fields.get(self.cursor) {
                     match field.key {
+                        "browse_content" => {
+                            self.catalog_requested = true;
+                            return Outcome::Stay;
+                        }
                         "skip_rule_editor" => {
                             self.world_page_index = 6;
                             self.cursor = 0;
@@ -3201,6 +3307,11 @@ players need the mods",
             self.progress(out, line)?;
             match operation.state {
                 OperationStateDto::Succeeded => {
+                    self.created_server_id = operation
+                        .result
+                        .as_ref()
+                        .and_then(|v| v["serverId"].as_str())
+                        .map(str::to_string);
                     self.pending_operation_id = None;
                     return Ok(());
                 }
@@ -3425,14 +3536,18 @@ players need the mods",
             } else {
                 nonempty(self.get("version"))
             },
-            minecraft_version: if self.path == PathKind::Modpack {
+            minecraft_version: if self.catalog_current_setup {
+                nonempty(&self.catalog_game)
+            } else if self.staged_modpack.is_some() {
                 self.inspection
                     .as_ref()
                     .and_then(|i| i.minecraft_version.clone())
             } else {
                 None
             },
-            loader_version: if self.path == PathKind::Modpack {
+            loader_version: if self.catalog_current_setup {
+                nonempty(&self.catalog_loader)
+            } else if self.staged_modpack.is_some() {
                 self.inspection
                     .as_ref()
                     .and_then(|i| i.loader_version.clone())
@@ -3451,7 +3566,7 @@ players need the mods",
             } else {
                 Some(self.get("bedrock_version").into())
             },
-            try_pack_with_current_setup: None,
+            try_pack_with_current_setup: self.catalog_current_setup.then_some(true),
             world_settings: Some(world),
             ..Default::default()
         };
@@ -3479,13 +3594,10 @@ players need the mods",
             .await?;
         let needs_follow_up = self.get("world_source") == "Backup .zip"
             || !self.get("world_pack").is_empty()
-            || !self.get("addon").is_empty();
+            || !self.get("addon").is_empty()
+            || !self.catalog_picks.is_empty();
         let created_server_id = if needs_follow_up {
-            client
-                .get_json::<RemoteApiStatus>("/v1/status")
-                .await
-                .ok()
-                .and_then(|status| status.active_server_id)
+            self.created_server_id.clone()
         } else {
             None
         };
@@ -3566,6 +3678,10 @@ players need the mods",
                 response["operationId"].as_str().map(str::to_string),
             )
             .await?;
+        }
+        for pick in &self.catalog_picks {
+            let server_id = created_server_id.as_deref().ok_or_else(||CliError::usage("Server created, but its identity was unavailable for catalog additions"))?;
+            super::content::install_creation_pick(&client, server_id, pick).await?;
         }
         Ok(())
         }.await;

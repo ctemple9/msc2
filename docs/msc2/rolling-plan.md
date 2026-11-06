@@ -308,12 +308,14 @@ checks when no affected source has changed. New module paths are proposals.
 
 ### P24.22 — Expose content and export operations in the tui
 
-**Status:** planned — not started
-**Files:** crates/msc-agent/src/cli/tui/; docs/msc2/client-capability-matrix.csv
+**Status:** implemented — awaiting owner verification
+**Files:** crates/msc-agent/src/cli/tui/content.rs; tui.rs; tui/create.rs; cli/transport.rs; docs/msc2/addons/phase24-tui.md; client-capability-matrix.csv
 **What:** Provide host-local interactive provider browsing, creation compatibility choices, audience editing, dependency review, recovery, update/replacement and publish/export review. Use the shared API and host-local destinations; preserve SSH behavior and existing accepted TUI flows.
 **Verify:** `cargo check -p msc-agent`. Cameron also verifies the corresponding behavior scenarios in `addons/phase24-scope.md` and the P24.1 acceptance record.
 **Commit:** `P24.22: expose content and export operations in the tui`
 **Batch:** B — continue automatically; stop at each new sheet/view for owner review
+
+**Implementation evidence:** Added a keyboard-driven content workspace opened with Shift-P from a selected server workspace, plus both-provider staged creation browsing. Named fields and choices cover source hints/exact linking, provider releases and pagination, explicit incompatible choices, separate player content and server requirements, retained recovery/manual files, three-way pack changes and audience/restoration decisions, dated immutable publications/history and audience exports. Publication supports explicit world-slot datapack paths and per-file permission/configuration review. Ordinary compatible provider installation runs directly; only missing manual files interrupt. Missing-key entry and developer console are offered only after the agent reports a missing key. Long operations run in background workers with real operation cancellation requests; writes remain server/revision/checksum bound. New local exports use an atomic non-overwriting commit; host replacements bind the reviewed destination hash. Draft additions are installed only after creation succeeds and use the operation-returned server identity; follow-up errors cannot create duplicate servers. Focused Clippy and formatting passed; no tests or live mutations were run. SSH/Windows/Linux interaction, launcher behavior and final UI review remain owner acceptance tasks.
 
 ### P24.23 — Account for retained packs and publication storage
 

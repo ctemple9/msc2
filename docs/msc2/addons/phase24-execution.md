@@ -131,9 +131,9 @@ commits per turn. Rolling-plan statuses and Git history remain the step record.
 | Field | Current value |
 |---|---|
 | Run state | Active — intermediate UI reviews deferred to final handoff by explicit owner amendment |
-| Current step | P24.19 |
-| Next action | P24.19: publish/export desktop sheet with dated immutable history, Player/Server review, ZIP/.mrpack options and real local/host saves. Then P24.22, P24.23, P24.20 and P24.24; no intermediate UI approval stops. |
-| Last implementation commit | P24.14: edit player content and review pack changes on desktop |
+| Current step | P24.22 |
+| Next action | P24.22: supported host-local TUI counterparts for catalog packs, both providers, player management, recovery/update/replacement and publication/export; then P24.23 Storage, P24.20 guides and P24.24 acceptance packet. Intermediate UI reviews remain deferred. |
+| Last implementation commit | P24.19: add the publish and export review sheet |
 | Pending UI review | Deferred to final handoff: conditional manual-download exception and all subsequent new surfaces. Prior discovery/project-detail approvals remain recorded; no ordinary installation confirmation sheet exists. |
 | Candidate base commit / changed files | P24.11 commit contains the shared catalog/project browser, direct installation/manual-file handling, source/update sheet and supporting agent contract/download repairs. New P24.12 work follows this commit. |
 | Owner approval evidence | Cameron: “ui passes” for the revised CurseForge discovery browser, after requesting missing-key-only key entry/console links. Subsequent goal resume authorizes continuation, not approval of future install surfaces. Owner later requested compact CurseForge details to match Modrinth; density revised without treating the feedback as installation-sheet approval. Cameron then clarified both providers must use the same actual sheet; both now use ProjectDetailSheet with provider data adapted separately, and the duplicate CurseForge detail layout/CSS is removed. Cameron then said “ui passes” for that shared-sheet refactor. This approves project details. Cameron then explicitly rejected a routine CurseForge installation sheet because Modrinth has none; compatible Add/Install and explicit Install anyway now run directly. Backend preflight/review remains automatic; only required manual-file handling interrupts. This supersedes the prior routine-sheet review stop. |
@@ -151,6 +151,7 @@ For each UI checkpoint add a row here, including navigation and approval evidenc
 | Creation pack browser and setup review | P24.12 | Add Server → Add-ons → Browse modpacks; exact release → Review modpack setup, keep/remove staged content, matching or current setup | implemented — final review pending | owner deferred UI review to phase end |
 | Java world datapacks and modified-content restore | P24.13 | Worlds → selected slot → Datapacks → CurseForge; shared details, manual exact ZIP, or update modified/unknown contents | implemented — final review pending | owner deferred UI review to phase end |
 | Player content and pack recovery/update/replacement | P24.14 | Components → Player content; independent player files/classification and Recover/update/replace pack | implemented — final review pending | owner deferred UI review to phase end |
+| Dated publication and export | P24.19 | Components → Export content; audience/history/current review → publish → ZIP/.mrpack and local/host destination | implemented — final review pending | owner deferred UI review to phase end |
 | Required manual-download exception | P24.11 | Add/Install a release whose author requires a browser download; only then show ContentManualDownloadSheet | conditional exception only; awaiting owner review when exercised | none |
 
 Approval evidence records the owner's actual response and date, linked to the

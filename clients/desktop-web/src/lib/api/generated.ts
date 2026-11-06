@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: ca7a4e4904787db70fb274e54f5ee34989f7c6f7bcc1293486fae33a8739229e
+// Contract SHA-256: 7b9d8771574a485165d9cced1f609faa0d48cc2343829016e074152cce6681d1
 
 export interface paths {
   '/v1/active-server': {
@@ -10363,6 +10363,19 @@ export interface components {
     };
     PublicationReviewResultDTO: {
       audiences: string[];
+      candidates?: ({
+        audience?: string;
+        /** Format: int64 */
+        byteSize?: number;
+        configuration?: boolean;
+        optional?: boolean;
+        path?: string;
+        redistributionEvidence?: string | null;
+        restricted?: boolean;
+        sha512?: string;
+      } & {
+        [key: string]: unknown;
+      })[];
       /** Format: int64 */
       collectionRevision: number;
       complete: boolean;

@@ -45,6 +45,7 @@
   import PluginBrowserSheet from './PluginBrowserSheet.svelte';
   import ContentSourcesSheet from './ContentSourcesSheet.svelte';
   import PlayerContentSheet from './PlayerContentSheet.svelte';
+  import ContentExportSheet from './ContentExportSheet.svelte';
   import { contentRoot, type ContentSnapshot } from './content-model';
   import PlayitSetupSheet from '../server-editor/PlayitSetupSheet.svelte';
   import ProjectDetailSheet from './ProjectDetailSheet.svelte';
@@ -156,6 +157,7 @@
   let showBrowser = false;
   let showContentSources = false;
   let showPlayerContent = false;
+  let showContentExport = false;
   let playerRequirementCount = 0;
   let playerRequirementKey = '';
 
@@ -597,10 +599,12 @@
       <span class="msc2-type-overline">Components</span>
     </div>
     <div class="header-actions">
-      {#if activeServer?.serverType === 'java'}<Button
-          size="sm"
-          variant="secondary"
-          onclick={() => (showPlayerContent = true)}>Player content…</Button
+      {#if activeServer?.serverType === 'java'}
+        <Button size="sm" variant="secondary" onclick={() => (showContentExport = true)}
+          >Export content…</Button
+        >
+        <Button size="sm" variant="secondary" onclick={() => (showPlayerContent = true)}
+          >Player content…</Button
         >{/if}
       {#if kind}
         <Button size="sm" variant="secondary" onclick={() => (showBrowser = true)}>
@@ -1118,6 +1122,12 @@
       onClose={() => (showPlayerContent = false)}
       onChanged={() => void refreshAfterContentChange()}
     />
+  {/key}
+{/if}
+
+{#if showContentExport && api}
+  {#key `${hostId}:${serverId}`}
+    <ContentExportSheet {api} {serverId} onClose={() => (showContentExport = false)} />
   {/key}
 {/if}
 

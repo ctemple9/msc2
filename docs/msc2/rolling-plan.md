@@ -277,12 +277,14 @@ checks when no affected source has changed. New module paths are proposals.
 
 ### P24.19 — Add the publish and export review sheet
 
-**Status:** planned — not started
+**Status:** implemented — awaiting owner verification
 **Files:** clients/desktop-web/src/lib/sections/addons/; clients/desktop-web/src/lib/sections/components/
 **What:** Implement Player/Server, categories/items, date/revision/name, optional .mrpack, completeness, size and named local/remote destination. Export prior revisions or publish current changes deliberately; show progress/results and actionable missing content. Follow antiAIslop.md.
 **Verify:** `npm --prefix clients/desktop-web run check`. Cameron also verifies the corresponding behavior scenarios in `addons/phase24-scope.md` and the P24.1 acceptance record.
 **Commit:** `P24.19: add the publish and export review sheet`
 **Batch:** B — continue automatically; stop at each new sheet/view for owner review
+
+**Implementation evidence:** Added ContentExportSheet through Components → Export content, with Player/Server selection, dated immutable revision history/paging, unpublished-change notice, optional version name, included files/byte size/optional-active status, exclusions and explicit incomplete publication/export consent. Current-content review is independent of historical reads, so unreadable current files or unavailable world inventory cannot hide existing frozen revisions. Publication approvals bind to exact candidate hashes; config/scripts require per-file review, unknown licenses require evidence and known restrictions remain blocked. Added read-only candidate metadata to publication reviews so owners do not calculate checksums or approve unseen path identities. Explicit world-slot datapack selection uses current exact inventory and evidence; no terrain/runtime/private data is selected. Player loader/version overrides are explicit where inference is insufficient. ZIP exports offer optional nested .mrpack only when the frozen revision is eligible, with reasons/warnings otherwise. Local saves use bounded native transfer even for remote hosts; host saves use the existing exports root and permission checks. Existing destination replacement binds to the hash the owner actually reviewed and requires renewed consent if the file changes. Real operations, progress/cancellation, staged-download cleanup, stale-review errors, old-agent messages and historical completeness are wired. Text guide fallback is labeled honestly; illustrated assets remain P24.20. Focused Clippy and frontend check/build passed with existing warnings. No tests, live publications/downloads, service repairs or releases were run; existing publication eligibility/identity safety source covers approval enforcement and was not duplicated for presentation. New export/publication surfaces remain pending final owner UI review.
 
 ### P24.20 — Bundle illustrated offline launcher instructions
 

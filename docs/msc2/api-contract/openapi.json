@@ -10947,6 +10947,7 @@
       "PublicationReviewResultDTO": {
         "type": "object",
         "properties": {
+          "candidates": {"type": "array", "items": {"type": "object", "properties": {"audience": {"type": "string"}, "path": {"type": "string"}, "sha512": {"type": "string"}, "byteSize": {"type": "integer", "format": "int64"}, "optional": {"type": "boolean"}, "configuration": {"type": "boolean"}, "restricted": {"type": "boolean"}, "redistributionEvidence": {"type": "string", "nullable": true}}}},
           "reviewId": {
             "type": "string"
           },

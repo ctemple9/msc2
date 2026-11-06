@@ -44,6 +44,19 @@ pub struct Request {
 }
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct Candidate {
+    pub audience: String,
+    pub path: String,
+    pub sha512: String,
+    pub byte_size: u64,
+    pub optional: bool,
+    pub configuration: bool,
+    pub restricted: bool,
+    pub redistribution_evidence: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Review {
     pub id: String,
     pub owner: String,
@@ -59,6 +72,8 @@ pub struct Review {
     pub player_setup: Option<crate::content_environment::PlayerSetup>,
     pub request: Request,
     pub files: Vec<PreparedPublicationFile>,
+    #[serde(default)]
+    pub candidates: Vec<Candidate>,
     pub issues: Vec<PublicationIssue>,
     pub exclusions: Vec<PublicationIssue>,
 }
@@ -260,6 +275,7 @@ pub fn prepare(
         )
     });
     let mut files = Vec::new();
+    let mut candidates = Vec::new();
     let mut issues = Vec::new();
     let mut exclusions = Vec::new();
     if audiences.contains("players") {
@@ -367,6 +383,20 @@ pub fn prepare(
                 ));
                 continue;
             }
+            candidates.push(Candidate {
+                audience: audience.into(),
+                path: path.clone(),
+                sha512: entry.sha512.clone(),
+                byte_size: entry.byte_size,
+                optional: entry.optional,
+                configuration: config(path),
+                restricted: entry
+                    .extra
+                    .get("providerDistributionAllowed")
+                    .and_then(serde_json::Value::as_bool)
+                    == Some(false),
+                redistribution_evidence: entry.redistribution_evidence.clone(),
+            });
             let key = scoped(audience, path)?;
             if audience == "players"
                 && path.starts_with("mods/")
@@ -600,6 +630,7 @@ pub fn prepare(
         player_setup,
         request,
         files,
+        candidates,
         issues,
         exclusions,
     };

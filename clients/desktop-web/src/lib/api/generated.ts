@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: 8b834f97b94d870ed17bce66e1e1921c93bdf314dd8daaa98523767c53d0857e
+// Contract SHA-256: 7977e30a88a81ac63cf853d9097848320995dba9a2414f5939ab183cd059dcdf
 
 export interface paths {
   '/v1/active-server': {
@@ -8982,6 +8982,7 @@ export interface components {
       contentMrpackExports?: boolean;
       contentPublications?: boolean;
       contentZipExports?: boolean;
+      incompatibleInstallReview?: boolean;
       packAcquisition: boolean;
       playerContentManagement?: boolean;
       playerContentRecovery?: boolean;
@@ -9152,6 +9153,11 @@ export interface components {
       [key: string]: unknown;
     };
     ContentInstallReviewDTO: {
+      /**
+       * @description Explicit consent for a setup mismatch of the exact selected root release. Required dependencies still target the selected server setup.
+       * @default false
+       */
+      allowIncompatible: boolean;
       collectionRevision: number;
       files: components['schemas']['ContentInstallFileDTO'][];
       provider: string;
@@ -9166,6 +9172,11 @@ export interface components {
       [key: string]: unknown;
     };
     ContentInstallReviewRequestDTO: {
+      /**
+       * @description Explicit consent for a setup mismatch of the exact selected root release. Required dependencies still target the selected server setup.
+       * @default false
+       */
+      allowIncompatible: boolean;
       projectId: number;
       /** @enum {string} */
       provider: 'curseforge';

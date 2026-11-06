@@ -56,6 +56,11 @@ export interface ScreenApi {
      * selected file's original name for exact filename validation. */
     options?: { operationId?: string; fileId?: string; fileName?: string },
   ): Promise<Schema['StagedUploadCompleteResultDTO']>;
+  uploadAdmittedFile?(
+    admission: Schema['StagedUploadBeginResultDTO'],
+    source: FileChunkSource,
+    options?: FileUploadOptions,
+  ): Promise<Schema['StagedUploadCompleteResultDTO']>;
   uploadFile?(
     purpose: Schema['StagedUploadBeginRequestDTO']['purpose'],
     source: FileChunkSource,

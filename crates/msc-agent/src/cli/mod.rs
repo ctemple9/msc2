@@ -27,29 +27,29 @@ use msc_api::dto::{
     BackupConfigUpdateResultDto, BackupDeleteRequestDto, BackupNowResultDto,
     BackupRestoreRequestDto, BackupRestoreResultDto, BackupsResponseDto, BedrockRuntimeStateDto,
     BroadcastAuthPromptDto, BroadcastAutoStartDto, BroadcastCredentialsDto,
-    BroadcastJarDownloadResultDto, BroadcastSimpleResultDto, BroadcastStatusDto, CapabilitiesDto,
-    CatalogInstallRequestDto, CatalogInstallResultDto, CatalogSearchResponseDto,
-    ClientExportResponseDto, CommandResultDto, ComponentUpdateRequestDto, ConnectivityResponseDto,
-    DuckDnsStatusResponseDto, DuckDnsUpdateRequestDto, ErrorDto, HealthProblemsResponseDto,
-    HealthRepairRequestDto, HealthRepairResultDto, HealthResponseDto, HostResetAcceptedDto,
-    JavaConfigResponseDto, JavaConfigSetRequestDto, JavaRuntimeInstallRequestDto,
-    JavaRuntimeInstallResultDto, JavaRuntimesResponseDto, ModpackImportRequestDto,
-    ModpackImportResultDto, ModpackInspectionRequestDto, ModpackInspectionResultDto,
-    ModpackManualFileRequestDto, ModpackManualFileResultDto, OperationDto, OperationStateDto,
-    PerformanceMetricNumberDto, PerformanceSnapshotDto, PlayitActionResultDto, PlayitStatusDto,
-    RemoteApiStatus, ResourcePackActivateRequestDto, ResourcePackMutationResultDto,
-    ResourcePacksResponseDto, ServerCreateRequestDto, ServerCreateResultDto,
-    ServerDeleteRequestDto, ServerDeleteResultDto, ServerDirectorySizeResponseDto, ServerDto,
-    ServerEulaRequestDto, ServerEulaResultDto, ServerImportRequestDto, ServerImportResultDto,
-    ServerImportScanResponseDto, ServerNotesRequestDto, ServerNotesResultDto,
-    ServerRenameRequestDto, ServerRenameResultDto, ServerTransferExportResultDto,
-    SettingsResponseDto, SettingsUpdateResultDto, SimpleResultDto, StagedUploadBeginRequestDto,
-    StagedUploadBeginResultDto, StagedUploadPurposeDto, VersionChangeRequestDto,
-    VersionChangeResultDto, VersionsResponseDto, WorldActivateResultDto, WorldConvertRequestDto,
-    WorldConvertResultDto, WorldCreateRequestDto, WorldDeleteRequestDto, WorldDuplicateRequestDto,
-    WorldExportRequestDto, WorldExportResultDto, WorldImportRequestDto, WorldMutationResultDto,
-    WorldRenameRequestDto, WorldReplaceActiveRequestDto, WorldReplaceActiveResultDto,
-    WorldReplaceRequestDto, WorldSlotDto, WorldSlotsResponseDto,
+    BroadcastJarDownloadResultDto, BroadcastSimpleResultDto, BroadcastStatusDto,
+    CapabilitiesResponseDto, CatalogInstallRequestDto, CatalogInstallResultDto,
+    CatalogSearchResponseDto, ClientExportResponseDto, CommandResultDto, ComponentUpdateRequestDto,
+    ConnectivityResponseDto, DuckDnsStatusResponseDto, DuckDnsUpdateRequestDto, ErrorDto,
+    HealthProblemsResponseDto, HealthRepairRequestDto, HealthRepairResultDto, HealthResponseDto,
+    HostResetAcceptedDto, JavaConfigResponseDto, JavaConfigSetRequestDto,
+    JavaRuntimeInstallRequestDto, JavaRuntimeInstallResultDto, JavaRuntimesResponseDto,
+    ModpackImportRequestDto, ModpackImportResultDto, ModpackInspectionRequestDto,
+    ModpackInspectionResultDto, ModpackManualFileRequestDto, ModpackManualFileResultDto,
+    OperationDto, OperationStateDto, PerformanceMetricNumberDto, PerformanceSnapshotDto,
+    PlayitActionResultDto, PlayitStatusDto, RemoteApiStatus, ResourcePackActivateRequestDto,
+    ResourcePackMutationResultDto, ResourcePacksResponseDto, ServerCreateRequestDto,
+    ServerCreateResultDto, ServerDeleteRequestDto, ServerDeleteResultDto,
+    ServerDirectorySizeResponseDto, ServerDto, ServerEulaRequestDto, ServerEulaResultDto,
+    ServerImportRequestDto, ServerImportResultDto, ServerImportScanResponseDto,
+    ServerNotesRequestDto, ServerNotesResultDto, ServerRenameRequestDto, ServerRenameResultDto,
+    ServerTransferExportResultDto, SettingsResponseDto, SettingsUpdateResultDto, SimpleResultDto,
+    StagedUploadBeginRequestDto, StagedUploadBeginResultDto, StagedUploadPurposeDto,
+    VersionChangeRequestDto, VersionChangeResultDto, VersionsResponseDto, WorldActivateResultDto,
+    WorldConvertRequestDto, WorldConvertResultDto, WorldCreateRequestDto, WorldDeleteRequestDto,
+    WorldDuplicateRequestDto, WorldExportRequestDto, WorldExportResultDto, WorldImportRequestDto,
+    WorldMutationResultDto, WorldRenameRequestDto, WorldReplaceActiveRequestDto,
+    WorldReplaceActiveResultDto, WorldReplaceRequestDto, WorldSlotDto, WorldSlotsResponseDto,
 };
 use msc_infrastructure::archive::create_zip_from_folders;
 use msc_infrastructure::console_buffer::ConsoleLine;
@@ -3585,10 +3585,11 @@ fn print_optional_metric(label: &str, metric: &Option<PerformanceMetricNumberDto
 
 async fn run_capabilities(common: CommonArgs) -> Result<(), CliError> {
     let client = ApiClient::connect_local().await?;
-    let result: CapabilitiesDto = client.get_json("/v1/capabilities").await?;
+    let response: CapabilitiesResponseDto = client.get_json("/v1/capabilities").await?;
     if common.json {
-        print_json(&result)
+        print_json(&response)
     } else {
+        let result = &response.base;
         println!(
             "agent: {} (API {}.{})",
             result.agent_version, result.api_major, result.api_minor

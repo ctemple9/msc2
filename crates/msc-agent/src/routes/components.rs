@@ -1021,6 +1021,11 @@ pub async fn upload_staged_bytes(
             "This staged upload has expired.",
         );
     }
+    if entry.provider_owner.is_some()
+        && let Some(response) = require_permission(&credential, PermissionCategoryDto::Addons)
+    {
+        return response;
+    }
     if entry.provider_owner.is_some() && entry.complete {
         return error_response(
             StatusCode::CONFLICT,
@@ -1104,6 +1109,11 @@ pub async fn upload_staged_chunk(
             "Unknown or already-redeemed staged upload.",
         );
     };
+    if entry.provider_owner.is_some()
+        && let Some(response) = require_permission(&credential, PermissionCategoryDto::Addons)
+    {
+        return response;
+    }
     if now_unix() > entry.expires_at_unix {
         uploads.remove(&id);
         return error_response(

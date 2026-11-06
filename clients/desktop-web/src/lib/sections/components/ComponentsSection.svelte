@@ -43,6 +43,7 @@
   import Menu from '../../components/base/Menu.svelte';
   import VersionPickerSheet from './VersionPickerSheet.svelte';
   import PluginBrowserSheet from './PluginBrowserSheet.svelte';
+  import ContentSourcesSheet from './ContentSourcesSheet.svelte';
   import PlayitSetupSheet from '../server-editor/PlayitSetupSheet.svelte';
   import ProjectDetailSheet from './ProjectDetailSheet.svelte';
   import { pickUploadSource, type UploadSource } from '../shared/upload-source';
@@ -151,6 +152,7 @@
 
   let showVersionPicker = false;
   let showBrowser = false;
+  let showContentSources = false;
   let componentActionMenu: { x: number; y: number } | undefined;
   let serverCardMenu: { x: number; y: number } | undefined;
   let broadcastMenu: { x: number; y: number } | undefined;
@@ -866,6 +868,11 @@
         onSelect: () => void openAddonFolder(),
       },
       {
+        label: 'Content sources and updates…',
+        disabled: !api || !activeServer,
+        onSelect: () => (showContentSources = true),
+      },
+      {
         label: 'Enable update checks',
         disabled: checkAddonUpdates,
         onSelect: () => void toggleAddonUpdateChecks(true),
@@ -984,6 +991,8 @@
 {#if showBrowser && kind}
   <PluginBrowserSheet
     {api}
+    {serverId}
+    serverName={activeServer?.name ?? ''}
     addOnKind={kind}
     javaFlavor={activeServer?.javaFlavor}
     serverMinecraftVersion={primaryComponent?.installedVersion}
@@ -1039,6 +1048,12 @@
     onComplete={installLocalAddon}
     onClose={() => (pendingAddonSource = undefined)}
   />
+{/if}
+
+{#if showContentSources && api}
+  {#key `${hostId}:${serverId}`}
+    <ContentSourcesSheet {api} {serverId} onClose={() => (showContentSources = false)} onChanged={() => void loadAddons()} />
+  {/key}
 {/if}
 
 <style>

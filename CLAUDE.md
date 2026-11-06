@@ -65,6 +65,8 @@ routine owner verification to checkpoints/final acceptance. It does not
 authorize tests, phase closure, release work, live destructive operations or
 unrelated changes. Plan revision alone does not start feature implementation.
 
+**Phase 24 final-review amendment (owner-approved 2026-11-05):** Cameron subsequently requested finishing the phase without intermediate UI stops and reviewing UI at the end. This supersedes the intermediate sheet/view approval requirement above. Continue in the execution ledger order, one commit per completed step, with all new surfaces recorded for final review. Test, release, live-operation and phase-closure restrictions remain in force.
+
 ## Modes
 
 Outside the Phase 22 and Phase 24 exceptions above, every prompt names one of these. Do only the named mode.

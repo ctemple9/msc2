@@ -161,6 +161,24 @@ pub fn review_curseforge_with_pins(
     context: ReviewContext<'_>,
     cancelled: &dyn Fn() -> bool,
 ) -> Result<InstallReview, AddonProviderError> {
+    review_curseforge_with_consent(
+        transport, secrets, project_id, file_id, context, false, cancelled,
+    )
+}
+
+/// Only the explicitly chosen root release may bypass a setup mismatch.
+/// Required dependencies still resolve against this server, and unavailable
+/// files/content-kind conflicts are never bypassed by compatibility consent.
+#[allow(clippy::too_many_arguments)]
+pub fn review_curseforge_with_consent(
+    transport: &dyn AddonTransport,
+    secrets: &dyn SecretStore,
+    project_id: u64,
+    file_id: u64,
+    context: ReviewContext<'_>,
+    allow_incompatible: bool,
+    cancelled: &dyn Fn() -> bool,
+) -> Result<InstallReview, AddonProviderError> {
     let flavor = context.flavor;
     let game_version = context.game_version;
     if flavor.add_on_kind().is_none() || game_version.is_empty() {
@@ -169,7 +187,11 @@ pub fn review_curseforge_with_pins(
         ));
     }
     let root = cf::release(transport, secrets, project_id, file_id)?;
-    if !compatible(&root, flavor, game_version) {
+    if !root.is_available {
+        return Err(invalid("Selected release is unavailable"));
+    }
+    let mismatched = !compatible(&root, flavor, game_version);
+    if mismatched && !allow_incompatible {
         return Err(invalid(
             "Selected release does not match the server's Minecraft version and loader",
         ));
@@ -178,6 +200,9 @@ pub fn review_curseforge_with_pins(
     let mut resolved = BTreeMap::<u64, InstallFile>::new();
     let mut requested = BTreeSet::from([project_id]);
     let mut warnings = Vec::new();
+    if mismatched {
+        warnings.push(format!("Owner accepted a Minecraft/loader mismatch for release {file_id}. Server setup remains {} {game_version}; required dependencies still target that setup. This release may fail to load.", flavor.raw_value()));
+    }
     while let Some((project_id, selected)) = queued.pop_front() {
         if cancelled() {
             return Err(invalid("Content review cancelled"));
@@ -303,6 +328,8 @@ pub fn review_curseforge_with_pins(
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StoredInstallReview {
+    #[serde(default)]
+    pub allow_incompatible: bool,
     pub id: String,
     pub owner: String,
     pub server_id: String,
@@ -924,6 +951,10 @@ pub fn activate(
                     ),
                     extra: {
                         let mut extra = previous.map_or_else(BTreeMap::new, |entry| entry.extra);
+                        extra.insert(
+                            "installMismatchConsent".into(),
+                            serde_json::json!(record.allow_incompatible),
+                        );
                         extra.insert(
                             "requiredProjects".into(),
                             serde_json::json!(file.required_projects),

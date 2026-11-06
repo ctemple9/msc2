@@ -2,7 +2,11 @@
 
 **Owner authorization:** 2026-11-05 request to revise the plan for autonomous
 looping, stopping for review of new sheets/views. This file prepares that
-workflow; feature implementation has not started.
+workflow. Current implementation and review state are recorded in the ledger.
+
+## Owner amendment — final UI review
+
+On 2026-11-05 Cameron instructed: “ill check the ui work at the end. finsh the phase without stopping”. This supersedes the intermediate UI approval stops below, including the pending manual-download surface. Continue all authorized Phase 24 implementation in the stated order, one commit per completed step. Record every new surface for the final owner review instead of waiting between surfaces. No tests, releases, destructive live changes or owner/independent phase-gate closure are authorized by this amendment. Missing owner screenshots remain an honest prerequisite gap, not permission to fabricate images.
 
 ## Plan review findings and corrections
 
@@ -126,22 +130,25 @@ commits per turn. Rolling-plan statuses and Git history remain the step record.
 
 | Field | Current value |
 |---|---|
-| Run state | executing — P24.21 implemented; autonomous execution active |
-| Current step | P24.11 |
-| Next action | Implement P24.11 existing-server provider discovery; stop at the first runnable new provider detail/review surface. |
-| Last implementation commit | P24.21: expose content and export operations in the cli |
-| Pending UI review | none |
-| Candidate base commit / changed files | P24.21 committed; next slice P24.11 |
-| Owner approval evidence | none |
-| Checks and outcomes | P24.21 focused Clippy, API generation/frontend check passed (10 existing CSS warnings); built CLI content --help succeeded. No tests run. P24.18 native/agent checks passed; physical acceptance deferred. |
-| External prerequisites | owner screenshots for P24.20; usable provider key/content for live acceptance |
+| Run state | Active — intermediate UI reviews deferred to final handoff by explicit owner amendment |
+| Current step | P24.12 |
+| Next action | P24.12: catalog packs and both-provider individual content staging during creation, compatibility/setup choices and staged-content conflicts. Continue without intermediate UI review stops. |
+| Last implementation commit | P24.11: browse both providers in desktop content screens |
+| Pending UI review | Deferred to final handoff: conditional manual-download exception and all subsequent new surfaces. Prior discovery/project-detail approvals remain recorded; no ordinary installation confirmation sheet exists. |
+| Candidate base commit / changed files | P24.11 commit contains the shared catalog/project browser, direct installation/manual-file handling, source/update sheet and supporting agent contract/download repairs. New P24.12 work follows this commit. |
+| Owner approval evidence | Cameron: “ui passes” for the revised CurseForge discovery browser, after requesting missing-key-only key entry/console links. Subsequent goal resume authorizes continuation, not approval of future install surfaces. Owner later requested compact CurseForge details to match Modrinth; density revised without treating the feedback as installation-sheet approval. Cameron then clarified both providers must use the same actual sheet; both now use ProjectDetailSheet with provider data adapted separately, and the duplicate CurseForge detail layout/CSS is removed. Cameron then said “ui passes” for that shared-sheet refactor. This approves project details. Cameron then explicitly rejected a routine CurseForge installation sheet because Modrinth has none; compatible Add/Install and explicit Install anyway now run directly. Backend preflight/review remains automatic; only required manual-file handling interrupts. This supersedes the prior routine-sheet review stop. |
+| Checks and outcomes | Direct-install frontend check/build passed. Owner-reported 302 download failure traced to redirects disabled in artifact acquisition; bounded validated CDN handoff added, API-key header limited to edge.forgecdn.net. Focused agent Clippy and native desktop check passed; new essential pure redirect-boundary test source added (<1ms expected), not run. Updated agent build/development staging succeeded. Cameron subsequently reported “nice it worked,” confirming the reported CurseForge Add/302 case. No tests or assistant-run live installations were performed; remaining installation scenarios and conditional manual-download UI review remain pending. |
+| External prerequisites | updated running agent for incompatible-release review (bundled binary ready; owner Repair agent action); owner screenshots for P24.20; usable provider key/content for live acceptance |
 | Deferred owner acceptance | all physical feature/platform scenarios |
 
 For each UI checkpoint add a row here, including navigation and approval evidence:
 
 | Surface | Step | Candidate and navigation | Status | Owner response |
 |---|---|---|---|---|
-| Expected new surfaces inventoried in P24.1 | P24.1 | not implemented | pending inventory | none |
+| CurseForge discovery mode | P24.11 | a14ff1cc + revised working tree; Components → Browse mods/plugins → either provider → project | approved — discovery and shared project details | Cameron: “ui passes” after replacing both provider detail layouts with the one shared ProjectDetailSheet |
+| Routine CurseForge installation confirmation | P24.11 | removed | cancelled by owner direction; no approval needed | Cameron: “there doesnt need to be a sheet, there isnt one for modrinth” |
+| Content sources and updates | P24.11 | Components → add-on menu → Content sources and updates; exact matching/linking, hints, checksum-bound update review and apply | implemented — final review pending | owner deferred UI review to phase end |
+| Required manual-download exception | P24.11 | Add/Install a release whose author requires a browser download; only then show ContentManualDownloadSheet | conditional exception only; awaiting owner review when exercised | none |
 
 Approval evidence records the owner's actual response and date, linked to the
 candidate; never infer approval from unrelated messages. Keep requested fixes

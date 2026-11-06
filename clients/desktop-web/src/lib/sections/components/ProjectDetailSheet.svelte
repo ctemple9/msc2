@@ -1,11 +1,8 @@
 <script lang="ts">
-  // Ports ModrinthProjectDetailView (ModrinthBrowserView.swift:316-785): the
-  // page a search result opens into -- gallery, full About text, and a
-  // per-version list scoped to this server's compatibility, with a specific
-  // build installable instead of always "latest". Needs the P12.7c routes
-  // (GET /v1/catalog/projects/:id[/versions]) and the CatalogInstallRequestDTO
-  // .versionId field; P12.7/P12.7a left this page undone since neither existed.
-  import { onMount } from 'svelte';
+  // Both providers render through this sheet. Provider transport and absent
+  // metadata are adapted before rendering so row spacing cannot drift.
+  import { loadCatalogProjectPage, type CatalogProvider } from './catalog-project';
+  import { onMount, onDestroy } from 'svelte';
   import { openExternal } from '../../platform';
   import Sheet from '../../components/base/Sheet.svelte';
   import Button from '../../components/base/Button.svelte';
@@ -16,7 +13,6 @@
   import { mutate } from '../shared/types';
   import {
     addonPaths,
-    catalogDetailPaths,
     collapseVersions,
     conflictCount,
     expandedLoaders,
@@ -28,11 +24,21 @@
     parseInlineMarkdown,
     pollOperation,
     sanitizeModrinthBody,
+    sanitizeCurseForgeBody,
     type ProjectDetailItem,
   } from './model';
 
   export let api: ScreenApi | undefined = undefined;
   export let item: ProjectDetailItem;
+  export let provider: CatalogProvider = 'modrinth';
+  export let installActionsAvailable = true;
+  export let incompatibleInstallAvailable = true;
+  export let onInstallProviderVersion:
+    | ((
+        version: Schema['CatalogVersionDTO'],
+        release: Schema['ProviderCatalogReleaseDTO'] | undefined,
+      ) => Promise<boolean>)
+    | undefined = undefined;
   export let javaFlavor: string | undefined = undefined;
   export let serverMinecraftVersion: string | undefined = undefined;
   export let onClose: () => void;
@@ -58,6 +64,32 @@
   let expandedVersionIds: Set<string> = new Set();
   let notice = '';
   let linkError: string | undefined;
+  const connection = api?.snapshot?.() ?? api;
+  let disposed = false;
+  let nextOffset: number | undefined;
+  let displayLimit = 40;
+  let loadingMore = false;
+  let followersKnown = false;
+  let serverSideKnown = false;
+  let distributionAllowed: boolean | null | undefined;
+  let releases = new Map<string, Schema['ProviderCatalogReleaseDTO']>();
+  $: providerName = provider === 'curseforge' ? 'CurseForge' : 'Modrinth';
+  const current = () => !disposed && connection?.isCurrent?.() !== false;
+  function compatible(version: Schema['CatalogVersionDTO']): boolean {
+    return (
+      isVersionCompatible(version, serverMinecraftVersion) &&
+      (provider === 'modrinth' ||
+        item.projectType === 'plugin' ||
+        (!!javaFlavor && version.loaders.includes(javaFlavor)))
+    );
+  }
+  function installDisabled(version: Schema['CatalogVersionDTO']): boolean {
+    if (!installActionsAvailable || (!compatible(version) && !incompatibleInstallAvailable))
+      return true;
+    if (provider !== 'curseforge') return false;
+    const release = releases.get(version.id);
+    return !onInstallProviderVersion || !release?.available || release.serverPack;
+  }
 
   $: allInstalledVersionIds = new Set([...knownInstalledVersionIds, ...installedVersionIds]);
   $: serverLoaders = new Set(modrinthLoaderFacets(javaFlavor));
@@ -67,14 +99,19 @@
     : versions;
   $: collapsed = collapseVersions(eligibleVersions, serverLoaders);
   $: visible = filterVisibleVersions(collapsed, { stableOnly, loaders: loaderFilter });
-  $: hasCompatibleVersion = eligibleVersions.some((v) => isVersionCompatible(v, serverMinecraftVersion));
-  $: aboutParagraphs = sanitizeModrinthBody(project?.body ?? item.description ?? '')
+  $: hasCompatibleVersion = eligibleVersions.some(compatible);
+  $: aboutParagraphs = (provider === 'curseforge' ? sanitizeCurseForgeBody : sanitizeModrinthBody)(
+    project?.body ?? item.description ?? '',
+  )
     .split('\n\n')
     .filter((p) => p.trim().length > 0);
   $: modrinthSlug = item.slug ?? project?.slug ?? item.projectId;
-  $: modrinthURL = item.projectType
-    ? `https://modrinth.com/${item.projectType}/${modrinthSlug}`
-    : `https://modrinth.com/project/${modrinthSlug}`;
+  $: projectURL =
+    provider === 'curseforge'
+      ? `https://www.curseforge.com/minecraft/${item.projectType === 'plugin' ? 'bukkit-plugins' : 'mc-mods'}/${encodeURIComponent(modrinthSlug)}`
+      : item.projectType
+        ? `https://modrinth.com/${item.projectType}/${modrinthSlug}`
+        : `https://modrinth.com/project/${modrinthSlug}`;
 
   async function openProjectLink(event: MouseEvent): Promise<void> {
     // Tauri links must use the OS browser opener rather than a new webview.
@@ -84,38 +121,76 @@
     try {
       await openExternal(url);
     } catch (error) {
-      linkError = error instanceof Error ? error.message : 'Could not open this link in your browser.';
+      linkError =
+        error instanceof Error ? error.message : 'Could not open this link in your browser.';
     }
   }
 
-  onMount(async () => {
-    if (!api) {
+  async function load(): Promise<void> {
+    if (!connection) {
       loading = false;
       errorText = 'Not connected to an agent.';
       return;
     }
+    loading = true;
+    errorText = undefined;
     try {
-      const [detail, versionsResponse] = await Promise.all([
-        api.get<Schema['CatalogProjectDetailDTO']>(catalogDetailPaths.project(item.projectId)),
-        api.get<Schema['CatalogVersionsResponseDTO']>(catalogDetailPaths.versions(item.projectId)),
-      ]);
-      project = detail;
-      versions = versionsResponse.versions ?? [];
-      // Projects like Geyser/Floodgate publish every build through the beta
-      // channel and never mark a version "release" -- stableOnly would hide
-      // everything, so turn it off automatically (load(), line 762-764).
+      const page = await loadCatalogProjectPage(connection, provider, item);
+      if (!current()) return;
+      project = page.project;
+      versions = page.versions;
+      releases = new Map(page.releases.map((release) => [release.version.id, release]));
+      nextOffset = page.nextOffset;
+      followersKnown = page.followersKnown;
+      serverSideKnown = page.serverSideKnown;
+      distributionAllowed = page.distributionAllowed;
       const eligible = requiredVersionLoader
         ? versions.filter((version) => version.loaders.includes(requiredVersionLoader!))
         : versions;
-      if (eligible.length > 0 && !eligible.some(isStableVersion)) {
-        stableOnly = false;
-      }
+      if (eligible.length && !eligible.some(isStableVersion)) stableOnly = false;
     } catch (error) {
-      errorText =
-        error instanceof Error ? error.message : "Couldn't load this project from Modrinth.";
+      if (current())
+        errorText =
+          error instanceof Error
+            ? error.message
+            : `Couldn't load this project from ${providerName}.`;
     } finally {
-      loading = false;
+      if (current()) loading = false;
     }
+  }
+  async function more(): Promise<void> {
+    if (visible.length > displayLimit) {
+      displayLimit += 40;
+      return;
+    }
+    if (!connection || nextOffset === undefined || loadingMore) return;
+    loadingMore = true;
+    try {
+      const page = await loadCatalogProjectPage(connection, provider, item, nextOffset);
+      if (!current()) return;
+      versions = [
+        ...new Map(
+          [...versions, ...page.versions].map((version) => [version.id, version]),
+        ).values(),
+      ];
+      releases = new Map([
+        ...releases,
+        ...page.releases.map((release) => [release.version.id, release] as const),
+      ]);
+      nextOffset = page.nextOffset;
+      displayLimit += 40;
+    } catch (error) {
+      if (current())
+        notice = error instanceof Error ? error.message : 'Could not load more versions.';
+    } finally {
+      if (current()) loadingMore = false;
+    }
+  }
+  onMount(() => {
+    void load();
+  });
+  onDestroy(() => {
+    disposed = true;
   });
 
   function toggleExpanded(versionId: string): void {
@@ -126,25 +201,46 @@
   }
 
   async function installVersion(version: Schema['CatalogVersionDTO']): Promise<void> {
+    if (installDisabled(version) || !current()) return;
+    if (onInstallProviderVersion) {
+      installingVersionId = version.id;
+      try {
+        const installed = await onInstallProviderVersion(version, releases.get(version.id));
+        if (current())
+          notice = installed
+            ? 'Installed — restart the server to apply.'
+            : 'Manual downloads are required to finish this installation.';
+      } catch (error) {
+        if (current()) notice = error instanceof Error ? error.message : 'Installation failed.';
+      } finally {
+        if (current()) installingVersionId = undefined;
+      }
+      return;
+    }
+
     if (mode === 'stage') {
       onStaged?.(version.id);
       installedVersionIds = new Set(installedVersionIds).add(version.id);
       return;
     }
-    if (!api && !onInstallVersion) return;
+    if (!connection && !onInstallVersion) return;
     installingVersionId = version.id;
     try {
       if (onInstallVersion) {
         notice = (await onInstallVersion(version)) ?? `${version.versionNumber} installed.`;
       } else {
-        const result = await mutate<Schema['CatalogInstallResultDTO']>(api!, addonPaths.install, {
-          projectId: item.projectId,
-          slug: item.slug ?? project?.slug,
-          title: item.title,
-          versionId: version.id,
-        });
+        const result = await mutate<Schema['CatalogInstallResultDTO']>(
+          connection!,
+          addonPaths.install,
+          {
+            projectId: item.projectId,
+            slug: item.slug ?? project?.slug,
+            title: item.title,
+            versionId: version.id,
+          },
+        );
         if (result.operationId) {
-          const operation = await pollOperation(api, result.operationId);
+          const operation = await pollOperation(connection, result.operationId);
           if (operation?.state !== 'succeeded') {
             throw new Error(operation?.error?.message ?? 'Installation did not complete.');
           }
@@ -153,6 +249,7 @@
           notice = result.message;
         }
       }
+      if (!current()) return;
       installedVersionIds = new Set(installedVersionIds).add(version.id);
       onInstalled(item.projectId);
     } catch (error) {
@@ -190,12 +287,14 @@
       {#if item.author}<p class="byline">by {item.author}</p>{/if}
       {#if project}
         <p class="stats">
-          {formatCount(project.downloads)} downloads · {formatCount(project.followers)} followers
+          {formatCount(project.downloads)} downloads{followersKnown
+            ? ` · ${formatCount(project.followers)} followers`
+            : ''}
         </p>
       {:else if item.downloads !== undefined}
         <p class="stats">{formatCount(item.downloads)} downloads</p>
       {/if}
-      {#if project}
+      {#if project && serverSideKnown}
         <Badge variant="status" tone={project.serverSide === 'unsupported' ? 'warn' : 'ok'}>
           {serverSideLabel(project.serverSide)}
         </Badge>
@@ -203,8 +302,14 @@
     </div>
   </div>
 
-  <a class="modrinth-link" href={modrinthURL} onclick={openProjectLink} target="_blank" rel="noopener noreferrer">
-    View on Modrinth
+  <a
+    class="provider-link"
+    href={projectURL}
+    onclick={openProjectLink}
+    target="_blank"
+    rel="noopener noreferrer"
+  >
+    View on {providerName}
   </a>
 
   {#if linkError}<p class="explain warn" role="alert">{linkError}</p>{/if}
@@ -214,12 +319,15 @@
     <p class="explain">Loading…</p>
   {:else if errorText}
     <p class="explain warn">{errorText}</p>
+    <Button size="sm" variant="secondary" onclick={() => void load()}>Retry</Button>
   {:else}
     {#if serverMinecraftVersion}
       <p class="compat" class:warn={!hasCompatibleVersion}>
         {hasCompatibleVersion
           ? `A version is available for your server (${serverMinecraftVersion}).`
-          : `No version yet for Minecraft ${serverMinecraftVersion}. You can still install another version below, at your own risk.`}
+          : nextOffset !== undefined
+            ? `No matching release in the loaded versions for Minecraft ${serverMinecraftVersion}. Load more versions or review another release below.`
+            : `No version yet for Minecraft ${serverMinecraftVersion}. You can still install another version below, at your own risk.`}
       </p>
     {:else if item.projectType === 'datapack'}
       <p class="compat warn">
@@ -228,6 +336,12 @@
       </p>
     {/if}
 
+    {#if distributionAllowed === false}
+      <p class="explain warn">
+        The provider restricts automatic downloads. The installation review will explain any manual
+        files required.
+      </p>
+    {/if}
     {#if project && project.gallery.length > 0}
       <div class="section">
         <h3>Gallery</h3>
@@ -248,7 +362,8 @@
               {#if segment.type === 'bold'}<strong>{segment.text}</strong
                 >{:else if segment.type === 'link'}<a
                   href={segment.href}
-                  onclick={openProjectLink} target="_blank"
+                  onclick={openProjectLink}
+                  target="_blank"
                   rel="noopener noreferrer">{segment.text}</a
                 >{:else}{segment.text}{/if}
             {/each}
@@ -278,8 +393,8 @@
         {/if}
       {:else}
         <div class="versions">
-          {#each visible.slice(0, 40) as version (version.id)}
-            {@const compatible = isVersionCompatible(version, serverMinecraftVersion)}
+          {#each visible.slice(0, displayLimit) as version (version.id)}
+            {@const matches = compatible(version)}
             {@const conflicts = conflictCount(version)}
             {@const isExpanded = expandedVersionIds.has(version.id)}
             <div class="version-row">
@@ -297,8 +412,8 @@
                     <Badge variant="status" tone={channelTone(version.versionType)}>
                       {version.versionType}
                     </Badge>
-                    <Badge variant="status" tone={compatible ? 'ok' : 'warn'}>
-                      {compatible
+                    <Badge variant="status" tone={matches ? 'ok' : 'warn'}>
+                      {matches
                         ? 'Compatible'
                         : serverMinecraftVersion
                           ? 'Other version'
@@ -322,11 +437,16 @@
               {:else if installingVersionId === version.id}
                 <span class="added">Installing…</span>
               {:else}
-                <Button size="sm" variant="secondary" onclick={() => void installVersion(version)}>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={installDisabled(version)}
+                  onclick={() => void installVersion(version)}
+                >
                   {#if mode === 'stage'}
-                    {compatible ? 'Add' : 'Add anyway'}
+                    {matches ? 'Add' : 'Add anyway'}
                   {:else}
-                    {compatible ? 'Install' : 'Install anyway'}
+                    {matches ? 'Install' : 'Install anyway'}
                   {/if}
                 </Button>
               {/if}
@@ -345,6 +465,14 @@
                     <span class="tag" class:highlight={gv === serverMinecraftVersion}>{gv}</span>
                   {/each}
                 </div>
+                {#if releases.has(version.id)}
+                  {@const release = releases.get(version.id)!}
+                  <p class="platforms">
+                    {release.available ? 'Available' : 'Unavailable'}{release.manualDownloadRequired
+                      ? ' · Author requires manual download'
+                      : ''}{release.serverPack ? ' · Server pack' : ''}
+                  </p>
+                {/if}
                 {#if version.loaders.length > 0}
                   <p class="platforms">
                     Platforms: {version.loaders
@@ -357,22 +485,39 @@
           {/each}
         </div>
       {/if}
+      {#if visible.length > displayLimit || nextOffset !== undefined}
+        <div class="more-versions">
+          <Button size="sm" variant="secondary" disabled={loadingMore} onclick={() => void more()}
+            >{loadingMore ? 'Loading…' : 'Show more versions'}</Button
+          >
+        </div>
+      {/if}
     </div>
 
     {#if project && (project.sourceURL || project.issuesURL || project.wikiURL || project.discordURL)}
       <div class="section links">
-        {#if project.sourceURL}<a href={project.sourceURL} onclick={openProjectLink} target="_blank" rel="noopener noreferrer"
-            >Source</a
+        {#if project.sourceURL}<a
+            href={project.sourceURL}
+            onclick={openProjectLink}
+            target="_blank"
+            rel="noopener noreferrer">Source</a
           >{/if}
-        {#if project.issuesURL}<a href={project.issuesURL} onclick={openProjectLink} target="_blank" rel="noopener noreferrer"
-            >Issues</a
+        {#if project.issuesURL}<a
+            href={project.issuesURL}
+            onclick={openProjectLink}
+            target="_blank"
+            rel="noopener noreferrer">Issues</a
           >{/if}
-        {#if project.wikiURL}<a href={project.wikiURL} onclick={openProjectLink} target="_blank" rel="noopener noreferrer"
-            >Wiki</a
+        {#if project.wikiURL}<a
+            href={project.wikiURL}
+            onclick={openProjectLink}
+            target="_blank"
+            rel="noopener noreferrer">Wiki</a
           >{/if}
         {#if project.discordURL}<a
             href={project.discordURL}
-            onclick={openProjectLink} target="_blank"
+            onclick={openProjectLink}
+            target="_blank"
             rel="noopener noreferrer">Discord</a
           >{/if}
       </div>
@@ -421,7 +566,7 @@
     font-size: 11px;
     color: var(--msc2-text-tertiary);
   }
-  .modrinth-link {
+  .provider-link {
     display: inline-flex;
     align-items: center;
     font-size: 12px;
@@ -434,7 +579,7 @@
     margin-bottom: 14px;
     text-decoration: none;
   }
-  .modrinth-link:hover {
+  .provider-link:hover {
     background: rgba(255, 255, 255, 0.06);
   }
   .notice {
@@ -512,6 +657,9 @@
   }
   .about a {
     color: rgba(255, 255, 255, 0.9);
+  }
+  .more-versions {
+    margin-top: 12px;
   }
   .versions {
     display: flex;

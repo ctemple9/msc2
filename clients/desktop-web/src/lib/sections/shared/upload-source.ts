@@ -31,6 +31,32 @@ export function guardUploadApi(api: ScreenApi, current: () => boolean): ScreenAp
     ...api,
     isCurrent: current,
     snapshot: () => guardUploadApi(api, current),
+    uploadAdmittedFile: api.uploadAdmittedFile
+      ? async (admission, source, options) => {
+          check();
+          const result = await api.uploadAdmittedFile!(
+            admission,
+            {
+              ...source,
+              readChunk: async (offset, maximum) => {
+                check();
+                const bytes = await source.readChunk(offset, maximum);
+                check();
+                return bytes;
+              },
+            },
+            {
+              ...options,
+              onProgress: (progress) => {
+                check();
+                options?.onProgress?.(progress);
+              },
+            },
+          );
+          check();
+          return result;
+        }
+      : undefined,
     get: async <T>(path: string) => {
       check();
       const result = await api.get<T>(path);

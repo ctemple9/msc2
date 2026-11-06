@@ -18,6 +18,7 @@
   // in for an informational element). A flat neutral placeholder tile
   // covers projects with no icon, same shape as ModrinthBrowserView's own
   // `Color.secondary.opacity(0.15)` fallback.
+  import ProviderCatalogBrowser from './ProviderCatalogBrowser.svelte';
   import Sheet from '../../components/base/Sheet.svelte';
   import Button from '../../components/base/Button.svelte';
   import Field from '../../components/base/Field.svelte';
@@ -29,6 +30,8 @@
   import { mutate } from '../shared/types';
   import { addonPaths, formatCount, pollOperation } from './model';
 
+  export let serverId = '';
+  export let serverName = '';
   export let api: ScreenApi | undefined = undefined;
   export let addOnKind: 'mod' | 'plugin' = 'plugin';
   export let javaFlavor: string | undefined = undefined;
@@ -55,6 +58,7 @@
     ((item: Schema['CatalogItemDTO'], versionId: string | undefined) => void) | undefined =
     undefined;
 
+  let provider: 'modrinth' | 'curseforge' = 'modrinth';
   let detailItem: Schema['CatalogItemDTO'] | undefined;
 
   const noun = addOnKind === 'mod' ? 'mods' : 'plugins';
@@ -154,61 +158,96 @@
 </script>
 
 <Sheet title={`Browse ${noun}`} size="lg" {onClose}>
-  <div class="header">
-    <Field bind:value={query} placeholder={`Search ${noun}…`} />
-    <p class="subtitle">Modrinth{subtitle ? ` · ${subtitle}` : ''}</p>
-  </div>
-  {#if notice}<p class="notice" role="status">{notice}</p>{/if}
-
-  {#if !supportsAddons}
-    <EmptyState title={`This server doesn't accept ${noun}`}>
-      <Icon name="box" size={26} slot="icon" />
-    </EmptyState>
-  {:else if loading && results.length === 0}
-    <p class="explain">Searching…</p>
-  {:else if results.length === 0}
-    <EmptyState
-      title={note ?? `No ${noun} found`}
-      message={note ? undefined : 'Try a different search term.'}
-    >
-      <Icon name="box" size={26} slot="icon" />
-    </EmptyState>
-  {:else}
-    <div class="results">
-      {#each results as item (item.projectId)}
-        <div class="result">
-          <button type="button" class="result-link" onclick={() => (detailItem = item)}>
-            <div class="icon">
-              {#if item.iconURL}
-                <img src={item.iconURL} alt="" width="40" height="40" loading="lazy" />
-              {:else}
-                <Icon name="box" size={18} />
-              {/if}
-            </div>
-            <div class="info">
-              <div class="title-row">
-                <span class="title">{item.title}</span>
-                {#if item.isClientOnly}<Badge variant="status" tone="warn">Client-only</Badge>{/if}
-                <Icon name="chevron" size={10} />
-              </div>
-              <p class="meta">by {item.author} · {formatCount(item.downloads)} downloads</p>
-              <p class="description">{item.description}</p>
-            </div>
-          </button>
-          {#if installed.has(item.projectId)}
-            <span class="added">Added</span>
-          {:else if installing.has(item.projectId)}
-            <span class="added">Installing…</span>
-          {:else}
-            <Button size="sm" variant="secondary" onclick={() => void install(item)}>Add</Button>
-          {/if}
-        </div>
-      {/each}
+  {#if mode === 'install'}
+    <div class="providers" role="group" aria-label="Content provider">
+      <button
+        type="button"
+        class:chosen={provider === 'modrinth'}
+        aria-pressed={provider === 'modrinth'}
+        onclick={() => {
+          provider = 'modrinth';
+          detailItem = undefined;
+        }}>Modrinth</button
+      >
+      <button
+        type="button"
+        class:chosen={provider === 'curseforge'}
+        aria-pressed={provider === 'curseforge'}
+        onclick={() => {
+          provider = 'curseforge';
+          detailItem = undefined;
+        }}>CurseForge</button
+      >
     </div>
+  {/if}
+  {#if provider === 'curseforge'}
+    <ProviderCatalogBrowser
+      {api}
+      kind={addOnKind}
+      {javaFlavor}
+      minecraftVersion={serverMinecraftVersion}
+      {serverId}
+      {serverName}
+      {onInstalled}
+    />
+  {:else}
+    <div class="header">
+      <Field bind:value={query} placeholder={`Search ${noun}…`} />
+      <p class="subtitle">Modrinth{subtitle ? ` · ${subtitle}` : ''}</p>
+    </div>
+    {#if notice}<p class="notice" role="status">{notice}</p>{/if}
+
+    {#if !supportsAddons}
+      <EmptyState title={`This server doesn't accept ${noun}`}>
+        <Icon name="box" size={26} slot="icon" />
+      </EmptyState>
+    {:else if loading && results.length === 0}
+      <p class="explain">Searching…</p>
+    {:else if results.length === 0}
+      <EmptyState
+        title={note ?? `No ${noun} found`}
+        message={note ? undefined : 'Try a different search term.'}
+      >
+        <Icon name="box" size={26} slot="icon" />
+      </EmptyState>
+    {:else}
+      <div class="results">
+        {#each results as item (item.projectId)}
+          <div class="result">
+            <button type="button" class="result-link" onclick={() => (detailItem = item)}>
+              <div class="icon">
+                {#if item.iconURL}
+                  <img src={item.iconURL} alt="" width="40" height="40" loading="lazy" />
+                {:else}
+                  <Icon name="box" size={18} />
+                {/if}
+              </div>
+              <div class="info">
+                <div class="title-row">
+                  <span class="title">{item.title}</span>
+                  {#if item.isClientOnly}<Badge variant="status" tone="warn">Client-only</Badge
+                    >{/if}
+                  <Icon name="chevron" size={10} />
+                </div>
+                <p class="meta">by {item.author} · {formatCount(item.downloads)} downloads</p>
+                <p class="description">{item.description}</p>
+              </div>
+            </button>
+            {#if installed.has(item.projectId)}
+              <span class="added">Added</span>
+            {:else if installing.has(item.projectId)}
+              <span class="added">Installing…</span>
+            {:else}
+              <Button size="sm" variant="secondary" onclick={() => void install(item)}>Add</Button>
+            {/if}
+          </div>
+        {/each}
+      </div>
+    {/if}
   {/if}
 </Sheet>
 
-{#if detailItem}
+{#if detailItem && provider === 'modrinth'}
   <ProjectDetailSheet
     {api}
     item={detailItem}
@@ -222,6 +261,32 @@
 {/if}
 
 <style>
+  .providers {
+    display: flex;
+    gap: 20px;
+    margin-bottom: 18px;
+    border-bottom: 1px solid var(--msc2-hairline-subtle);
+  }
+  .providers button {
+    padding: 0 0 10px;
+    background: none;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    color: var(--msc2-text-tertiary);
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .providers button.chosen {
+    border-bottom-color: var(--msc2-selection);
+    color: var(--msc2-text-primary);
+    font-weight: 500;
+  }
+  .providers button:focus-visible {
+    outline: 2px solid var(--msc2-selection);
+    outline-offset: 3px;
+  }
+
   .header {
     display: flex;
     flex-direction: column;

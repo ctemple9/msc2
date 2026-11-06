@@ -61,6 +61,8 @@ pub struct ContentCatalogCapabilityDto {
     #[serde(default)]
     pub reviewed_installs: Vec<String>,
     #[serde(default)]
+    pub incompatible_install_review: bool,
+    #[serde(default)]
     pub source_identification: Vec<String>,
     #[serde(default)]
     pub reviewed_updates: Vec<String>,
@@ -87,6 +89,8 @@ pub struct ContentCatalogCapabilityDto {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ContentInstallReviewRequestDto {
+    #[serde(default)]
+    pub allow_incompatible: bool,
     pub provider: String,
     pub project_id: u64,
     pub version_id: u64,
@@ -110,6 +114,8 @@ pub struct ContentInstallFileDto {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ContentInstallReviewDto {
+    #[serde(default)]
+    pub allow_incompatible: bool,
     pub review_id: String,
     pub server_id: String,
     pub provider: String,

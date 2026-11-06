@@ -47,6 +47,8 @@ provider project/release identities:
 {"provider":"curseforge","projectId":123,"versionId":456}
 ```
 
+An explicit incompatible root release can be reviewed by adding `"allowIncompatible":true` to the install-review request when the agent advertises `incompatibleInstallReview`. The exact chosen root remains pinned; required dependencies still target the server setup and unavailable files/declared conflicts remain blocked.
+
 Inspect the returned files, required dependencies, warnings and replacements.
 The install/apply JSON then names that exact review:
 

@@ -156,14 +156,19 @@ export class ApiClient {
     serverId: string,
     relativePath: string,
   ): Promise<components['schemas']['ContentHostDestinationResultDTO']> {
-    return this.requestJson('GET', `/v1/servers/${encodeURIComponent(serverId)}/content/export-destination?path=${encodeURIComponent(relativePath)}`);
+    return this.requestJson(
+      'GET',
+      `/v1/servers/${encodeURIComponent(serverId)}/content/export-destination?path=${encodeURIComponent(relativePath)}`,
+    );
   }
 
   async exportContentPublication(
     serverId: string,
     request: components['schemas']['ContentExportRequestDTO'],
   ): Promise<{ operationId: string }> {
-    return this.requestJson('POST', `/v1/servers/${encodeURIComponent(serverId)}/content/exports`, { body: request });
+    return this.requestJson('POST', `/v1/servers/${encodeURIComponent(serverId)}/content/exports`, {
+      body: request,
+    });
   }
 
   /** Transfer a completed export through the native save picker, including
@@ -173,7 +178,12 @@ export class ApiClient {
     options: NativeUploadOptions = {},
   ): Promise<NativeDownloadResult> {
     const result = operation.result as Record<string, unknown> | null | undefined;
-    if (operation.type !== 'content-export' || operation.state !== 'succeeded' || typeof result?.stagedDownloadId !== 'string' || typeof result.fileName !== 'string')
+    if (
+      operation.type !== 'content-export' ||
+      operation.state !== 'succeeded' ||
+      typeof result?.stagedDownloadId !== 'string' ||
+      typeof result.fileName !== 'string'
+    )
       throw new Error('Wait for a completed staged content export before saving.');
     const bytes = Number(result.byteSize);
     if (!Number.isSafeInteger(bytes) || bytes <= 0)
@@ -244,10 +254,40 @@ export class ApiClient {
     );
   }
 
+  async uploadAdmittedFromFile(
+    admitted: components['schemas']['StagedUploadBeginResultDTO'],
+    source: FileChunkSource,
+    options: FileUploadOptions = {},
+  ): Promise<components['schemas']['StagedUploadCompleteResultDTO']> {
+    if (
+      !/^[0-9a-f-]{36}$/i.test(admitted.stagedUploadId) ||
+      admitted.uploadPath !== `/v1/staged-uploads/${admitted.stagedUploadId}`
+    )
+      throw new Error('The agent returned an unrelated file admission.');
+    try {
+      return await this.stagedUploadFromFile(
+        { purpose: 'curseforge-manual-file' },
+        source,
+        options,
+        admitted,
+      );
+    } catch (error) {
+      try {
+        await this.cancelStagedUpload(admitted.stagedUploadId);
+      } catch {
+        throw new Error(
+          `${error instanceof Error ? error.message : String(error)} Partial file cleanup could not be confirmed.`,
+        );
+      }
+      throw error;
+    }
+  }
+
   async stagedUploadFromFile(
     request: components['schemas']['StagedUploadBeginRequestDTO'],
     source: FileChunkSource,
     options: FileUploadOptions = {},
+    admitted?: components['schemas']['StagedUploadBeginResultDTO'],
   ): Promise<components['schemas']['StagedUploadCompleteResultDTO']> {
     if (!Number.isSafeInteger(source.size) || source.size <= 0) {
       throw new Error('The selected file has an invalid size.');
@@ -278,7 +318,8 @@ export class ApiClient {
     signal?.addEventListener('abort', cleanupOnAbort, { once: true });
     try {
       onProgress?.({ phase: 'preparing', bytesUploaded: 0, totalBytes: source.size });
-      const activeSlot = await this.beginUpload({ ...request, expectedBytes: source.size });
+      const activeSlot =
+        admitted ?? (await this.beginUpload({ ...request, expectedBytes: source.size }));
       slot = activeSlot;
       if (signal?.aborted) throw new UploadCancelledError();
       if (

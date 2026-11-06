@@ -142,3 +142,13 @@ Source inspection establishes the inventory, not provider behavior. Current
 provider/launcher evidence sources and limitations are in phase24-scope.md.
 Live credentialed access, actual launcher installs, platform recovery and memory
 behavior remain owner acceptance items; no network success is claimed here.
+
+## Owner clarification — individual install interaction
+
+Ordinary CurseForge mod/plugin Add and Install actions match Modrinth: resolve
+and install without a separate routine confirmation sheet. The agent still
+prepares and validates its pinned dependency review internally before applying
+files. Clicking Install anyway supplies explicit setup-mismatch consent. Only
+required manual-download file handling interrupts the normal flow; conflicts
+remain actionable failures. This owner direction does not remove content
+publication/export eligibility, pack conflict or other specified review flows.

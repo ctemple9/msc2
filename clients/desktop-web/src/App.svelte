@@ -435,6 +435,8 @@
       resourceUrl: (path: string) => currentClient().resourceUrl(path),
       upload: (purpose, bytes, options) =>
         currentClient().stagedUpload({ purpose, ...options }, bytes),
+      uploadAdmittedFile: (admission, source, options) =>
+        currentClient().uploadAdmittedFromFile(admission, source, options),
       uploadFile: (purpose, source, options) => {
         const { onProgress, chunkSizeBytes, signal, ...uploadOptions } = options ?? {};
         return currentClient().stagedUploadFromFile({ purpose, ...uploadOptions }, source, {

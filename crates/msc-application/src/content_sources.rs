@@ -629,6 +629,7 @@ pub fn review_update(
         "Replace {original}; preserve the selected file's enabled/disabled state"
     ));
     let record = StoredInstallReview {
+        allow_incompatible: false,
         id: uuid::Uuid::new_v4().to_string(),
         owner: owner.into(),
         server_id: server.id.clone(),

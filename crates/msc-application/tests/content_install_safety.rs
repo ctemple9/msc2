@@ -36,6 +36,7 @@ fn fixture() -> (Fixture, ConfigServer, StoredInstallReview) {
     zip.write_all(b"{}").unwrap();
     let bytes = zip.finish().unwrap().into_inner();
     let record = StoredInstallReview {
+        allow_incompatible: false,
         id: uuid::Uuid::new_v4().to_string(),
         owner: "owner".into(),
         server_id: server.id.clone(),

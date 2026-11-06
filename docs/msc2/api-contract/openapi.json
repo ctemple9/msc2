@@ -12174,6 +12174,11 @@
           "versionId": {
             "type": "integer",
             "minimum": 1
+          },
+          "allowIncompatible": {
+            "type": "boolean",
+            "default": false,
+            "description": "Explicit consent for a setup mismatch of the exact selected root release. Required dependencies still target the selected server setup."
           }
         },
         "required": [
@@ -12272,6 +12277,11 @@
               "type": "string"
             },
             "description": "Reviewed original-to-target filenames; originals remain in protected rollback storage until activation commits."
+          },
+          "allowIncompatible": {
+            "type": "boolean",
+            "default": false,
+            "description": "Explicit consent for a setup mismatch of the exact selected root release. Required dependencies still target the selected server setup."
           }
         },
         "required": [
@@ -12457,15 +12467,33 @@
       "ContentCatalogCapabilityDTO": {
         "type": "object",
         "properties": {
-          "contentZipExports": { "type": "boolean" },
-          "contentMrpackExports": { "type": "boolean" },
-          "contentHostSaves": { "type": "boolean" },
-          "contentPublications": { "type": "boolean" },
-          "reviewedPackReplacement": { "type": "boolean" },
-          "reviewedPackUpdates": { "type": "boolean" },
-          "playerContentRecovery": { "type": "boolean" },
-          "playerContentManagement": { "type": "boolean" },
-          "retainedPackRecovery": { "type": "boolean" },
+          "contentZipExports": {
+            "type": "boolean"
+          },
+          "contentMrpackExports": {
+            "type": "boolean"
+          },
+          "contentHostSaves": {
+            "type": "boolean"
+          },
+          "contentPublications": {
+            "type": "boolean"
+          },
+          "reviewedPackReplacement": {
+            "type": "boolean"
+          },
+          "reviewedPackUpdates": {
+            "type": "boolean"
+          },
+          "playerContentRecovery": {
+            "type": "boolean"
+          },
+          "playerContentManagement": {
+            "type": "boolean"
+          },
+          "retainedPackRecovery": {
+            "type": "boolean"
+          },
           "protocol": {
             "type": "integer",
             "minimum": 0
@@ -12496,6 +12524,9 @@
             "items": {
               "type": "string"
             }
+          },
+          "incompatibleInstallReview": {
+            "type": "boolean"
           }
         },
         "required": [

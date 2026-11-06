@@ -85,8 +85,55 @@ pub fn resolve(
     }
 }
 
-/// Write a new file in an agent-controlled staging directory. No redirect
-/// carries credentials, and no partial output is published under destination.
+fn validate_download_url(
+    provider: &str,
+    url: &url::Url,
+    redirect: bool,
+) -> Result<(), AddonProviderError> {
+    let host = url.host_str().unwrap_or("");
+    let trusted = match provider {
+        "modrinth" => host == "cdn.modrinth.com",
+        "curseforge" => host == "forgecdn.net" || host.ends_with(".forgecdn.net"),
+        _ => false,
+    };
+    if !trusted
+        || url.scheme() != "https"
+        || !url.username().is_empty()
+        || url.password().is_some()
+        || url.port().is_some_and(|port| port != 443)
+        || url.fragment().is_some()
+        || (!redirect && url.query().is_some())
+        || url.query_pairs().any(|(key, _)| {
+            matches!(
+                key.to_ascii_lowercase().as_str(),
+                "api-key" | "x-api-key" | "apikey"
+            )
+        })
+    {
+        return Err(AddonProviderError::InvalidDirectUrl);
+    }
+    Ok(())
+}
+fn redirect_url(
+    provider: &str,
+    current: &url::Url,
+    location: &str,
+) -> Result<url::Url, AddonProviderError> {
+    let next = current
+        .join(location)
+        .map_err(|_| failure("Invalid provider redirect URL"))?;
+    validate_download_url(provider, &next, true)?;
+    Ok(next)
+}
+fn needs_curseforge_key(url: &url::Url) -> bool {
+    // CurseForge documents API-key authentication for edge.forgecdn.net.
+    // A redirected storage endpoint never inherits a custom credential header.
+    url.host_str() == Some("edge.forgecdn.net")
+}
+
+/// Write a new file in agent-owned staging. Every redirect is validated before
+/// issuing its request, and credentials are recomputed for the approved auth
+/// endpoint rather than blindly forwarded by the HTTP client.
 pub fn acquire(
     artifact: &Artifact,
     secrets: &dyn SecretStore,
@@ -94,26 +141,9 @@ pub fn acquire(
     max_bytes: u64,
     cancelled: &dyn Fn() -> bool,
 ) -> Result<u64, AddonProviderError> {
-    let uri: ureq::http::Uri = artifact
-        .url
-        .parse()
-        .map_err(|_| failure("Invalid provider download URL"))?;
-    let host = uri.host().unwrap_or("").to_ascii_lowercase();
-    let trusted = match artifact.provider {
-        "modrinth" => host == "cdn.modrinth.com",
-        "curseforge" => host == "forgecdn.net" || host.ends_with(".forgecdn.net"),
-        _ => false,
-    };
-    if !trusted
-        || uri.scheme_str() != Some("https")
-        || uri
-            .authority()
-            .is_some_and(|value| value.as_str().contains('@'))
-        || uri.port_u16().is_some_and(|port| port != 443)
-        || uri.query().is_some()
-    {
-        return Err(AddonProviderError::InvalidDirectUrl);
-    }
+    let initial_url =
+        url::Url::parse(&artifact.url).map_err(|_| failure("Invalid provider download URL"))?;
+    validate_download_url(artifact.provider, &initial_url, false)?;
     msc_domain::content_collection::validate_relative_path(&artifact.file_name).map_err(failure)?;
     if artifact.file_name.contains('/') || artifact.size == 0 || artifact.size > max_bytes {
         return Err(failure("Invalid provider artifact name or byte size"));
@@ -157,20 +187,52 @@ pub fn acquire(
                 .http_status_as_error(false)
                 .build()
                 .into();
-            let mut request = agent.get(&artifact.url).header("User-Agent", USER_AGENT);
-            if artifact.provider == "curseforge" {
-                let key = super::curseforge_api_key(secrets)?;
-                request = request.header("x-api-key", &key);
-            }
-            let mut response = request
-                .call()
-                .map_err(|_| failure("Provider artifact request failed"))?;
-            let status = response.status().as_u16();
-            if artifact.provider == "curseforge" {
-                msc_domain::addon_provider::ensure_curseforge_ok(status)?;
-            } else {
-                msc_domain::addon_provider::ensure_modrinth_ok(status)?;
-            }
+            let deadline = std::time::Instant::now() + Duration::from_secs(30 * 60);
+            let mut current_url = initial_url;
+            let mut redirects = 0;
+            let mut response = loop {
+                if cancelled() {
+                    return Err(failure("Artifact acquisition cancelled"));
+                }
+                let remaining = deadline
+                    .checked_duration_since(std::time::Instant::now())
+                    .ok_or_else(|| failure("Provider artifact request timed out"))?;
+                let mut request = agent
+                    .get(current_url.as_str())
+                    .header("User-Agent", USER_AGENT);
+                if artifact.provider == "curseforge" && needs_curseforge_key(&current_url) {
+                    let key = super::curseforge_api_key(secrets)?;
+                    request = request.header("x-api-key", &key);
+                }
+                let response = request
+                    .config()
+                    .timeout_global(Some(remaining))
+                    .build()
+                    .call()
+                    .map_err(|_| failure("Provider artifact request failed"))?;
+                let status = response.status().as_u16();
+                if matches!(status, 301 | 302 | 303 | 307 | 308) {
+                    if redirects >= 5 {
+                        return Err(failure("Provider artifact exceeded five redirects"));
+                    }
+                    let location = response
+                        .headers()
+                        .get("location")
+                        .and_then(|header| header.to_str().ok())
+                        .ok_or_else(|| {
+                            failure("Provider artifact redirect has no valid destination")
+                        })?;
+                    current_url = redirect_url(artifact.provider, &current_url, location)?;
+                    redirects += 1;
+                    continue;
+                }
+                if artifact.provider == "curseforge" {
+                    msc_domain::addon_provider::ensure_curseforge_ok(status)?;
+                } else {
+                    msc_domain::addon_provider::ensure_modrinth_ok(status)?;
+                }
+                break response;
+            };
             let mut input = response.body_mut().as_reader();
             let mut sha1 = sha1::Sha1::new();
             let mut sha512 = Sha512::new();
@@ -222,4 +284,48 @@ pub fn acquire(
     drop(output);
     let _ = std::fs::remove_file(temp);
     result
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    // Essential: the 302 fix must allow CDN handoff without forwarding API
+    // keys to storage or permitting a redirect to another origin. Pure URL
+    // inputs, no network/files/timing; expected <1ms. Not run by default.
+    #[test]
+    fn artifact_redirects_preserve_origin_and_credential_boundaries() {
+        let edge = url::Url::parse("https://edge.forgecdn.net/files/123/456/mod.jar").unwrap();
+        assert!(needs_curseforge_key(&edge));
+        let storage = redirect_url(
+            "curseforge",
+            &edge,
+            "https://mediafilez.forgecdn.net/files/123/456/mod.jar",
+        )
+        .unwrap();
+        assert!(!needs_curseforge_key(&storage));
+        assert_eq!(
+            redirect_url("curseforge", &storage, "../456/other.jar")
+                .unwrap()
+                .path(),
+            "/files/123/456/other.jar"
+        );
+        for target in [
+            "https://forgecdn.net.example.com/mod.jar",
+            "https://example.com/mod.jar",
+            "http://edge.forgecdn.net/mod.jar",
+            "https://user:secret@edge.forgecdn.net/mod.jar",
+            "https://edge.forgecdn.net:8443/mod.jar",
+            "https://mediafilez.forgecdn.net/mod.jar?api-key=secret",
+        ] {
+            assert!(redirect_url("curseforge", &edge, target).is_err());
+        }
+        assert!(
+            redirect_url(
+                "modrinth",
+                &url::Url::parse("https://cdn.modrinth.com/a.jar").unwrap(),
+                edge.as_str()
+            )
+            .is_err()
+        );
+    }
 }

@@ -24,6 +24,7 @@ pub(super) fn selected(
 
 pub(super) fn public_review(record: service::StoredInstallReview) -> ContentInstallReviewDto {
     ContentInstallReviewDto {
+        allow_incompatible: record.allow_incompatible,
         review_id: record.id,
         server_id: record.server_id,
         provider: record.review.provider,
@@ -93,8 +94,8 @@ pub(super) async fn review(
         let secrets = production_secret_store().map_err(|_| "Provider secret storage unavailable".to_string())?;
         let version = server.minecraft_version.clone().ok_or("Select an exact Minecraft version")?;
         let pins = msc_application::content_sources::verified_pins(&server)?;
-        let mut review = service::review_curseforge_with_pins(&HttpTransport::new(), secrets.as_ref(), body.project_id,
-            body.version_id, service::ReviewContext { flavor: server.java_flavor, game_version: &version, installed: &pins },
+        let mut review = service::review_curseforge_with_consent(&HttpTransport::new(), secrets.as_ref(), body.project_id,
+            body.version_id, service::ReviewContext { flavor: server.java_flavor, game_version: &version, installed: &pins }, body.allow_incompatible,
             &|| review_cancel() || !auth.stream_retains_permissions(&identity)).map_err(|error| error.to_string())?;
         if let Some(collection) = &server.content_collection {
             for file in &review.files {
@@ -114,6 +115,7 @@ pub(super) async fn review(
         let fresh = selected(&state, &server_id).map_err(|_| "Server selection or state changed".to_string())?;
         if fresh != server || service::content_baseline(&fresh)? != baseline { return Err("Server changed during review".into()); }
         let record = service::StoredInstallReview {
+            allow_incompatible: body.allow_incompatible,
             id: Uuid::new_v4().to_string(), owner: credential.credential_id,
             server_id, server_dir: server.server_dir, minecraft_version: version,
             flavor: server.java_flavor.raw_value().into(), created_unix: now_unix(),

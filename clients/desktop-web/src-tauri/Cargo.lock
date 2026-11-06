@@ -2327,10 +2327,13 @@ dependencies = [
 name = "msc-application"
 version = "0.1.0"
 dependencies = [
+ "fs2",
  "msc-domain",
  "msc-infrastructure",
  "serde",
  "serde_json",
+ "sha1",
+ "sha2",
  "uuid",
  "zip",
 ]
@@ -2361,10 +2364,12 @@ dependencies = [
  "rusty-leveldb",
  "serde",
  "serde_json",
+ "sha1",
  "sha2",
  "sysinfo",
  "tar",
  "ureq",
+ "url",
  "windows-sys 0.61.2",
  "zip",
 ]

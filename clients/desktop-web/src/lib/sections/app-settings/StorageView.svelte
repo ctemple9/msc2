@@ -915,6 +915,13 @@
       </section>
     {:else}
       <p class="measured">{size(total(visibleItems))} <span>logical size</span></p>
+      {#if visibleItems.some((item) => item.displayPath?.includes('.msc2-content'))}
+        <p class="footnote">
+          Original packs, separate player content and published revisions keep their own copies.
+          These bytes preserve recovery and dated exports. Active, referenced and unknown content
+          stays protected; expired transfer files can be reviewed under Cache &amp; temporary files.
+        </p>
+      {/if}
       {#each visibleItems as item (item.id)}{@const namedEntry =
           category === 'desktopApp'
             ? desktopAppEntry(item)

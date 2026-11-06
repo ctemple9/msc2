@@ -430,3 +430,32 @@ The additive schema generator now includes the final field of every Rust DTO.
 Earlier map cleanup keeps `StorageCleanupRequestDTO`/`StorageCleanupResultDTO`;
 the reviewed protocol uses `StorageReviewedCleanupRequestDTO` and
 `StorageReviewedResultDTO` to preserve that compatibility.
+
+## Phase 24 content accounting
+
+Registered server roots split `.msc2-content` into original packs, separate player
+content, immutable publication revisions, review/registry metadata, activation
+rollback and publication datapack staging. Completed files in the server's
+`exports/` folder are protected user files. Independent copies consume independent
+bytes; filesystem hard links remain deduplicated by the existing scanner. Parent
+buckets exclude their classified child bytes. Staging/rollback is attributed to
+Cache, with the server identity retained, and has no generic path-based deletion.
+
+Storage's existing exact-selection **old downloads** review invokes the transfer
+owner for completed/expired prepared export downloads and native upload staging.
+It checks inactivity, active readers, reservations and the reviewed fingerprint
+again under the owner's locks. That is the cleanup path for eligible Phase 24
+transfer material. Current original packs, player blobs, historical publications,
+review-owned data and uncertain transaction leftovers are not download candidates.
+Their age, missing-looking path or absence from a current mod list does not prove
+that they are unreferenced. No historical publication is automatically deleted.
+There is no new generic orphan sweep or registry/path deletion endpoint.
+
+The storage walk itself grants no cleanup authority. Server removal continues to
+use its existing explicit whole-server review and stopped-state/backup protections;
+its scope includes that server's retained content, rather than quietly preserving
+or deleting selected revisions under a cache label. Unknown references and
+interrupted rollback remain protected for recovery. Owner physical acceptance
+must verify inventory totals, overlapping roots/hard links, active export readers,
+and changed cleanup candidates. Refresh Storage after updating to this candidate;
+the rule partition is included in its generation fingerprint.

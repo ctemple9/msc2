@@ -131,9 +131,9 @@ commits per turn. Rolling-plan statuses and Git history remain the step record.
 | Field | Current value |
 |---|---|
 | Run state | Active — intermediate UI reviews deferred to final handoff by explicit owner amendment |
-| Current step | P24.23 |
-| Next action | P24.23 Storage accounting and reviewed cleanup; then P24.20 guide work and P24.24 acceptance packet. Intermediate UI reviews remain deferred. |
-| Last implementation commit | P24.22: expose content and export operations in the tui |
+| Current step | P24.20 |
+| Next action | P24.20 guide preparation, recording the missing owner screenshots; then P24.24 acceptance packet and final runnable candidate. Intermediate UI reviews remain deferred. |
+| Last implementation commit | P24.23: account for retained packs and publication storage |
 | Pending UI review | Deferred to final handoff: conditional manual-download exception and all subsequent new surfaces. Prior discovery/project-detail approvals remain recorded; no ordinary installation confirmation sheet exists. |
 | Candidate base commit / changed files | P24.11 commit contains the shared catalog/project browser, direct installation/manual-file handling, source/update sheet and supporting agent contract/download repairs. New P24.12 work follows this commit. |
 | Owner approval evidence | Cameron: “ui passes” for the revised CurseForge discovery browser, after requesting missing-key-only key entry/console links. Subsequent goal resume authorizes continuation, not approval of future install surfaces. Owner later requested compact CurseForge details to match Modrinth; density revised without treating the feedback as installation-sheet approval. Cameron then clarified both providers must use the same actual sheet; both now use ProjectDetailSheet with provider data adapted separately, and the duplicate CurseForge detail layout/CSS is removed. Cameron then said “ui passes” for that shared-sheet refactor. This approves project details. Cameron then explicitly rejected a routine CurseForge installation sheet because Modrinth has none; compatible Add/Install and explicit Install anyway now run directly. Backend preflight/review remains automatic; only required manual-file handling interrupts. This supersedes the prior routine-sheet review stop. |

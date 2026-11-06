@@ -319,12 +319,14 @@ checks when no affected source has changed. New module paths are proposals.
 
 ### P24.23 — Account for retained packs and publication storage
 
-**Status:** planned — not started
+**Status:** implemented — awaiting owner verification
 **Files:** crates/msc-application/src/; crates/msc-agent/src/routes/; clients/desktop-web/src/lib/sections/; docs/msc2/storage/
 **What:** Integrate retained originals/player content/publications/staging with Phase 21 ownership and accounting. Protect live/referenced snapshots, export-in-progress and rollback data, prevent double counting, explain storage use and reuse explicit reviewed cleanup; no automatic historical-revision deletion.
 **Verify:** `cargo check -p msc-agent && npm --prefix clients/desktop-web run check`. Cameron also verifies the corresponding behavior scenarios in `addons/phase24-scope.md` and the P24.1 acceptance record.
 **Commit:** `P24.23: account for retained packs and publication storage`
 **Batch:** B — continue automatically; stop at each new sheet/view for owner review
+
+**Implementation evidence:** Split registered-server content storage into retained originals, separate player content, immutable publication revisions, review/registry metadata, activation/install rollback and datapack staging, plus completed host exports. Existing root partitioning and physical-identity deduplication prevent parent/child and hard-link double counting. Content-specific protection reasons and the existing Storage detail view explain independent copies and reference protection. Cleanup reuses transfer-owner exact-selection review for eligible expired/completed export/native staging, rechecking readers/reservations/fingerprints under existing locks; retained snapshots, unknown references and rollback never become generic cache candidates. No age-based historical deletion or orphan sweep was added. Extended the existing controlled storage discovery fixture with four tiny content/rollback files to protect disjoint attribution and totals (essential because generic scanner fixtures do not exercise application rules; expected <1s, not run). Formatting/focused Clippy passed; frontend check passed with existing CSS warnings. No live scans, cleanup, tests or releases run.
 
 ### P24.24 — Record integrated owner acceptance and gate evidence
 

@@ -513,7 +513,13 @@ impl Walker<'_> {
             volume_id: volume.map(str::to_owned), category, group, domain_id, server_id: server, label,
             display_path: Some(display_path),
             logical_bytes: 0, allocated_bytes: Some(0), partial: false, absent: false, shared_references: 0, has_hard_links: false,
-            protection: "Inventory only; ownership and live references must be checked by the action's owner".into() });
+            protection: if rule.is_some_and(|rule| rule.relative.starts_with(".msc2-content")) {
+                "Protected content: retained originals, player/review references, immutable publications and unfinished rollback must remain available. Age is not removal authority; active or unknown references stay protected. Transfer staging cleanup uses its owning service.".into()
+            } else if rule.is_some_and(|rule| rule.relative == Path::new("exports")) {
+                "Completed host exports are user files, not temporary downloads. Generic cache cleanup cannot remove them.".into()
+            } else {
+                "Inventory only; ownership and live references must be checked by the action's owner".into()
+            } });
         self.buckets.insert(lookup, index);
         Ok(index)
     }

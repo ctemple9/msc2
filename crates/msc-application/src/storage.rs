@@ -188,6 +188,62 @@ pub fn discover(input: &Discovery<'_>) -> Manifest {
                 true,
             ),
         ];
+        // These are owned content copies, not cache aliases of the live mods.
+        // The scanner splits parent buckets at these boundaries and deduplicates
+        // physical file identities across them; cleanup authority stays separate.
+        for (relative, category, label, children) in [
+            (
+                ".msc2-content",
+                Category::Servers,
+                "Content registry and review metadata (protected)",
+                false,
+            ),
+            (
+                ".msc2-content/packs",
+                Category::Servers,
+                "Retained original pack (protected)",
+                true,
+            ),
+            (
+                ".msc2-content/player",
+                Category::Servers,
+                "Separate player content (protected)",
+                false,
+            ),
+            (
+                ".msc2-content/publications",
+                Category::Servers,
+                "Published content revision (protected)",
+                true,
+            ),
+            (
+                ".msc2-content/pack-transactions",
+                Category::Cache,
+                "Pack activation and rollback (protected)",
+                true,
+            ),
+            (
+                ".msc2-content/install",
+                Category::Cache,
+                "Content install and rollback (protected)",
+                true,
+            ),
+            (
+                ".msc2-content/datapack-staging",
+                Category::Cache,
+                "Publication datapack staging (protected)",
+                true,
+            ),
+            (
+                "exports",
+                Category::Servers,
+                "Completed host exports (protected)",
+                true,
+            ),
+        ] {
+            root.rules
+                .push(rule(relative, category, label, Some(&server.id), children));
+        }
         for component in [
             "mods",
             "plugins",
@@ -748,6 +804,16 @@ mod tests {
         std::fs::write(unregistered.join("server.properties"), b"old").unwrap();
         std::fs::write(data.join("runtimes/managed-java"), b"java").unwrap();
         std::fs::write(fixture.0.join("external-java"), b"not MSC-owned").unwrap();
+        for (relative, bytes) in [
+            (".msc2-content/packs/pack/original.zip", "pack"),
+            (".msc2-content/player/blobs/hash", "mod"),
+            (".msc2-content/publications/revision/files/hash", "files"),
+            (".msc2-content/pack-transactions/transaction/rollback", "rb"),
+        ] {
+            let destination = custom.join(relative);
+            std::fs::create_dir_all(destination.parent().unwrap()).unwrap();
+            std::fs::write(destination, bytes).unwrap();
+        }
         let mut config = AppConfig::default_config(managed.display().to_string());
         config.java_path = fixture.0.join("external-java").display().to_string();
         config.servers.push(ConfigServer::new(
@@ -789,7 +855,21 @@ mod tests {
         });
         let snapshot = storage::scan(&manifest, Limits::default(), &|| false, &mut |_| {});
         assert!(!snapshot.partial, "{:?}", snapshot.issues);
-        assert_eq!(snapshot.logical_bytes, 32);
+        assert_eq!(snapshot.logical_bytes, 46);
+        for (label, bytes) in [
+            ("Retained original pack (protected) / pack", 4),
+            ("Separate player content (protected)", 3),
+            ("Published content revision (protected) / revision", 5),
+            ("Pack activation and rollback (protected) / transaction", 2),
+        ] {
+            let item = snapshot
+                .items
+                .iter()
+                .find(|item| item.label == label)
+                .expect("content storage must have its own accounting bucket");
+            assert_eq!(item.logical_bytes, bytes);
+            assert!(!item.protection.is_empty());
+        }
         let orphan = snapshot
             .items
             .iter()

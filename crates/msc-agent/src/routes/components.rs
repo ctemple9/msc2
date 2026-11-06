@@ -363,6 +363,10 @@ pub fn router(state: ComponentsRoutesState) -> Router {
             get(content_management::get_review),
         )
         .route(
+            "/servers/:server_id/content/player-files/prepare",
+            post(content_management::prepare_file),
+        )
+        .route(
             "/servers/:server_id/content/player-files/admit",
             post(content_management::admit),
         )

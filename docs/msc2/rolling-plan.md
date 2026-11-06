@@ -222,12 +222,14 @@ checks when no affected source has changed. New module paths are proposals.
 
 ### P24.14 — Edit player content and review pack changes on desktop
 
-**Status:** planned — not started
+**Status:** implemented — awaiting owner verification
 **Files:** clients/desktop-web/src/lib/sections/addons/; clients/desktop-web/src/lib/sections/components/
 **What:** Expose audience, required/optional, client-only additions, uncertain classification and server-mod player checks. Provide existing-server recovery, pack update and replacement comparisons with per-item keep-owner/restore-upstream and stale-result handling.
 **Verify:** `npm --prefix clients/desktop-web run check`. Cameron also verifies the corresponding behavior scenarios in `addons/phase24-scope.md` and the P24.1 acceptance record.
 **Commit:** `P24.14: edit player content and review pack changes on desktop`
 **Batch:** B — continue automatically; stop at each new sheet/view for owner review
+
+**Implementation evidence:** Added PlayerContentSheet from Components with distinct server and player collections, uncertain classification/requirements, reviewed server-to-player copying, server-only classification, required/optional and selected/inactive controls, independent client-file additions, per-file license evidence, removal and explicit upstream restoration. New server mod installs/updates automatically check player requirements and present an inline review action. Player changes preserve active server bytes. Added PackChangesSheet for retained/local/catalog original recovery, exact missing-file retry/manual recovery, selected server-file recovery, three-way base update and replacement. Comparisons show per-side actions/conflicts, preserve owner state by default and require refreshed comparisons after per-item restore/audience/compatibility choices; replacement includes the explicit world-compatibility warning. Activation uses the real guarded operations and missing-content/stale-state checks. Uploads use native/bounded staging and server-side exact identification, rather than buffering/hash calculation in JavaScript. New prepared-file DTO/endpoint binds the original immutable upload to credential, server, path and SHA512, preserving the native consumer reservation across purpose rebinding. Extended the existing six-byte native ownership fixture to protect final-consumer guard lifetime (<1s existing fixture, no new network/timing conditions); not run. Pack reviews now expose structured missing-file descriptors for bounded exact-file recovery. Added cancellation/progress/error and older-agent capability states. Focused Clippy and frontend type-check/build passed with existing CSS/chunk warnings; no tests, live collection mutations or server changes were run. New player/pack surfaces are deferred to final owner UI review by the explicit amendment; physical recovery, customizations, cancellation/revocation and platform acceptance remain pending.
 
 ### P24.15 — Publish immutable dated content revisions
 

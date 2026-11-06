@@ -206,8 +206,9 @@ impl UploadStore {
             return None;
         }
         let mut entry = self.entries.remove(id)?;
-        entry.native_guard =
-            session.map(|session| Arc::new(ConsumedInput(session, AtomicBool::new(false))));
+        if let Some(session) = session {
+            entry.native_guard = Some(Arc::new(ConsumedInput(session, AtomicBool::new(false))));
+        }
         Some(entry)
     }
     #[cfg(test)]
@@ -2139,7 +2140,29 @@ mod tests {
                     .unwrap()
                     .remove(&id)
                     .unwrap();
-                assert_eq!(std::fs::read(upload.path).unwrap(), b"abcdef");
+                assert_eq!(std::fs::read(&upload.path).unwrap(), b"abcdef");
+                // A purpose-bound player slot must retain the original native
+                // consumer until its final reviewer releases the exact bytes.
+                let native = upload.native_guard.as_ref().unwrap().0.clone();
+                fixture
+                    .state
+                    .staging
+                    .uploads
+                    .lock()
+                    .unwrap()
+                    .insert("prepared-player".into(), upload);
+                let prepared = fixture
+                    .state
+                    .staging
+                    .uploads
+                    .lock()
+                    .unwrap()
+                    .remove("prepared-player")
+                    .unwrap();
+                assert!(!native.consumer_done.load(Ordering::Acquire));
+                assert!(prepared.native_guard.is_some());
+                drop(prepared);
+                assert!(native.consumer_done.load(Ordering::Acquire));
                 assert!(
                     fixture
                         .state

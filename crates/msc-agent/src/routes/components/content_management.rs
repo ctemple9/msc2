@@ -33,6 +33,114 @@ pub(super) async fn get(
         ),
     }
 }
+/// Rebind a completed owned upload after streaming server-side identification.
+/// The native consumer guard follows the entry so its reservation remains held.
+pub(super) async fn prepare_file(
+    State(state): State<ComponentsRoutesState>,
+    Extension(credential): Extension<AuthenticatedCredential>,
+    Extension(auth): Extension<crate::auth::AuthState>,
+    AxumPath(server_id): AxumPath<String>,
+    body: Result<Json<msc_api::dto::PlayerFilePrepareDto>, JsonRejection>,
+) -> Response {
+    if let Some(response) = require_permission(&credential, PermissionCategoryDto::Addons) {
+        return response;
+    }
+    let Json(body) = match body {
+        Ok(body) => body,
+        Err(_) => {
+            return invalid_body("invalid_json", "Choose a content path and completed upload");
+        }
+    };
+    if let Err(error) = service::content_path(&body.path) {
+        return invalid_body("invalid_content_path", &error);
+    }
+    if server(&state, &server_id).is_err() {
+        return invalid_body("server_unavailable", "Server not found");
+    }
+    if !state
+        .staging
+        .native
+        .target_matches(&body.staged_upload_id, &server_id)
+    {
+        return invalid_body("target_mismatch", "File belongs to another server");
+    }
+    let entry = state
+        .staging
+        .uploads
+        .lock()
+        .unwrap()
+        .remove(&body.staged_upload_id);
+    let Some(mut entry) = entry else {
+        return invalid_body("upload_unavailable", "Choose the file again");
+    };
+    if !entry.complete
+        || entry.expires_at_unix < now_unix()
+        || entry.purpose != StagedUploadPurposeDto::AddonLocalFile
+    {
+        let _ = std::fs::remove_file(&entry.path);
+        return invalid_body("invalid_upload", "Choose a completed content upload");
+    }
+    let identity = crate::auth::StreamAuthentication {
+        credential: credential.clone(),
+    };
+    let audit_state = state.lifecycle.clone();
+    let result = tokio::task::spawn_blocking(move || {
+        let prepared = (|| {
+            let file = provider::fingerprint::identify(&entry.path)?;
+            if file.byte_size == 0 {
+                return Err("Choose a nonempty player content file".into());
+            }
+            if !auth.stream_retains_permissions(&identity) || server(&state, &server_id).is_err() {
+                return Err("Server or permissions changed during file identification".into());
+            }
+            let id = Uuid::new_v4().to_string();
+            entry.provider_owner = Some(identity.credential.credential_id.clone());
+            entry.operation_id = Some(format!("player:{server_id}:{}", file.sha512));
+            entry.file_id = Some(body.path.clone());
+            entry.expires_at_unix = now_unix() + STAGING_TTL_SECONDS;
+            let response = msc_api::dto::PlayerFilePreparedDto {
+                path: body.path,
+                staged_upload_id: id.clone(),
+                sha512: file.sha512,
+                byte_size: file.byte_size,
+            };
+            state
+                .staging
+                .uploads
+                .lock()
+                .unwrap()
+                .insert(id, entry.clone());
+            Ok::<_, String>(response)
+        })();
+        if prepared.is_err() {
+            let _ = std::fs::remove_file(&entry.path);
+        }
+        prepared
+    })
+    .await;
+    let response = match result {
+        Ok(Ok(value)) => Json(value).into_response(),
+        Ok(Err(error)) => error_response(
+            StatusCode::CONFLICT,
+            "player_file_preparation_failed",
+            &error,
+        ),
+        Err(_) => error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "player_file_preparation_failed",
+            "File identification worker failed",
+        ),
+    };
+    audit(
+        &audit_state,
+        &credential,
+        "POST",
+        "/v1/servers/:server_id/content/player-files/prepare",
+        response.status(),
+    );
+    response
+}
+
 pub(super) async fn admit(
     State(state): State<ComponentsRoutesState>,
     Extension(credential): Extension<AuthenticatedCredential>,

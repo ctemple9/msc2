@@ -161,6 +161,7 @@ async fn capabilities_for_query(
             reviewed_updates: vec!["curseforge".into()],
             retained_pack_recovery: true,
             player_content_management: true,
+            player_file_preparation: true,
             player_content_recovery: true,
             reviewed_pack_updates: true,
             reviewed_pack_replacement: true,

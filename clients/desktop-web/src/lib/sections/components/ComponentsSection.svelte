@@ -44,6 +44,8 @@
   import VersionPickerSheet from './VersionPickerSheet.svelte';
   import PluginBrowserSheet from './PluginBrowserSheet.svelte';
   import ContentSourcesSheet from './ContentSourcesSheet.svelte';
+  import PlayerContentSheet from './PlayerContentSheet.svelte';
+  import { contentRoot, type ContentSnapshot } from './content-model';
   import PlayitSetupSheet from '../server-editor/PlayitSetupSheet.svelte';
   import ProjectDetailSheet from './ProjectDetailSheet.svelte';
   import { pickUploadSource, type UploadSource } from '../shared/upload-source';
@@ -153,6 +155,36 @@
   let showVersionPicker = false;
   let showBrowser = false;
   let showContentSources = false;
+  let showPlayerContent = false;
+  let playerRequirementCount = 0;
+  let playerRequirementKey = '';
+
+  async function refreshAfterContentChange(): Promise<void> {
+    await loadAddons();
+    if (!api || !isModded) return;
+    const scoped = api.snapshot?.() ?? api;
+    const id = serverId;
+    try {
+      const caps = await scoped.get<Schema['CapabilitiesDTO']>('/v1/capabilities');
+      if (!caps.contentCatalog?.playerContentManagement) return;
+      const result = await scoped.get<ContentSnapshot>(`${contentRoot(id)}/collection`);
+      if (id !== serverId || scoped.isCurrent?.() === false) return;
+      playerRequirementKey = `${hostId}:${id}`;
+      playerRequirementCount = result.requirements.filter(
+        (item) =>
+          !['matched', 'serverOnly', 'serverDisabled', 'optionalMissing'].includes(item.state),
+      ).length;
+      if (playerRequirementCount)
+        flash(
+          `${playerRequirementCount} player content requirements need review after this server change.`,
+        );
+    } catch (cause) {
+      if (id === serverId)
+        flash(
+          `Server content changed; player requirement check could not complete: ${cause instanceof Error ? cause.message : String(cause)}`,
+        );
+    }
+  }
   let componentActionMenu: { x: number; y: number } | undefined;
   let serverCardMenu: { x: number; y: number } | undefined;
   let broadcastMenu: { x: number; y: number } | undefined;
@@ -335,7 +367,7 @@
       });
       if (result.operationId) await pollOperation(api, result.operationId);
       flash(`${addon.displayName} updated — restart the server to apply.`);
-      await loadAddons();
+      await refreshAfterContentChange();
     } catch (error) {
       flash(error instanceof Error ? error.message : `Failed to update ${addon.displayName}.`);
     } finally {
@@ -353,7 +385,7 @@
       });
       if (result.operationId) await pollOperation(api, result.operationId);
       flash(`Updated ${result.count} ${addonFolderName} — restart the server to apply.`);
-      await loadAddons();
+      await refreshAfterContentChange();
     } catch (error) {
       flash(error instanceof Error ? error.message : 'Failed to update all.');
     } finally {
@@ -459,7 +491,7 @@
         throw new Error(operation?.error?.message ?? 'Add-on installation did not complete.');
     }
     flash(result.message);
-    await loadAddons();
+    await refreshAfterContentChange();
   }
 
   function onVersionChanged(): void {
@@ -565,6 +597,11 @@
       <span class="msc2-type-overline">Components</span>
     </div>
     <div class="header-actions">
+      {#if activeServer?.serverType === 'java'}<Button
+          size="sm"
+          variant="secondary"
+          onclick={() => (showPlayerContent = true)}>Player content…</Button
+        >{/if}
       {#if kind}
         <Button size="sm" variant="secondary" onclick={() => (showBrowser = true)}>
           Browse {isModded ? 'mods' : 'plugins'}
@@ -580,6 +617,11 @@
   </div>
 
   {#if notice}<p class="notice" role="status">{notice}</p>{/if}
+  {#if playerRequirementCount > 0 && playerRequirementKey === `${hostId}:${serverId}`}<Button
+      size="sm"
+      onclick={() => (showPlayerContent = true)}
+      >Review player content ({playerRequirementCount})</Button
+    >{/if}
 
   {#if activeServer?.modpackIdentity}
     <section class="modpack-summary" aria-label="Imported modpack">
@@ -868,6 +910,11 @@
         onSelect: () => void openAddonFolder(),
       },
       {
+        label: 'Player content and packs…',
+        disabled: !api || !activeServer,
+        onSelect: () => (showPlayerContent = true),
+      },
+      {
         label: 'Content sources and updates…',
         disabled: !api || !activeServer,
         onSelect: () => (showContentSources = true),
@@ -984,7 +1031,7 @@
     javaFlavor={activeServer?.javaFlavor}
     serverMinecraftVersion={primaryComponent?.installedVersion}
     onClose={() => (detailAddon = undefined)}
-    onInstalled={() => void loadAddons()}
+    onInstalled={() => void refreshAfterContentChange()}
   />
 {/if}
 
@@ -997,7 +1044,7 @@
     javaFlavor={activeServer?.javaFlavor}
     serverMinecraftVersion={primaryComponent?.installedVersion}
     onClose={() => (showBrowser = false)}
-    onInstalled={() => void loadAddons()}
+    onInstalled={() => void refreshAfterContentChange()}
   />
 {/if}
 
@@ -1052,7 +1099,25 @@
 
 {#if showContentSources && api}
   {#key `${hostId}:${serverId}`}
-    <ContentSourcesSheet {api} {serverId} onClose={() => (showContentSources = false)} onChanged={() => void loadAddons()} />
+    <ContentSourcesSheet
+      {api}
+      {serverId}
+      onClose={() => (showContentSources = false)}
+      onChanged={() => void refreshAfterContentChange()}
+    />
+  {/key}
+{/if}
+
+{#if showPlayerContent && api}
+  {#key `${hostId}:${serverId}`}
+    <PlayerContentSheet
+      {api}
+      {serverId}
+      javaFlavor={activeServer?.javaFlavor ?? ''}
+      minecraftVersion={primaryComponent?.installedVersion ?? ''}
+      onClose={() => (showPlayerContent = false)}
+      onChanged={() => void refreshAfterContentChange()}
+    />
   {/key}
 {/if}
 

@@ -75,6 +75,8 @@ pub struct ContentCatalogCapabilityDto {
     #[serde(default)]
     pub player_content_management: bool,
     #[serde(default)]
+    pub player_file_preparation: bool,
+    #[serde(default)]
     pub player_content_recovery: bool,
     #[serde(default)]
     pub reviewed_pack_updates: bool,
@@ -256,6 +258,21 @@ pub struct ContentChangesReviewDto {
     pub collection_revision: u64,
     pub changes: Vec<ContentChangeDto>,
 }
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PlayerFilePrepareDto {
+    pub path: String,
+    pub staged_upload_id: String,
+}
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PlayerFilePreparedDto {
+    pub path: String,
+    pub staged_upload_id: String,
+    pub sha512: String,
+    pub byte_size: u64,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct PlayerFileAdmissionDto {

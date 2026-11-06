@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: a9e7db79798350a31fb5e51bd44f78787fcfe663c51acedccd72e460e27a3ee9
+// Contract SHA-256: ca7a4e4904787db70fb274e54f5ee34989f7c6f7bcc1293486fae33a8739229e
 
 export interface paths {
   '/v1/active-server': {
@@ -5624,6 +5624,26 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/v1/servers/{server_id}/content/player-files/prepare': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Identify and purpose-bind an owned completed player-content upload
+     * @description Bounded server-side SHA512 identification; preserves native transfer reservation and credential/server/path ownership. Does not mutate content until review/apply.
+     */
+    post: operations['preparePlayerContentFile'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/v1/servers/{server_id}/content/publication-datapacks/{slot_id}': {
     parameters: {
       query?: never;
@@ -8989,6 +9009,8 @@ export interface components {
       packAcquisition: boolean;
       playerContentManagement?: boolean;
       playerContentRecovery?: boolean;
+      /** @default false */
+      playerFilePreparation: boolean;
       protocol: number;
       providers: string[];
       retainedPackRecovery?: boolean;
@@ -9963,6 +9985,7 @@ export interface components {
       /** Format: int64 */
       collectionRevision: number;
       missing: string[];
+      missingFiles?: components['schemas']['RetainedPackMissingDTO'][];
       name: string;
       packId: string;
       playerChanges: components['schemas']['PackPathChangeDTO'][];
@@ -10028,6 +10051,21 @@ export interface components {
       byteSize: number;
       path: string;
       sha512: string;
+    } & {
+      [key: string]: unknown;
+    };
+    PlayerFilePreparedDTO: {
+      /** Format: int64 */
+      byteSize: number;
+      path: string;
+      sha512: string;
+      stagedUploadId: string;
+    } & {
+      [key: string]: unknown;
+    };
+    PlayerFilePrepareDTO: {
+      path: string;
+      stagedUploadId: string;
     } & {
       [key: string]: unknown;
     };
@@ -13684,6 +13722,39 @@ export interface operations {
         };
       };
       /** @description Content changed or review unavailable; refresh and review again. */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  preparePlayerContentFile: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        server_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['PlayerFilePrepareDTO'];
+      };
+    };
+    responses: {
+      /** @description Exact prepared upload identity */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['PlayerFilePreparedDTO'];
+        };
+      };
+      /** @description File, server or permissions changed */
       409: {
         headers: {
           [name: string]: unknown;

@@ -984,6 +984,7 @@
         "x-permission-category": "addons"
       }
     },
+    "/v1/servers/{server_id}/content/player-files/prepare": {"post": {"operationId": "preparePlayerContentFile", "summary": "Identify and purpose-bind an owned completed player-content upload", "description": "Bounded server-side SHA512 identification; preserves native transfer reservation and credential/server/path ownership. Does not mutate content until review/apply.", "parameters": [{"name": "server_id", "in": "path", "required": true, "schema": {"type": "string"}}], "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/PlayerFilePrepareDTO"}}}}, "responses": {"200": {"description": "Exact prepared upload identity", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/PlayerFilePreparedDTO"}}}}, "409": {"description": "File, server or permissions changed"}}}},
     "/v1/servers/{server_id}/content/player-files/admit": {
       "post": {
         "operationId": "admitPlayerContent",
@@ -11470,6 +11471,7 @@
       "PackUpdateReviewResultDTO": {
         "type": "object",
         "properties": {
+          "missingFiles": {"type": "array", "items": {"$ref": "#/components/schemas/RetainedPackMissingDTO"}},
           "replacement": { "type": "boolean" },
           "reviewId": {
             "type": "string"
@@ -11855,6 +11857,8 @@
           "warnings"
         ]
       },
+      "PlayerFilePrepareDTO": {"type": "object", "additionalProperties": false, "required": ["path", "stagedUploadId"], "properties": {"path": {"type": "string"}, "stagedUploadId": {"type": "string"}}},
+      "PlayerFilePreparedDTO": {"type": "object", "required": ["path", "stagedUploadId", "sha512", "byteSize"], "properties": {"path": {"type": "string"}, "stagedUploadId": {"type": "string"}, "sha512": {"type": "string"}, "byteSize": {"type": "integer", "format": "int64"}}},
       "PlayerFileAdmissionDTO": {
         "type": "object",
         "properties": {
@@ -12488,6 +12492,7 @@
           "playerContentRecovery": {
             "type": "boolean"
           },
+          "playerFilePreparation": {"type": "boolean", "default": false},
           "playerContentManagement": {
             "type": "boolean"
           },

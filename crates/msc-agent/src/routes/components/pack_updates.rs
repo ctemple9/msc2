@@ -4,7 +4,11 @@ use super::*;
 use msc_api::dto::{ContentInstallApplyDto, PackUpdateReviewDto};
 use msc_application::{pack_activation, pack_retention, pack_review as service};
 fn public_review(review: service::Review) -> serde_json::Value {
-    serde_json::json!({"replacement":review.replacement,"reviewId":review.id,"serverId":review.activation.server_id,"collectionRevision":review.activation.collection_revision,"packId":review.retained_pack.id,"name":review.retained_pack.name,"version":review.retained_pack.version,"serverChanges":review.server_changes,"playerChanges":review.player_changes,"missing":review.missing,"warnings":review.warnings,"collection":review.activation.collection})
+    let missing_files = review.retained_pack.unresolved.iter().map(|(path, reason)| {
+        let expected = review.retained_pack.expected_files.get(path);
+        serde_json::json!({"path":path,"reason":reason,"byteSize":expected.map(|file| file.byte_size),"manualRecoveryAvailable":expected.is_some_and(|file| file.byte_size > 0 && file.byte_size <= 512*1024*1024 && (file.sha1.is_some() || file.sha512.is_some()))})
+    }).collect::<Vec<_>>();
+    serde_json::json!({"missingFiles":missing_files,"replacement":review.replacement,"reviewId":review.id,"serverId":review.activation.server_id,"collectionRevision":review.activation.collection_revision,"packId":review.retained_pack.id,"name":review.retained_pack.name,"version":review.retained_pack.version,"serverChanges":review.server_changes,"playerChanges":review.player_changes,"missing":review.missing,"warnings":review.warnings,"collection":review.activation.collection})
 }
 pub(super) async fn get(
     State(state): State<ComponentsRoutesState>,

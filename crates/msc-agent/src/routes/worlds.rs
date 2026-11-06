@@ -100,6 +100,7 @@ use crate::routes::lifecycle::{
     reconciliation_degraded_response, require_permission,
 };
 
+mod curseforge_datapack;
 mod map_terrain;
 
 /// A bounded ceiling for one staged world upload — generous enough for a
@@ -733,6 +734,7 @@ fn profile_to_dto(
                     url: pack.source.url.clone(),
                 },
                 files: pack.files.clone(),
+                file_checksums: pack.file_checksums.clone(),
                 size_bytes: msc_application::addons::world_pack_size_bytes(
                     world_zip_path,
                     &pack.files,
@@ -1127,6 +1129,7 @@ pub async fn get_profile(
 pub async fn install_java_datapack(
     State(state): State<WorldsRoutesState>,
     Extension(credential): Extension<AuthenticatedCredential>,
+    Extension(auth): Extension<crate::auth::AuthState>,
     AxumPath(slot_id): AxumPath<String>,
     body: Result<Json<JavaDatapackInstallRequestDto>, JsonRejection>,
 ) -> Response {
@@ -1169,6 +1172,21 @@ pub async fn install_java_datapack(
         );
     }
 
+    let provider = body.provider.as_deref().unwrap_or("modrinth");
+    if !["modrinth", "curseforge"].contains(&provider) {
+        return invalid_body("invalid_provider", "Choose Modrinth or CurseForge.");
+    }
+    if body.manual_staged_upload_id.is_some()
+        && (provider != "curseforge" || body.staged_upload_id.is_some())
+    {
+        return invalid_body(
+            "invalid_pack_source",
+            "Manual provider files require an exact CurseForge release and cannot be combined with a local import.",
+        );
+    }
+    let mut curseforge = None;
+    let download_cancelled = std::sync::Arc::new(AtomicBool::new(false));
+    let _download_guard = curseforge_datapack::CancelDownload(download_cancelled.clone());
     let local = body.staged_upload_id.is_some();
     let (archive, catalog, local_name) = if let Some(id) = &body.staged_upload_id {
         if !body.project_id.is_empty() || !body.version_id.is_empty() {
@@ -1217,6 +1235,89 @@ pub async fn install_java_datapack(
                 .file_name
                 .unwrap_or_else(|| "Imported datapack".into()),
         )
+    } else if provider == "curseforge" {
+        let manual = if let Some(id) = &body.manual_staged_upload_id {
+            if !state.staging.native.target_matches(id, &server.id) {
+                return error_response(
+                    StatusCode::CONFLICT,
+                    "target_mismatch",
+                    "Manual file belongs to another server.",
+                );
+            }
+            let entry = state.staging.uploads.lock().unwrap().remove(id);
+            match entry {
+                Some(entry)
+                    if entry.complete
+                        && now_unix() <= entry.expires_at_unix
+                        && entry.purpose == StagedUploadPurposeDto::AddonLocalFile =>
+                {
+                    Some(entry)
+                }
+                Some(entry) => {
+                    let _ = std::fs::remove_file(&entry.path);
+                    return invalid_body(
+                        "invalid_upload",
+                        "The manual datapack upload is expired, incomplete or has the wrong purpose.",
+                    );
+                }
+                None => {
+                    return invalid_body(
+                        "invalid_upload",
+                        "The exact manual datapack upload is unavailable.",
+                    );
+                }
+            }
+        } else {
+            None
+        };
+        let root = staging_root(&state.lifecycle.servers_root()).join("datapack-downloads");
+        let project_id = body.project_id.clone();
+        let version_id = body.version_id.clone();
+        let mc = minecraft_version.to_owned();
+        let identity = crate::auth::StreamAuthentication {
+            credential: credential.clone(),
+        };
+        let auth = auth.clone();
+        let downloaded = tokio::task::spawn_blocking(move || {
+            let result = curseforge_datapack::download(
+                &root,
+                &project_id,
+                &version_id,
+                &mc,
+                &|| {
+                    download_cancelled.load(Ordering::Acquire)
+                        || !auth.stream_retains_permissions(&identity)
+                },
+                manual.as_ref().map(|entry| {
+                    (
+                        entry.path.as_path(),
+                        entry.file_name.as_deref().unwrap_or(""),
+                    )
+                }),
+            );
+            if let Some(entry) = &manual {
+                let _ = std::fs::remove_file(&entry.path);
+            }
+            result
+        })
+        .await;
+        match downloaded {
+            Ok(Ok(download)) => {
+                let name = download.project.name.clone();
+                curseforge = Some((download.project, download.release));
+                (download.bytes, None, name)
+            }
+            Ok(Err(error)) => {
+                return error_response(StatusCode::BAD_GATEWAY, "provider_error", &error);
+            }
+            Err(_) => {
+                return error_response(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "provider_error",
+                    "Datapack download worker failed",
+                );
+            }
+        }
     } else {
         if body.project_id.trim().is_empty() || body.version_id.trim().is_empty() {
             return invalid_body(
@@ -1294,6 +1395,27 @@ pub async fn install_java_datapack(
         };
         (archive, Some((version, project)), String::new())
     };
+    let identity = crate::auth::StreamAuthentication {
+        credential: credential.clone(),
+    };
+    let fresh = match active_server_or_response(&state.lifecycle) {
+        Ok(server) => server,
+        Err(response) => return response,
+    };
+    if !auth.stream_retains_permissions(&identity)
+        || fresh.id != server.id
+        || fresh.server_dir != server.server_dir
+        || fresh.minecraft_version != server.minecraft_version
+        || find_slot(server_dir, &slot_id).is_none()
+        || (resolved_active_slot_id(server_dir).as_deref() == Some(slot.id.as_str())
+            && state.lifecycle.status_snapshot().running)
+    {
+        return error_response(
+            StatusCode::CONFLICT,
+            "world_changed",
+            "Server, world or permissions changed during datapack acquisition. Review the selected world again.",
+        );
+    }
     let operation_id = match begin_operation(
         &state.lifecycle,
         &server.id,
@@ -1352,14 +1474,161 @@ pub async fn install_java_datapack(
                 );
             }
         };
+    let dependencies = curseforge
+        .as_ref()
+        .map(|(_, release)| {
+            release
+                .dependencies
+                .iter()
+                .filter(|dependency| [2, 3].contains(&dependency.relation_type))
+                .map(
+                    |dependency| msc_domain::world_profile::WorldPackDependency {
+                        id: dependency.mod_id.to_string(),
+                        kind: "curseforge_project".into(),
+                        required: dependency.relation_type == 3,
+                    },
+                )
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    if let Some(missing) = dependencies.iter().find(|dependency| {
+        dependency.required
+            && !original_profile.packs.iter().any(|pack| {
+                pack.source.provider.as_deref() == Some("curseforge")
+                    && pack.source.project_id.as_deref() == Some(dependency.id.as_str())
+                    && pack
+                        .minecraft_versions
+                        .iter()
+                        .any(|version| version == minecraft_version)
+            })
+    }) {
+        let message = format!(
+            "Required CurseForge project {} is not installed for this world and Minecraft version. Install its compatible datapack first, then retry this release.",
+            missing.id
+        );
+        let _ =
+            state
+                .lifecycle
+                .operations()
+                .fail(&operation_id, "missing_dependency", message.clone());
+        return error_response(StatusCode::CONFLICT, "missing_dependency", &message);
+    }
+    let managed_provider = if curseforge.is_some() {
+        Some("curseforge")
+    } else if catalog.is_some() {
+        Some("modrinth")
+    } else {
+        None
+    };
+    let replaced = original_profile
+        .packs
+        .iter()
+        .filter(|pack| {
+            managed_provider.is_some()
+                && pack.source.provider.as_deref() == managed_provider
+                && pack.source.project_id.as_deref() == Some(body.project_id.as_str())
+        })
+        .collect::<Vec<_>>();
+    let expected_archive_hash = if managed_provider.is_some() {
+        match msc_application::addons::datapack_archive_checksum(&pack_archive) {
+            Ok(value) => Some(value),
+            Err(error) => {
+                let _ = state.lifecycle.operations().fail(
+                    &operation_id,
+                    "datapack_checksum_failed",
+                    error.to_string(),
+                );
+                return error_response(
+                    StatusCode::CONFLICT,
+                    "datapack_checksum_failed",
+                    &error.to_string(),
+                );
+            }
+        }
+    } else {
+        None
+    };
+    let restoration_fingerprint = if !replaced.is_empty() {
+        let archive_hash = expected_archive_hash.as_deref();
+        let metadata = serde_json::to_vec(&(
+            &original_profile.packs,
+            &body.project_id,
+            &body.version_id,
+            &server.id,
+            &slot.id,
+            minecraft_version,
+            archive_hash,
+        ))
+        .unwrap_or_default();
+        Some(msc_infrastructure::download_staging::sha512_hex(&metadata))
+    } else {
+        None
+    };
+    if body.restore_modified
+        && (restoration_fingerprint.is_none()
+            || body.restoration_fingerprint != restoration_fingerprint)
+    {
+        let message = "Datapack or world changed after the restore prompt. Review the selected release again.";
+        let _ = state.lifecycle.operations().fail(
+            &operation_id,
+            "stale_datapack_review",
+            message.into(),
+        );
+        return error_response(StatusCode::CONFLICT, "stale_datapack_review", message);
+    }
+    for pack in &replaced {
+        let hashes = msc_application::addons::datapack_file_checksums(&pack_archive, &pack.files);
+        if !body.restore_modified
+            && !hashes
+                .as_ref()
+                .is_ok_and(|hashes| !hashes.is_empty() && hashes == &pack.file_checksums)
+        {
+            let message = "Existing datapack files are modified or their baseline is unknown. Keep the current pack, or explicitly restore the selected upstream contents.";
+            let _ = state.lifecycle.operations().fail(
+                &operation_id,
+                "modified_datapack",
+                message.into(),
+            );
+            return (
+                StatusCode::CONFLICT,
+                Json(ErrorDto {
+                    code: "modified_datapack".into(),
+                    message: message.into(),
+                    help_id: None,
+                    details: Some(
+                        serde_json::json!({"restorationFingerprint": restoration_fingerprint}),
+                    ),
+                }),
+            )
+                .into_response();
+        }
+    }
+    let replaced_files = replaced
+        .iter()
+        .flat_map(|pack| pack.files.clone())
+        .collect::<Vec<_>>();
     let installation = if let Some((version, project)) = &catalog {
-        msc_application::addons::install_java_datapack(
+        msc_application::addons::install_java_datapack_replacing(
             &pack_archive,
             &archive,
             version,
             &body.project_id,
             &project.title,
             minecraft_version,
+            Some(msc_application::addons::DatapackReplacement {
+                files: &replaced_files,
+                archive_checksum: expected_archive_hash.as_deref(),
+            }),
+        )
+    } else if let Some((project, release)) = &curseforge {
+        msc_application::addons::install_verified_provider_datapack(
+            &pack_archive,
+            &archive,
+            &format!("curseforge-{}", project.id),
+            &release.id.to_string(),
+            &project.name,
+            &replaced_files,
+            expected_archive_hash.as_deref(),
         )
     } else {
         msc_application::addons::install_local_java_datapack(&pack_archive, &archive, &local_name)
@@ -1392,7 +1661,22 @@ pub async fn install_java_datapack(
         }
     };
     let mut profile = world_store::load_profile(&StdFileSystem, server_dir, &slot);
-    let (id, source, minecraft_versions) = if let Some((version, project)) = catalog {
+    let (id, source, minecraft_versions) = if let Some((project, release)) = curseforge {
+        (
+            format!("curseforge:{}:{}", project.id, release.id),
+            msc_domain::world_profile::WorldPackSource {
+                provider: Some("curseforge".into()),
+                project_id: Some(project.id.to_string()),
+                version_id: Some(release.id.to_string()),
+                version: Some(release.display_name),
+                url: Some(format!(
+                    "https://www.curseforge.com/minecraft/data-packs/{}/files/{}",
+                    project.slug, release.id
+                )),
+            },
+            release.game_versions,
+        )
+    } else if let Some((version, project)) = catalog {
         (
             format!("{}:{}", body.project_id, version.id),
             msc_domain::world_profile::WorldPackSource {
@@ -1420,20 +1704,43 @@ pub async fn install_java_datapack(
             Vec::new(),
         )
     };
+    let file_checksums =
+        match msc_application::addons::datapack_file_checksums(&pack_archive, &installed_paths) {
+            Ok(value) => value,
+            Err(error) => {
+                let _ = std::fs::copy(&backup_path, &pack_archive);
+                let _ = state.lifecycle.operations().fail(
+                    &operation_id,
+                    "datapack_checksum_failed",
+                    error.to_string(),
+                );
+                return error_response(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "datapack_checksum_failed",
+                    &error.to_string(),
+                );
+            }
+        };
     let pack = WorldPackRecord {
         id,
         edition: "java".into(),
         kind: "java_datapack".into(),
         name,
         source,
+        file_checksums,
         files: installed_paths,
         checksum: Some(format!("sha512:{checksum}")),
         compatibility: Some(if local { "unknown" } else { "compatible" }.into()),
         minecraft_versions,
         enabled: true,
-        dependencies: Vec::new(),
+        dependencies,
     };
-    profile.packs.retain(|existing| existing.id != pack.id);
+    profile.packs.retain(|existing| {
+        existing.id != pack.id
+            && !([Some("curseforge"), Some("modrinth")].contains(&pack.source.provider.as_deref())
+                && existing.source.provider == pack.source.provider
+                && existing.source.project_id == pack.source.project_id)
+    });
     profile.packs.push(pack.clone());
     if let Err(error) = world_store::save_profile(&StdFileSystem, server_dir, &slot, &profile) {
         let _ = std::fs::copy(&backup_path, &pack_archive);
@@ -1501,6 +1808,7 @@ pub async fn install_java_datapack(
                 url: pack.source.url,
             },
             size_bytes: msc_application::addons::world_pack_size_bytes(&pack_archive, &pack.files),
+            file_checksums: pack.file_checksums,
             files: pack.files,
             checksum: pack.checksum,
             compatibility: pack.compatibility,
@@ -2099,6 +2407,7 @@ pub async fn install_bedrock_behavior_pack(
                     &pack_archive,
                     &pack.files,
                 ),
+                file_checksums: pack.file_checksums,
                 files: pack.files,
                 checksum: pack.checksum,
                 compatibility: pack.compatibility,

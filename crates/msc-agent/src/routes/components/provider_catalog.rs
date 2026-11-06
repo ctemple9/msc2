@@ -172,7 +172,18 @@ pub(super) async fn versions(
     let result = tokio::task::spawn_blocking(move || {
         let secrets = production_secret_store().map_err(|_| AddonProviderError::MissingApiKey)?;
         let transport = HttpTransport::new();
-        cf::project(&transport, secrets.as_ref(), project_id)?;
+        let project = cf::project(&transport, secrets.as_ref(), project_id)?;
+        if query.kind == "datapack" {
+            let classes = cf::classes(&transport, secrets.as_ref())?;
+            if !classes.iter().any(|class| {
+                ["data-packs", "datapacks"].contains(&class.slug.as_str())
+                    && project.class_id == Some(i64::from(class.id))
+            }) {
+                return Err(AddonProviderError::Network(
+                    "This project is not a Java datapack".into(),
+                ));
+            }
+        }
         let page = cf::releases(
             &transport,
             secrets.as_ref(),
@@ -206,17 +217,21 @@ pub(super) async fn versions(
                             _ => "unknown",
                         }
                         .into(),
-                        loaders: release
-                            .game_versions
-                            .iter()
-                            .filter_map(|version| match version.as_str() {
-                                "Forge" => Some("forge".into()),
-                                "NeoForge" => Some("neoforge".into()),
-                                "Fabric" => Some("fabric".into()),
-                                "Quilt" => Some("quilt".into()),
-                                _ => None,
-                            })
-                            .collect(),
+                        loaders: if query.kind == "datapack" {
+                            vec!["datapack".into()]
+                        } else {
+                            release
+                                .game_versions
+                                .iter()
+                                .filter_map(|version| match version.as_str() {
+                                    "Forge" => Some("forge".into()),
+                                    "NeoForge" => Some("neoforge".into()),
+                                    "Fabric" => Some("fabric".into()),
+                                    "Quilt" => Some("quilt".into()),
+                                    _ => None,
+                                })
+                                .collect()
+                        },
                         game_versions: release.game_versions,
                         date_published: Some(release.file_date),
                         dependencies: release

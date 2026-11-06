@@ -351,6 +351,9 @@ pub struct WorldPackRecord {
     pub source: WorldPackSource,
     #[serde(default)]
     pub files: Vec<String>,
+    /// Exact installed bytes allow updates to preserve owner edits by default.
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub file_checksums: std::collections::BTreeMap<String, String>,
     #[serde(default)]
     pub checksum: Option<String>,
     #[serde(default)]

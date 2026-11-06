@@ -89,6 +89,7 @@
   let mapOpen = false;
   let confirming: { slotId: string; kind: 'activate' | 'delete' | 'duplicate' } | undefined;
   let confirmingBackupDeleteId: string | undefined;
+  let packProvider: 'modrinth' | 'curseforge' = 'modrinth';
   let packProject: { projectId: string; title: string } | undefined;
   let packMenu: { pack: Schema['WorldPackRecordDTO']; x: number; y: number } | undefined;
   let confirmingPackDeleteId: string | undefined;
@@ -947,17 +948,17 @@
               </div>
             </div>
           </div>
-        {#if !selectedSlot}
-          <EmptyState title="Select a world slot" message="Select a slot to manage its packs.">
-            <Icon name="folder" size={26} slot="icon" />
-          </EmptyState>
-        {:else if selectedBedrockPacks.length === 0}
-          <EmptyState title="No packs installed" message="Use Browse Packs to download a pack.">
-            <Icon name="box" size={26} slot="icon" />
-          </EmptyState>
-        {/if}
-      </Card>
-      {#if selectedSlot && selectedBedrockPacks.length > 0}
+          {#if !selectedSlot}
+            <EmptyState title="Select a world slot" message="Select a slot to manage its packs.">
+              <Icon name="folder" size={26} slot="icon" />
+            </EmptyState>
+          {:else if selectedBedrockPacks.length === 0}
+            <EmptyState title="No packs installed" message="Use Browse Packs to download a pack.">
+              <Icon name="box" size={26} slot="icon" />
+            </EmptyState>
+          {/if}
+        </Card>
+        {#if selectedSlot && selectedBedrockPacks.length > 0}
           <div class="pack-list">
             {#each selectedBedrockPacks as pack (pack.id)}
               <Card padding="0">
@@ -1001,7 +1002,7 @@
               </Card>
             {/each}
           </div>
-      {/if}
+        {/if}
       {:else}
         {#if !selectedSlot}
           <p class="ownership">Select a world slot to see its datapacks.</p>
@@ -1137,9 +1138,13 @@
         ? [
             {
               label: 'View',
-              disabled: menuPack.source.provider !== 'modrinth' || !menuPack.source.projectId,
+              disabled:
+                !['modrinth', 'curseforge'].includes(menuPack.source.provider ?? '') ||
+                !menuPack.source.projectId,
               onSelect: () => {
                 if (!menuPack.source.projectId) return;
+                packProvider =
+                  menuPack.source.provider === 'curseforge' ? 'curseforge' : 'modrinth';
                 packProject = { projectId: menuPack.source.projectId, title: menuPack.name };
                 showPackBrowser = true;
               },
@@ -1159,7 +1164,8 @@
 {#if showPackBrowser && selectedSlot}
   <WorldPackBrowserSheet
     {api}
-    initialProject={packProject}
+    initialProject={packProject ? { ...packProject, projectType: 'datapack' } : undefined}
+    initialProvider={packProvider}
     bedrock={isBedrock}
     slotId={selectedSlot.id}
     onClose={() => {

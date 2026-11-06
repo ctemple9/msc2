@@ -800,6 +800,7 @@ fn java_datapack_install_uses_outer_metadata_and_preserves_overlays() {
             name: "Example".into(),
             source: Default::default(),
             files: paths,
+            file_checksums: Default::default(),
             checksum: None,
             compatibility: None,
             minecraft_versions: vec![],
@@ -903,4 +904,100 @@ fn java_datapack_install_uses_outer_metadata_and_preserves_overlays() {
         .is_err()
     );
     assert_eq!(std::fs::read(&world_path).unwrap(), original);
+}
+
+// Existing datapack tests cover installation/deletion, but not an update's
+// owned-path removal or rejection of a changed world. Controlled ZIPs only;
+// expected runtime below 50 ms, no network, clocks, or timing assertions.
+#[test]
+fn provider_datapack_update_preserves_unowned_files_and_rejects_stale_world() {
+    use std::io::Write;
+    fn archive(entries: &[(&str, &[u8])]) -> Vec<u8> {
+        let mut writer = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
+        for (name, bytes) in entries {
+            writer
+                .start_file(*name, zip::write::SimpleFileOptions::default())
+                .unwrap();
+            writer.write_all(bytes).unwrap();
+        }
+        writer.finish().unwrap().into_inner()
+    }
+    let dir = std::env::temp_dir().join(format!("msc2-datapack-update-{}", uuid::Uuid::new_v4()));
+    std::fs::create_dir(&dir).unwrap();
+    let world = dir.join("world.zip");
+    std::fs::write(
+        &world,
+        archive(&[
+            ("world/level.dat", b"terrain"),
+            ("world/datapacks/owner.txt", b"keep"),
+        ]),
+    )
+    .unwrap();
+    let pack = archive(&[
+        (
+            "pack.mcmeta",
+            br#"{"pack":{"pack_format":48,"description":"Example"}}"#,
+        ),
+        ("data/example/function/run.mcfunction", b"say first"),
+    ]);
+    let (_, _, original_paths, _) = addons::install_verified_provider_datapack(
+        &world,
+        &pack,
+        "curseforge-10",
+        "100",
+        "Example",
+        &[],
+        None,
+    )
+    .unwrap();
+    let hashes = addons::datapack_file_checksums(&world, &original_paths).unwrap();
+    assert_eq!(hashes.len(), 2);
+    let before_update = addons::datapack_archive_checksum(&world).unwrap();
+    let (_, _, next_paths, _) = addons::install_verified_provider_datapack(
+        &world,
+        &pack,
+        "curseforge-10",
+        "101",
+        "Example",
+        &original_paths,
+        Some(&before_update),
+    )
+    .unwrap();
+    let updated = std::fs::read(&world).unwrap();
+    let mut result = zip::ZipArchive::new(std::io::Cursor::new(&updated)).unwrap();
+    for path in &original_paths {
+        assert!(result.by_name(&format!("world/{path}")).is_err());
+    }
+    for path in &next_paths {
+        assert!(result.by_name(&format!("world/{path}")).is_ok());
+    }
+    assert!(result.by_name("world/datapacks/owner.txt").is_ok());
+    assert!(result.by_name("world/level.dat").is_ok());
+    assert!(
+        addons::install_verified_provider_datapack(
+            &world,
+            &pack,
+            "curseforge-10",
+            "102",
+            "Example",
+            &next_paths,
+            Some(&before_update)
+        )
+        .is_err()
+    );
+    assert_eq!(std::fs::read(&world).unwrap(), updated);
+    assert!(
+        addons::install_verified_provider_datapack(
+            &world,
+            &pack,
+            "curseforge-10",
+            "103",
+            "Example",
+            &["level.dat".into()],
+            None
+        )
+        .is_err()
+    );
+    assert_eq!(std::fs::read(&world).unwrap(), updated);
+    std::fs::remove_dir_all(dir).unwrap();
 }

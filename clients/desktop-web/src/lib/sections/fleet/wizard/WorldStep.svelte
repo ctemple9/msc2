@@ -60,10 +60,14 @@
   function stagePack(pack: PendingWorldPack, scoped?: ScreenApi): void {
     if (pack.kind === 'localFile' && scoped)
       retainWizardUploadApi(draft, scoped, pack.stagedUploadId);
+    if (pack.kind === 'javaCatalog' && pack.manualStagedUploadId && scoped)
+      retainWizardUploadApi(draft, scoped, pack.manualStagedUploadId);
     const current = draft.pendingWorldPacks ?? [];
     const duplicate = current.some((entry) =>
       entry.kind === 'javaCatalog' && pack.kind === 'javaCatalog'
-        ? entry.projectId === pack.projectId && entry.versionId === pack.versionId
+        ? (entry.provider ?? 'modrinth') === (pack.provider ?? 'modrinth') &&
+          entry.projectId === pack.projectId &&
+          entry.versionId === pack.versionId
         : entry.kind === 'bedrockCatalog' && pack.kind === 'bedrockCatalog'
           ? entry.projectId === pack.projectId && entry.fileId === pack.fileId
           : false,
@@ -74,6 +78,8 @@
   async function removePack(pack: PendingWorldPack): Promise<void> {
     try {
       if (pack.kind === 'localFile') await discardWizardInput(draft, pack.stagedUploadId);
+      if (pack.kind === 'javaCatalog' && pack.manualStagedUploadId)
+        await discardWizardInput(draft, pack.manualStagedUploadId);
       draft.pendingWorldPacks = (draft.pendingWorldPacks ?? []).filter(
         (entry) => entry.id !== pack.id,
       );

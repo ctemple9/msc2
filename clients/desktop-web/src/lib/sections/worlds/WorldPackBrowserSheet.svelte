@@ -30,9 +30,26 @@
     | undefined = undefined;
   export let stagedPacks: import('../fleet/wizard/model').PendingWorldPack[] = [];
   export let minecraftVersion = '';
+  export let initialProvider: 'modrinth' | 'curseforge' = 'modrinth';
+  let provider = initialProvider;
+  let offset = 0,
+    total = 0;
+  let pendingRestore:
+    | { item: ProjectDetailItem; version: Schema['CatalogVersionDTO']; fingerprint: string }
+    | undefined;
+  let restoring = false;
+  let pendingManualJava:
+    | {
+        item: ProjectDetailItem;
+        version: Schema['CatalogVersionDTO'];
+        fingerprint?: string;
+        restoreApproved?: boolean;
+      }
+    | undefined;
   export let initialProject: ProjectDetailItem | undefined = undefined;
   export let onClose: () => void;
   export let onInstalled: () => void;
+  const connection = api?.snapshot?.() ?? api;
 
   let selectedMinecraftVersion = minecraftVersion;
   let versionLoading = true;
@@ -65,13 +82,13 @@
   }
 
   async function loadInstalledJavaPacks(): Promise<void> {
-    if (!api || bedrock || onStage) return;
+    if (!connection || bedrock || onStage) return;
     try {
-      const saved = await api.get<WorldSlotWithProfile>(worldPaths.profile(slotId));
+      const saved = await connection!.get<WorldSlotWithProfile>(worldPaths.profile(slotId));
       for (const pack of saved.profile.packs) {
         if (
           pack.kind === 'java_datapack' &&
-          pack.source.provider === 'modrinth' &&
+          pack.source.provider === provider &&
           pack.source.projectId &&
           pack.source.versionId
         ) {
@@ -111,7 +128,7 @@
     keyError = '';
     try {
       const status = await mutate<Schema['CurseForgeApiKeyStatusDTO']>(
-        api,
+        connection,
         '/v1/config/curseforge',
         { apiKey: apiKey.trim() },
       );
@@ -145,7 +162,8 @@
   onMount(async () => {
     await loadInstalledJavaPacks();
     for (const pack of stagedPacks) {
-      if (pack.kind === 'javaCatalog') recordInstalledJavaVersion(pack.projectId, pack.versionId);
+      if (pack.kind === 'javaCatalog' && (pack.provider ?? 'modrinth') === provider)
+        recordInstalledJavaVersion(pack.projectId, pack.versionId);
       if (pack.kind === 'bedrockCatalog')
         installed = new Set(installed).add(bedrockFileKey(pack.projectId, pack.fileId));
     }
@@ -154,7 +172,7 @@
       return;
     }
     try {
-      const version = await api.get<Schema['VersionsResponseDTO']>('/v1/versions');
+      const version = await connection!.get<Schema['VersionsResponseDTO']>('/v1/versions');
       selectedMinecraftVersion = version.currentVersion ?? '';
     } catch {
       // The pack list remains browseable if the selected server version is unavailable.
@@ -179,13 +197,13 @@
     detailError = '';
     expandedFileIds = new Set();
     stableOnly = true;
-    if (!api) {
+    if (!connection) {
       detailLoading = false;
       detailError = 'Connect to an agent to load pack details.';
       return;
     }
     try {
-      const loaded = await api.get<Schema['BedrockBehaviorPackDetailDTO']>(
+      const loaded = await connection!.get<Schema['BedrockBehaviorPackDetailDTO']>(
         `/v1/catalog/behaviorpacks/${encodeURIComponent(item.projectId)}`,
       );
       if (requestId !== detailRequestId) return;
@@ -223,35 +241,51 @@
     return 'error';
   }
 
-  async function search(): Promise<void> {
-    if (!api) return;
+  async function search(page = 0): Promise<void> {
+    if (!connection) return;
     const requestId = ++searchRequestId;
     loading = true;
     notice = '';
     needsCurseForgeKey = false;
     try {
+      if (!bedrock && provider === 'curseforge') {
+        const caps = await connection!.get<Schema['CapabilitiesDTO']>('/v1/capabilities');
+        if (!caps.contentCatalog?.javaDatapacks?.includes('curseforge'))
+          throw new Error('Update this agent to browse and install CurseForge Java datapacks.');
+      }
       const params = new URLSearchParams();
       if (bedrock) params.set('kind', packKind);
       if (query.trim()) params.set('q', query.trim());
       if (!bedrock && selectedMinecraftVersion.trim()) {
         params.set('gameVersion', selectedMinecraftVersion.trim());
       }
-      const path = `${bedrock ? '/v1/catalog/behaviorpacks' : '/v1/catalog/datapacks'}?${params}`;
+      if (!bedrock && provider === 'curseforge') {
+        params.set('kind', 'datapack');
+        params.set('offset', String(page));
+      }
+      const path = `${bedrock ? '/v1/catalog/behaviorpacks' : provider === 'curseforge' ? '/v1/catalog/curseforge/search' : '/v1/catalog/datapacks'}?${params}`;
       if (bedrock) {
-        const response = await api.get<Schema['BedrockBehaviorPackSearchResponseDTO']>(path);
+        const response =
+          await connection!.get<Schema['BedrockBehaviorPackSearchResponseDTO']>(path);
         if (requestId !== searchRequestId) return;
         bedrockResults = response.results;
       } else {
-        const response = await api.get<Schema['CatalogSearchResponseDTO']>(path);
+        const response = await connection!.get<
+          Schema['CatalogSearchResponseDTO'] & Partial<Schema['ProviderCatalogSearchDTO']>
+        >(path);
         if (requestId !== searchRequestId) return;
         results = response.results ?? [];
+        offset = page;
+        total = response.totalCount ?? results.length;
       }
     } catch (error) {
       if (requestId !== searchRequestId) return;
       results = [];
       bedrockResults = [];
       needsCurseForgeKey =
-        bedrock && error instanceof ApiError && error.error.code === 'missing_curseforge_api_key';
+        (bedrock || provider === 'curseforge') &&
+        error instanceof ApiError &&
+        error.error.code === 'missing_curseforge_api_key';
       notice = errorMessage(error);
     } finally {
       if (requestId === searchRequestId) loading = false;
@@ -268,13 +302,25 @@
   }
 
   async function installJava(item: Schema['CatalogItemDTO']): Promise<void> {
-    if (!api) return;
+    if (!connection) return;
     installing = item.projectId;
     notice = '';
     try {
-      const versions = await api.get<Schema['CatalogVersionsResponseDTO']>(
-        `/v1/catalog/projects/${encodeURIComponent(item.projectId)}/versions`,
-      );
+      const response =
+        provider === 'curseforge'
+          ? await connection!.get<Schema['ProviderCatalogVersionsDTO']>(
+              `/v1/catalog/curseforge/projects/${encodeURIComponent(item.projectId)}/versions?kind=datapack&gameVersion=${encodeURIComponent(selectedMinecraftVersion)}`,
+            )
+          : undefined;
+      const versions = response
+        ? {
+            versions: response.versions
+              .filter((value) => value.available && !value.manualDownloadRequired)
+              .map((value) => value.version),
+          }
+        : await connection!.get<Schema['CatalogVersionsResponseDTO']>(
+            `/v1/catalog/projects/${encodeURIComponent(item.projectId)}/versions`,
+          );
       const version = versions.versions.find(
         (candidate) =>
           candidate.loaders.includes('datapack') &&
@@ -291,6 +337,7 @@
         onStage({
           id: crypto.randomUUID(),
           kind: 'javaCatalog',
+          provider,
           edition: 'java',
           projectId: item.projectId,
           versionId: version.id,
@@ -303,9 +350,9 @@
         return;
       }
       const result = await mutate<Schema['JavaDatapackInstallResultDTO']>(
-        api,
+        connection,
         `/v1/worlds/${encodeURIComponent(slotId)}/datapacks/install`,
-        { projectId: item.projectId, versionId: version.id },
+        { provider, projectId: item.projectId, versionId: version.id },
       );
       notice = `${result.pack.name} installed.`;
       recordInstalledJavaVersion(item.projectId, version.id);
@@ -320,8 +367,9 @@
   async function installJavaVersion(
     item: ProjectDetailItem,
     version: Schema['CatalogVersionDTO'],
+    restoreFingerprint: string | undefined = undefined,
   ): Promise<string> {
-    if (!api) throw new Error('Connect to an agent to install a datapack.');
+    if (!connection) throw new Error('Connect to an agent to install a datapack.');
     installing = item.projectId;
     notice = '';
     try {
@@ -329,6 +377,7 @@
         onStage({
           id: crypto.randomUUID(),
           kind: 'javaCatalog',
+          provider,
           edition: 'java',
           projectId: item.projectId,
           versionId: version.id,
@@ -341,14 +390,31 @@
         return `${item.title} added.`;
       }
       const result = await mutate<Schema['JavaDatapackInstallResultDTO']>(
-        api,
+        connection,
         `/v1/worlds/${encodeURIComponent(slotId)}/datapacks/install`,
-        { projectId: item.projectId, versionId: version.id },
+        {
+          provider,
+          projectId: item.projectId,
+          versionId: version.id,
+          ...(restoreFingerprint
+            ? { restoreModified: true, restorationFingerprint: restoreFingerprint }
+            : {}),
+        },
       );
       recordInstalledJavaVersion(item.projectId, version.id);
       return `${result.pack.name} installed.`;
     } catch (error) {
       notice = errorMessage(error);
+      if (
+        error instanceof ApiError &&
+        error.error.code === 'modified_datapack' &&
+        !restoreFingerprint &&
+        typeof error.error.details === 'object' &&
+        error.error.details &&
+        'restorationFingerprint' in error.error.details &&
+        typeof error.error.details.restorationFingerprint === 'string'
+      )
+        pendingRestore = { item, version, fingerprint: error.error.details.restorationFingerprint };
       throw error;
     } finally {
       installing = '';
@@ -359,7 +425,7 @@
     item: Schema['BedrockBehaviorPackCatalogItemDTO'],
     fileId = item.fileId,
   ): Promise<void> {
-    if (!api || installing) return;
+    if (!connection || installing) return;
     installing = item.projectId;
     installingFileId = fileId;
     notice = '';
@@ -380,11 +446,11 @@
         return;
       }
       const result = await mutate<Schema['BedrockBehaviorPackInstallResultDTO']>(
-        api,
+        connection,
         `/v1/worlds/${encodeURIComponent(slotId)}/behaviorpacks/install`,
         { projectId: item.projectId, fileId },
       );
-      const operation = await pollOperation(api, result.operationId);
+      const operation = await pollOperation(connection, result.operationId);
       if (operation?.state !== 'succeeded') {
         throw new Error(operation?.error?.message ?? 'The pack installation did not complete.');
       }
@@ -400,16 +466,19 @@
   }
 
   async function choosePack(): Promise<void> {
-    if (!api || (!api.selectUploadSource && !api.uploadFile) || picking) return;
+    if (!connection || (!connection.selectUploadSource && !connection.uploadFile) || picking)
+      return;
     picking = true;
     try {
       pendingPack =
         (await pickUploadSource(
-          api,
+          connection,
           'addon-local-file',
           {
-            label: 'Choose a Bedrock pack',
-            extensions: ['mcpack', 'mcaddon', 'zip'],
+            label: pendingManualJava
+              ? 'Choose the exact CurseForge datapack ZIP'
+              : 'Choose a Bedrock pack',
+            extensions: pendingManualJava ? ['zip'] : ['mcpack', 'mcaddon', 'zip'],
           },
           { targetServerId: onStage ? null : undefined },
           () => !disposed,
@@ -426,6 +495,62 @@
     scoped: ScreenApi,
     report: (line: string) => void,
   ): Promise<void> {
+    if (pendingManualJava) {
+      const { item, version } = pendingManualJava;
+      if (onStage) {
+        onStage(
+          {
+            id: crypto.randomUUID(),
+            kind: 'javaCatalog',
+            edition: 'java',
+            provider: 'curseforge',
+            projectId: item.projectId,
+            versionId: version.id,
+            manualStagedUploadId: upload.stagedUploadId,
+            title: item.title,
+          },
+          scoped,
+        );
+      } else {
+        try {
+          await scoped.post(`/v1/worlds/${encodeURIComponent(slotId)}/datapacks/install`, {
+            provider: 'curseforge',
+            projectId: item.projectId,
+            versionId: version.id,
+            manualStagedUploadId: upload.stagedUploadId,
+            ...(pendingManualJava.restoreApproved
+              ? { restoreModified: true, restorationFingerprint: pendingManualJava.fingerprint }
+              : {}),
+          });
+        } catch (error) {
+          if (
+            error instanceof ApiError &&
+            error.error.code === 'modified_datapack' &&
+            typeof error.error.details === 'object' &&
+            error.error.details &&
+            'restorationFingerprint' in error.error.details &&
+            typeof error.error.details.restorationFingerprint === 'string'
+          ) {
+            pendingManualJava = {
+              item,
+              version,
+              fingerprint: error.error.details.restorationFingerprint,
+              restoreApproved: false,
+            };
+            notice =
+              'Existing content is modified or unknown. Keep the current pack, or approve restoring upstream and select the exact ZIP again.';
+          }
+          throw error;
+        }
+        onInstalled();
+      }
+      recordInstalledJavaVersion(item.projectId, version.id);
+      notice = onStage
+        ? 'Exact manual file staged for verification during creation.'
+        : 'Exact manual datapack verified and installed.';
+      pendingManualJava = undefined;
+      return;
+    }
     if (onStage) {
       onStage(
         {
@@ -435,7 +560,7 @@
           title: pendingPack?.name ?? 'Imported pack',
           stagedUploadId: upload.stagedUploadId,
         },
-        sourceApi(pendingPack, api),
+        sourceApi(pendingPack, connection),
       );
       notice = 'Pack added.';
       return;
@@ -463,10 +588,27 @@
 </script>
 
 <Sheet title={bedrock ? 'Browse Packs' : 'Browse Datapacks'} size="lg" {onClose}>
+  {#if !bedrock}
+    <div class="pack-filters" aria-label="Datapack provider">
+      {#each ['modrinth', 'curseforge'] as name}
+        <Button
+          disabled={!!installing || restoring}
+          onclick={() => {
+            provider = name as typeof provider;
+            javaDetailItem = undefined;
+            installed = new Set();
+            installedJavaVersions = new Map();
+            void loadInstalledJavaPacks();
+            void search();
+          }}>{name === 'modrinth' ? 'Modrinth' : 'CurseForge'}</Button
+        >
+      {/each}
+    </div>
+  {/if}
   <div class="header">
     <Field bind:value={query} placeholder={bedrock ? 'Search world packs…' : 'Search datapacks…'} />
     <p class="subtitle">
-      {bedrock ? 'CurseForge' : 'Modrinth'}{selectedMinecraftVersion
+      {bedrock || provider === 'curseforge' ? 'CurseForge' : 'Modrinth'}{selectedMinecraftVersion
         ? ` · Minecraft ${selectedMinecraftVersion}`
         : ''}
     </p>
@@ -488,7 +630,10 @@
       <Button
         size="sm"
         variant="secondary"
-        disabled={picking || !!installing || !api || (!api.selectUploadSource && !api.uploadFile)}
+        disabled={picking ||
+          !!installing ||
+          !connection ||
+          (!connection.selectUploadSource && !connection.uploadFile)}
         onclick={() => void choosePack()}>Import Pack…</Button
       >
     </div>
@@ -567,7 +712,7 @@
             type="button"
             class="result-link"
             aria-label={`View ${item.title} datapack details`}
-            onclick={() => (javaDetailItem = item)}
+            onclick={() => (javaDetailItem = { ...item, projectType: 'datapack' })}
           >
             <div class="icon">
               {#if item.iconURL}
@@ -608,10 +753,34 @@
   {/if}
 </Sheet>
 
+{#if !bedrock && provider === 'curseforge' && total > 50}
+  <div class="pack-filters">
+    <Button disabled={loading || offset === 0} onclick={() => void search(Math.max(0, offset - 50))}
+      >Previous</Button
+    ><span>{offset + 1}–{offset + results.length} of {total}</span><Button
+      disabled={loading || offset + results.length >= total}
+      onclick={() => void search(offset + 50)}>Next</Button
+    >
+  </div>
+{/if}
+
 {#if javaDetailItem}
   <ProjectDetailSheet
-    {api}
+    api={connection}
     item={javaDetailItem}
+    {provider}
+    incompatibleInstallAvailable={false}
+    mode={onStage ? 'stage' : 'install'}
+    onInstallProviderVersion={provider === 'curseforge'
+      ? async (version, release) => {
+          if (release?.manualDownloadRequired) {
+            pendingManualJava = { item: javaDetailItem!, version };
+            return false;
+          }
+          await installJavaVersion(javaDetailItem!, version);
+          return true;
+        }
+      : undefined}
     requiredVersionLoader="datapack"
     knownInstalledVersionIds={installedJavaVersions.get(javaDetailItem.projectId) ?? []}
     serverMinecraftVersion={selectedMinecraftVersion || undefined}
@@ -774,7 +943,7 @@
 
 {#if pendingPack}
   <StagedUploadSheet
-    {api}
+    api={connection}
     purpose="addon-local-file"
     source={pendingPack}
     completionStage={onStage ? 'complete' : 'installing'}
@@ -809,6 +978,77 @@
         >
       </div>
     </div>
+  </Sheet>
+{/if}
+
+{#if pendingManualJava && !pendingPack}
+  <Sheet
+    title="Manual datapack download required"
+    size="md"
+    onClose={() => (pendingManualJava = undefined)}
+  >
+    <p>
+      The author requires downloading this exact release in your browser. Choose its original ZIP;
+      MSC verifies its filename, size and SHA1 against CurseForge before installing it.
+    </p>
+    <p>{pendingManualJava.item.title} · {pendingManualJava.version.name}</p>
+    <Button
+      onclick={() => {
+        if (!pendingManualJava) return;
+        void openExternal(
+          `https://www.curseforge.com/minecraft/data-packs/${encodeURIComponent(pendingManualJava.item.slug ?? pendingManualJava.item.projectId)}/files/${encodeURIComponent(pendingManualJava.version.id)}`,
+        ).catch((error) => (notice = errorMessage(error)));
+      }}>Open exact CurseForge file</Button
+    >
+    {#if pendingManualJava.fingerprint}
+      <p>Existing datapack contents are modified or unknown. Close this prompt to keep them.</p>
+      <label
+        ><input type="checkbox" bind:checked={pendingManualJava.restoreApproved} />Restore the
+        selected upstream contents in place of the recorded files.</label
+      >
+    {/if}
+    <Button
+      disabled={picking || (!!pendingManualJava.fingerprint && !pendingManualJava.restoreApproved)}
+      onclick={() => void choosePack()}>Choose downloaded ZIP…</Button
+    >
+    {#if notice}<p role="status">{notice}</p>{/if}
+  </Sheet>
+{/if}
+
+{#if pendingRestore}
+  <Sheet
+    title="Keep customized datapack contents?"
+    size="md"
+    onClose={restoring ? undefined : () => (pendingRestore = undefined)}
+  >
+    <p>
+      MSC found modified files or an unknown baseline for {pendingRestore.item.title}. Keeping the
+      current pack is the default. Restoring replaces only its recorded files with this exact
+      upstream release; unrelated world content stays in place.
+    </p>
+    <Button disabled={restoring} onclick={() => (pendingRestore = undefined)}
+      >Keep current contents</Button
+    >
+    <Button
+      disabled={restoring}
+      onclick={async () => {
+        if (!pendingRestore) return;
+        restoring = true;
+        try {
+          await installJavaVersion(
+            pendingRestore.item,
+            pendingRestore.version,
+            pendingRestore.fingerprint,
+          );
+          pendingRestore = undefined;
+          onInstalled();
+        } catch {
+        } finally {
+          restoring = false;
+        }
+      }}>Restore selected upstream release</Button
+    >
+    {#if notice}<p role="alert">{notice}</p>{/if}
   </Sheet>
 {/if}
 

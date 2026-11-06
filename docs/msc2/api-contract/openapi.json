@@ -12525,6 +12525,7 @@
               "type": "string"
             }
           },
+          "javaDatapacks": {"type": "array", "items": {"type": "string"}},
           "creationPackSetup": {
             "type": "boolean",
             "default": false
@@ -13909,6 +13910,10 @@
       "JavaDatapackInstallRequestDTO": {
         "type": "object",
         "properties": {
+          "provider": {"type": "string", "enum": ["modrinth", "curseforge"], "default": "modrinth"},
+          "manualStagedUploadId": {"type": "string", "description": "Owner-bound exact CurseForge ZIP to verify against provider filename, size and SHA1."},
+          "restoreModified": {"type": "boolean", "default": false},
+          "restorationFingerprint": {"type": "string", "description": "Fingerprint returned by modified_datapack; binds explicit restore to world bytes, pack records, server, slot and exact requested release."},
           "projectId": {
             "type": "string"
           },
@@ -14013,6 +14018,7 @@
         "type": "object",
         "description": "Provider identity and compatibility metadata for a pack owned by one world slot.",
         "properties": {
+          "fileChecksums": {"type": "object", "additionalProperties": {"type": "string"}, "description": "SHA512 of each installed owned path; absent legacy baseline is unknown."},
           "id": { "type": "string" },
           "edition": { "type": "string", "enum": ["java", "bedrock"] },
           "kind": { "type": "string", "enum": ["java_datapack", "bedrock_behavior_pack", "bedrock_resource_pack"] },

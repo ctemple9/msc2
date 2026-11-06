@@ -99,6 +99,31 @@ pub fn install_java_datapack(
     project_title: &str,
     minecraft_version: &str,
 ) -> Result<(String, String, Vec<String>, PathBuf), JavaDatapackError> {
+    install_java_datapack_replacing(
+        world_zip_path,
+        archive_bytes,
+        version,
+        project_id,
+        project_title,
+        minecraft_version,
+        None,
+    )
+}
+
+pub struct DatapackReplacement<'a> {
+    pub files: &'a [String],
+    pub archive_checksum: Option<&'a str>,
+}
+
+pub fn install_java_datapack_replacing(
+    world_zip_path: &Path,
+    archive_bytes: &[u8],
+    version: &ModrinthVersionInfo,
+    project_id: &str,
+    project_title: &str,
+    minecraft_version: &str,
+    replacement: Option<DatapackReplacement<'_>>,
+) -> Result<(String, String, Vec<String>, PathBuf), JavaDatapackError> {
     if !version.loaders.iter().any(|loader| loader == "datapack") {
         return Err(JavaDatapackError::Invalid(
             "The selected release is a mod or another package type; choose a datapack release."
@@ -129,6 +154,10 @@ pub fn install_java_datapack(
         project_id,
         &version.id,
         project_title,
+        replacement
+            .as_ref()
+            .map_or(&[] as &[String], |value| value.files),
+        replacement.and_then(|value| value.archive_checksum),
     )
 }
 
@@ -146,7 +175,77 @@ pub fn install_local_java_datapack(
         "local",
         &checksum[..16],
         name,
+        &[],
+        None,
     )
+}
+
+/// Metadata and artifact hashes are verified by the provider adapter first.
+pub fn install_verified_provider_datapack(
+    world_zip_path: &Path,
+    archive_bytes: &[u8],
+    project_id: &str,
+    version_id: &str,
+    title: &str,
+    replaced_files: &[String],
+    expected_archive_checksum: Option<&str>,
+) -> Result<(String, String, Vec<String>, PathBuf), JavaDatapackError> {
+    install_java_datapack_archive(
+        world_zip_path,
+        archive_bytes,
+        project_id,
+        version_id,
+        title,
+        replaced_files,
+        expected_archive_checksum,
+    )
+}
+
+pub fn datapack_archive_checksum(path: &Path) -> Result<String, JavaDatapackError> {
+    use sha2::Digest;
+    let mut input =
+        std::fs::File::open(path).map_err(|error| JavaDatapackError::Io(error.to_string()))?;
+    let mut digest = sha2::Sha512::new();
+    std::io::copy(&mut input, &mut digest)
+        .map_err(|error| JavaDatapackError::Io(error.to_string()))?;
+    Ok(format!("{:x}", digest.finalize()))
+}
+
+/// Hash only recorded datapack entries; unrelated terrain/runtime data is untouched.
+pub fn datapack_file_checksums(
+    world_zip_path: &Path,
+    paths: &[String],
+) -> Result<std::collections::BTreeMap<String, String>, JavaDatapackError> {
+    use sha2::Digest;
+    let file = std::fs::File::open(world_zip_path)
+        .map_err(|error| JavaDatapackError::Io(error.to_string()))?;
+    let mut archive = zip::ZipArchive::new(file)
+        .map_err(|error| JavaDatapackError::Invalid(error.to_string()))?;
+    let root = archive
+        .file_names()
+        .find_map(|name| name.strip_suffix("level.dat"))
+        .unwrap_or("")
+        .to_owned();
+    let mut result = std::collections::BTreeMap::new();
+    for path in paths {
+        if !path.starts_with("datapacks/")
+            || path.split('/').any(|part| part == ".." || part.is_empty())
+            || path.contains('\\')
+            || path.contains(':')
+        {
+            return Err(JavaDatapackError::Invalid(
+                "Unsafe recorded datapack path".into(),
+            ));
+        }
+        let mut entry = archive
+            .by_name(&format!("{root}{path}"))
+            .map_err(|error| JavaDatapackError::Invalid(error.to_string()))?;
+        let mut digest = sha2::Sha512::new();
+        std::io::copy(&mut entry, &mut digest)
+            .map_err(|error| JavaDatapackError::Io(error.to_string()))?;
+        result.insert(path.clone(), format!("{:x}", digest.finalize()));
+    }
+    Ok(result)
 }
 
 fn install_java_datapack_archive(
@@ -155,7 +254,19 @@ fn install_java_datapack_archive(
     project_id: &str,
     version_id: &str,
     project_title: &str,
+    replaced_files: &[String],
+    expected_archive_checksum: Option<&str>,
 ) -> Result<(String, String, Vec<String>, PathBuf), JavaDatapackError> {
+    if replaced_files.iter().any(|path| {
+        !path.starts_with("datapacks/")
+            || path.split('/').any(|part| part == ".." || part.is_empty())
+            || path.contains('\\')
+            || path.contains(':')
+    }) {
+        return Err(JavaDatapackError::Invalid(
+            "Unsafe recorded datapack replacement path".into(),
+        ));
+    }
     let mut incoming = zip::ZipArchive::new(Cursor::new(archive_bytes))
         .map_err(|error| JavaDatapackError::Invalid(format!("Invalid datapack ZIP: {error}")))?;
     if incoming.is_empty() || incoming.len() > 20_000 {
@@ -273,7 +384,12 @@ fn install_java_datapack_archive(
     let datapack_root = format!("{world_root}datapacks/{pack_folder}/");
     let existing: std::collections::HashSet<String> =
         world.file_names().map(str::to_string).collect();
-    if existing.iter().any(|name| name.starts_with(&datapack_root)) {
+    if existing.iter().any(|name| {
+        name.starts_with(&datapack_root)
+            && !replaced_files
+                .iter()
+                .any(|path| *name == format!("{world_root}{path}"))
+    }) {
         return Err(JavaDatapackError::Invalid(
             "This datapack version is already installed in the selected world.".into(),
         ));
@@ -289,6 +405,12 @@ fn install_java_datapack_archive(
             JavaDatapackError::Invalid(format!("Could not read world archive: {error}"))
         })?;
         let name = entry.name().to_string();
+        if replaced_files
+            .iter()
+            .any(|path| name == format!("{world_root}{path}"))
+        {
+            continue;
+        }
         if entry.is_dir() {
             output
                 .add_directory(name, options)
@@ -320,6 +442,14 @@ fn install_java_datapack_archive(
         .map_err(|error| {
             JavaDatapackError::Io(format!("Could not flush updated world: {error}"))
         })?;
+    if let Some(expected) = expected_archive_checksum
+        && datapack_archive_checksum(world_zip_path)? != expected
+    {
+        let _ = std::fs::remove_file(&temp_path);
+        return Err(JavaDatapackError::Invalid(
+            "World changed during datapack staging; review again".into(),
+        ));
+    }
     let backup_path =
         world_zip_path.with_extension(format!("{}.pre-datapack.bak", uuid::Uuid::new_v4()));
     std::fs::copy(world_zip_path, &backup_path).map_err(|error| {
@@ -967,6 +1097,7 @@ pub fn install_bedrock_behavior_pack(
                 version: Some(pack.version.clone()),
                 url: (source_url != "local-file").then(|| source_url.to_owned()),
             },
+            file_checksums: Default::default(),
             files: pack
                 .files
                 .iter()

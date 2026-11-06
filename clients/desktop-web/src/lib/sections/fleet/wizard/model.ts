@@ -353,7 +353,14 @@ export type PendingWorldPack = {
   description?: string;
   iconURL?: string;
 } & (
-  | { kind: 'javaCatalog'; edition: 'java'; projectId: string; versionId: string }
+  | {
+      kind: 'javaCatalog';
+      edition: 'java';
+      provider?: 'modrinth' | 'curseforge';
+      projectId: string;
+      versionId: string;
+      manualStagedUploadId?: string;
+    }
   | { kind: 'bedrockCatalog'; edition: 'bedrock'; projectId: string; fileId: number }
   | { kind: 'localFile'; edition: 'java' | 'bedrock'; stagedUploadId: string }
 );
@@ -884,12 +891,19 @@ export async function createServerFromDraft(
             pack.kind === 'localFile'
               ? { stagedUploadId: pack.stagedUploadId }
               : pack.kind === 'javaCatalog'
-                ? { projectId: pack.projectId, versionId: pack.versionId }
+                ? {
+                    provider: pack.provider ?? 'modrinth',
+                    projectId: pack.projectId,
+                    versionId: pack.versionId,
+                    manualStagedUploadId: pack.manualStagedUploadId,
+                  }
                 : { projectId: pack.projectId, fileId: pack.fileId };
           const path = `/v1/worlds/${encodeURIComponent(worlds.activeSlotId)}/${pack.edition === 'java' ? 'datapacks' : 'behaviorpacks'}/install`;
           const result = await mutate<{ operationId?: string }>(api, path, body);
           if (result.operationId) {
             if (pack.kind === 'localFile') releaseWizardOwnership(draft, pack.stagedUploadId);
+            if (pack.kind === 'javaCatalog' && pack.manualStagedUploadId)
+              releaseWizardOwnership(draft, pack.manualStagedUploadId);
             const installed = await pollOperation(api, result.operationId);
             if (installed?.state !== 'succeeded')
               throw new Error(installed?.error?.message ?? 'Pack installation failed.');

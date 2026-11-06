@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: bdd499436dcfb0ebefce419e90babc5b56e98259b8c369fad08b42386ff8d765
+// Contract SHA-256: a9e7db79798350a31fb5e51bd44f78787fcfe663c51acedccd72e460e27a3ee9
 
 export interface paths {
   '/v1/active-server': {
@@ -8985,6 +8985,7 @@ export interface components {
       /** @default false */
       creationPackSetup: boolean;
       incompatibleInstallReview?: boolean;
+      javaDatapacks?: string[];
       packAcquisition: boolean;
       playerContentManagement?: boolean;
       playerContentRecovery?: boolean;
@@ -9601,7 +9602,18 @@ export interface components {
     };
     /** @description Choose a Modrinth release or a local datapack ZIP, exclusively. */
     JavaDatapackInstallRequestDTO: ({
+      /** @description Owner-bound exact CurseForge ZIP to verify against provider filename, size and SHA1. */
+      manualStagedUploadId?: string;
       projectId?: string;
+      /**
+       * @default modrinth
+       * @enum {string}
+       */
+      provider: 'modrinth' | 'curseforge';
+      /** @description Fingerprint returned by modified_datapack; binds explicit restore to world bytes, pack records, server, slot and exact requested release. */
+      restorationFingerprint?: string;
+      /** @default false */
+      restoreModified: boolean;
       /** @description Completed addon-local-file upload of a datapack ZIP; compatibility is unverified. */
       stagedUploadId?: string;
       versionId?: string;
@@ -11741,6 +11753,10 @@ export interface components {
       /** @enum {string} */
       edition: 'java' | 'bedrock';
       enabled: boolean;
+      /** @description SHA512 of each installed owned path; absent legacy baseline is unknown. */
+      fileChecksums?: {
+        [key: string]: string;
+      };
       /** @description Relative paths below the owning world root. */
       files: string[];
       id: string;

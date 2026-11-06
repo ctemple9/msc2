@@ -80,6 +80,7 @@
       isVersionCompatible(version, serverMinecraftVersion) &&
       ((provider === 'modrinth' && item.projectType !== 'modpack') ||
         item.projectType === 'plugin' ||
+        item.projectType === 'datapack' ||
         (!!javaFlavor && version.loaders.includes(javaFlavor)))
     );
   }
@@ -230,8 +231,8 @@
       return;
     }
 
-    if (mode === 'stage') {
-      onStaged?.(version.id);
+    if (mode === 'stage' && onStaged) {
+      onStaged(version.id);
       installedVersionIds = new Set(installedVersionIds).add(version.id);
       return;
     }

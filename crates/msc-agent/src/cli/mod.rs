@@ -1362,14 +1362,32 @@ pub enum WorldPackCommand {
     /// List the packs recorded on one world slot.
     List { slot_id: String },
     /// Search the provider catalog for the selected world's edition.
-    Search { slot_id: String, query: String },
+    Search {
+        slot_id: String,
+        query: String,
+        #[arg(long, default_value = "modrinth", value_parser = ["modrinth", "curseforge"])]
+        provider: String,
+    },
     /// Inspect compatible versions, files, and dependencies before installation.
-    Inspect { slot_id: String, project_id: String },
+    Inspect {
+        slot_id: String,
+        project_id: String,
+        #[arg(long, default_value = "modrinth", value_parser = ["modrinth", "curseforge"])]
+        provider: String,
+    },
     /// Install a reviewed provider version or file into this exact world slot.
     Install {
         slot_id: String,
         project_id: String,
         version_or_file_id: String,
+        #[arg(long, default_value = "modrinth", value_parser = ["modrinth", "curseforge"])]
+        provider: String,
+        /// Exact author-downloaded CurseForge datapack ZIP.
+        #[arg(long)]
+        manual_file: Option<PathBuf>,
+        /// Explicit restore fingerprint returned by modified_datapack.
+        #[arg(long)]
+        restore_review: Option<String>,
         #[arg(long, required = true)]
         confirm: bool,
         #[arg(long)]
@@ -4571,7 +4589,11 @@ async fn run_world_pack(
             }
             Ok(())
         }
-        WorldPackCommand::Search { slot_id, query } => {
+        WorldPackCommand::Search {
+            slot_id,
+            query,
+            provider,
+        } => {
             let world: serde_json::Value = client
                 .get_json(&format!("/v1/worlds/{slot_id}/profile"))
                 .await?;
@@ -4583,11 +4605,21 @@ async fn run_world_pack(
             } else {
                 "datapacks"
             };
+            let route = if route == "datapacks" && provider == "curseforge" {
+                "curseforge/search"
+            } else {
+                route
+            };
             let path = format!(
                 "/v1/catalog/{route}?q={}&gameVersion={}",
                 encode_uri_component(&query),
                 encode_uri_component(&game_version)
             );
+            let path = if route == "curseforge/search" {
+                format!("{path}&kind=datapack")
+            } else {
+                path
+            };
             let results: serde_json::Value = client.get_json(&path).await?;
             if common.json {
                 print_json(&serde_json::json!({"targetWorld": world["slot"], "catalog": results}))
@@ -4599,6 +4631,7 @@ async fn run_world_pack(
         WorldPackCommand::Inspect {
             slot_id,
             project_id,
+            provider,
         } => {
             let world: serde_json::Value = client
                 .get_json(&format!("/v1/worlds/{slot_id}/profile"))
@@ -4609,12 +4642,24 @@ async fn run_world_pack(
                     "/v1/catalog/behaviorpacks/{}",
                     encode_uri_component(&project_id)
                 )
+            } else if provider == "curseforge" {
+                format!(
+                    "/v1/catalog/curseforge/projects/{}",
+                    encode_uri_component(&project_id)
+                )
             } else {
                 format!("/v1/catalog/projects/{}", encode_uri_component(&project_id))
             };
             let detail: serde_json::Value = client.get_json(&path).await?;
             let compatible = if status.server_type.as_deref() == Some("bedrock") {
                 serde_json::json!({"files": detail["files"]})
+            } else if provider == "curseforge" {
+                client
+                    .get_json(&format!(
+                        "/v1/catalog/curseforge/projects/{}/versions?kind=datapack",
+                        encode_uri_component(&project_id)
+                    ))
+                    .await?
             } else {
                 client
                     .get_json(&format!(
@@ -4629,7 +4674,13 @@ async fn run_world_pack(
                 )?;
             } else {
                 print_target_world(&world["slot"], &slot_id, false)?;
-                println!("project: {}", detail["title"].as_str().unwrap_or("unknown"));
+                println!(
+                    "project: {}",
+                    detail["title"]
+                        .as_str()
+                        .or_else(|| detail["project"]["title"].as_str())
+                        .unwrap_or("unknown")
+                );
                 println!(
                     "compatibility and dependencies: {}",
                     serde_json::to_string_pretty(&compatible).unwrap_or_default()
@@ -4641,6 +4692,9 @@ async fn run_world_pack(
             slot_id,
             project_id,
             version_or_file_id,
+            provider,
+            manual_file,
+            restore_review,
             confirm: _,
             no_wait,
         } => {
@@ -4671,7 +4725,41 @@ async fn run_world_pack(
                 )
                 .await
             } else {
-                let result: serde_json::Value = client.post_json(&format!("/v1/worlds/{slot_id}/datapacks/install"), &serde_json::json!({"projectId": project_id, "versionId": version_or_file_id})).await?;
+                if provider == "curseforge" {
+                    let caps: msc_api::dto::CapabilitiesResponseDto =
+                        client.get_json("/v1/capabilities").await?;
+                    if !caps.content_catalog.as_ref().is_some_and(|catalog| {
+                        catalog
+                            .java_datapacks
+                            .iter()
+                            .any(|value| value == "curseforge")
+                    }) {
+                        return Err(CliError::usage(
+                            "Update this agent to install CurseForge Java datapacks",
+                        ));
+                    }
+                }
+                let manual_upload = if let Some(path) = manual_file {
+                    if provider != "curseforge" {
+                        return Err(CliError::usage(
+                            "--manual-file requires --provider curseforge",
+                        ));
+                    }
+                    Some(
+                        stage_file_upload(
+                            client,
+                            &path,
+                            StagedUploadPurposeDto::AddonLocalFile,
+                            None,
+                            None,
+                            None,
+                        )
+                        .await?,
+                    )
+                } else {
+                    None
+                };
+                let result: serde_json::Value = client.post_json(&format!("/v1/worlds/{slot_id}/datapacks/install"), &serde_json::json!({"provider": provider, "projectId": project_id, "versionId": version_or_file_id, "manualStagedUploadId": manual_upload, "restoreModified": restore_review.is_some(), "restorationFingerprint": restore_review})).await?;
                 if common.json {
                     print_json(&serde_json::json!({"targetWorld": world["slot"], "result": result}))
                 } else {

@@ -55,6 +55,8 @@ pub struct WorldPackRecordDto {
     pub source: WorldPackSourceDto,
     #[serde(default)]
     pub files: Vec<String>,
+    #[serde(default)]
+    pub file_checksums: std::collections::BTreeMap<String, String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub size_bytes: Option<u64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -100,6 +102,14 @@ pub struct WorldPackDependencyDto {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct JavaDatapackInstallRequestDto {
+    #[serde(default)]
+    pub restore_modified: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub restoration_fingerprint: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub manual_staged_upload_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provider: Option<String>,
     #[serde(default)]
     pub project_id: String,
     #[serde(default)]

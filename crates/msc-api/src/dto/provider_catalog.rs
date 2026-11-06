@@ -65,6 +65,8 @@ pub struct ContentCatalogCapabilityDto {
     #[serde(default)]
     pub creation_pack_setup: bool,
     #[serde(default)]
+    pub java_datapacks: Vec<String>,
+    #[serde(default)]
     pub source_identification: Vec<String>,
     #[serde(default)]
     pub reviewed_updates: Vec<String>,

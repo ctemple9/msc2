@@ -117,3 +117,5 @@ an ordinary ZIP. Player optional shaders/resource packs remain inactive.
 These terminal exports do not use the desktop's local save picker.
 
 Creation-time pack setup (P24.12): `msc server create NAME --modpack PATH --flavor fabric --minecraft-version 1.21.1 --try-pack-with-current-setup` explicitly tries the selected runtime instead of the upstream pack pins. Add `--loader-version` for an exact pin; Forge/NeoForge require it. Without that flag pack creation uses the upstream pins. The retained archive stays unchanged; this flag is not a compatibility guarantee.
+
+Java world datapacks (P24.13): `msc world pack search SLOT QUERY --provider curseforge`, `inspect SLOT PROJECT --provider curseforge`, and `install SLOT PROJECT FILE --provider curseforge --confirm` use exact provider identities. Add `--manual-file PATH` for an author-downloaded ZIP. A modified/unknown existing pack is preserved; after reviewing the returned conflict, `--restore-review FINGERPRINT` explicitly restores the chosen release only if the bound world/content state still matches. Bedrock retains its existing CurseForge adapter.

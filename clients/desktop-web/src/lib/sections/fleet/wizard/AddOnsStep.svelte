@@ -384,11 +384,6 @@
 </script>
 
 <div class="addons" use:onboardingAnchor={'ob_wizard_sheet'}>
-  {#if addOnKind === 'mod' && !draft.stagedModpack}
-    <Button disabled={!api || stagingModpack || !!packCandidate} onclick={() => (showPacks = true)}
-      >Browse modpacks…</Button
-    >
-  {/if}
   {#if addOnKind}
     <div class="header-row">
       <div class="intro">
@@ -411,9 +406,10 @@
             disabled={stagingJar}
             onclick={() => void chooseOwnJar()}
           >
-            {stagingJar ? 'Staging…' : 'Add your own…'}
+            {stagingJar ? 'Staging…' : addOnKind === 'mod' ? 'Import Mods…' : 'Import Plugins…'}
           </Button>
           {#if addOnKind === 'mod' && !draft.stagedModpack}
+            <Button size="sm" variant="secondary" disabled={!api || stagingModpack || !!packCandidate} onclick={() => (showPacks = true)}>Browse Modpacks…</Button>
             <Button
               size="sm"
               variant="secondary"
@@ -433,10 +429,14 @@
     {#if !hasAny}
       <div class="cards">
         <button type="button" class="card" onclick={() => (showBrowser = true)}>
-          <span class="card-title">Browse {noun}</span>
+          <span class="card-title">Browse {addOnKind === 'mod' ? 'Mods' : 'Plugins'}</span>
           <span class="card-subtitle">Search and add {noun} by name or keyword.</span>
         </button>
         {#if addOnKind === 'mod'}
+          <button type="button" class="card" disabled={!api || stagingModpack || !!packCandidate} onclick={() => (showPacks = true)}>
+            <span class="card-title">Browse Modpacks</span>
+            <span class="card-subtitle">Find a modpack on Modrinth or CurseForge.</span>
+          </button>
           <button
             type="button"
             class="card"
@@ -453,7 +453,7 @@
           disabled={stagingJar}
           onclick={() => void chooseOwnJar()}
         >
-          <span class="card-title">{stagingJar ? 'Staging…' : 'Add Your Own'}</span>
+          <span class="card-title">{stagingJar ? 'Staging…' : addOnKind === 'mod' ? 'Import Mods' : 'Import Plugins'}</span>
           <span class="card-subtitle">Already have a {itemNoun} file? Add its .jar directly.</span>
         </button>
       </div>
@@ -680,11 +680,9 @@
   }
 
   .cards {
-    display: flex;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px;
-  }
-  .cards > .card {
-    flex: 1;
   }
 
   .card {

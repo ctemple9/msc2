@@ -340,3 +340,14 @@ checks when no affected source has changed. New module paths are proposals.
 **Batch:** D — final owner acceptance; no agent phase closure
 
 **Final candidate evidence:** Added requirement-to-source/navigation/physical-evidence map, exact staged development agent hash, final UI route checklist, permitted check results and explicit missing screenshot/platform/launcher acceptance. Final source inspection found two omitted consumer integrations: legacy Add-ons still had independent Modrinth-only search, and diagnostic CurseForge repair only displayed a review-required error. Reused the shared provider browser/source-update/player screens in Add-ons; Health now follows the provider-qualified error into those same scoped flows and checks player requirements after content changes. Added initialProvider to the shared browser, corrected obsolete Modrinth-only help/TUI text, and updated capability notes. Formatting/focused Clippy, frontend check/build, native check and development agent/sidecar staging passed; target and staged SHA256 match. No tests, live mutations, service restart, releases or independent phase review run. P24.20 and all unrecorded physical results remain incomplete; this packet is not acceptance or phase closure.
+
+### P24.25 — Arrange creation add-on choices in a two-column grid
+
+**Status:** implemented — awaiting owner visual verification
+**Files:** clients/desktop-web/src/lib/sections/fleet/wizard/AddOnsStep.svelte; docs/msc2/rolling-plan.md
+**What:** Owner-requested creation layout revision: show Browse Mods and Browse Modpacks on the first row, Import Modpack and Import Mods on the second. Remove the detached top modpack button; keep all four existing actions wired to their current browser/import flows. Preserve plugin-specific wording and offer catalog pack browsing in the staged-content header too.
+**Verify:** `npm --prefix clients/desktop-web run check`. Open Add Server → Fabric → Add-ons and confirm the 2×2 ordering and each action.
+**Commit:** `P24.25: arrange creation add-on choices in a two-column grid`
+**Batch:** owner-requested bounded visual revision; final verification pending
+
+No tests added or run for this reversible layout change. Rust is unchanged; prior Rust formatting/Clippy results remain applicable. Frontend check passed with the existing CSS warnings.

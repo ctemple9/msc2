@@ -399,3 +399,40 @@ Type checked, not run. Rust unchanged; P24.34 staged hash remains applicable.
 No agent rebuild, service restart, live cancellation/mutation or release performed.
 Physical close/reopen recovery and cross-host/permission behavior remain owner
 verification items; no phase acceptance inferred.
+
+
+### P24.37 — Personal export of local pack/server content (2026-11-07)
+
+Owner rejected the zero-file preview with 1,559 approval-related issues. Those
+were publication-policy gates, not proof that 1,559 files were physically absent.
+Normal desktop export now uses personal local selection: no configuration or
+sharing attestations and no provider-download approval gate. It does not call
+provider acquisition. A matching verified live server copy is used instead of a
+retained duplicate; differing client overrides remain preserved. Old editing
+prompts are cleared in the read-only export projection; actual source/hash/path
+validation remains authoritative. Retention gaps resolved by verified server
+bytes are removed from the derived gap list.
+
+The sheet offers the two content choices, format and destination. Removed the
+approval action, incomplete consent and extra version/configuration controls.
+Only complete new reviews may freeze or export through this sheet, and prior
+incomplete snapshots are omitted from its export selector; actual source
+failures block the action rather than offering partial output. Existing legacy
+publication API behavior and frozen historical bytes remain compatible. New
+personalContentExports capability explicitly refuses older agents that would
+otherwise show the obsolete approval-driven preview again.
+
+Passed Rust fmt/focused agent Clippy, publication regression source compilation,
+API generation, frontend check (0 errors/10 existing CSS warnings), and production
+frontend build (existing CSS/chunk-size warnings). New essential local regression
+protects export of retained configuration with no approval evidence and provider
+metadata flags; controlled tiny files, no network/timers, expected <100 ms. Not
+run. No tests, live exports/file repairs, service restarts or releases performed.
+Native desktop Rust is unchanged.
+
+Built/staged development agent SHA256:
+`1d2b73babb708b6fc188d706e37b6c55e6ccb3e28bb37232f71e0e91558b211c`.
+Development agent/helper staging, including Intel BedrockSidecar, succeeded. The
+running agent must be updated for this backend correction. Physical ATM10 export
+in both modes, archive contents/owner changes/active-world datapacks and actual
+read-failure behavior remain owner verification items. No phase closure inferred.

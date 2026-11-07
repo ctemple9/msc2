@@ -1493,6 +1493,20 @@ datapacks remain with those worlds. An unreadable active-world inventory is a
 preparation error, not an empty selection. The export sheet remains dismissible
 with X/Escape during loading, requesting cancellation of in-flight work.
 
+**Personal local export correction, owner-approved 2026-11-07.** Cameron
+rejected publication approvals and incomplete-pack export controls. Normal export
+has two content choices only: original retained pack plus owner changes, or
+current server content. Read files already stored locally on the selected host;
+prefer an exact matching server copy when available, preserve differing client
+overrides, and make no provider downloads during export. Local export does not
+require redistribution attestations, provider-download metadata approval, or
+configuration classification. This supersedes those gates for personal exports,
+without asserting sharing rights. Never offer a partial pack in the normal
+sheet: an actual missing/unreadable file is an export failure. Local path/private
+file boundaries and exact-byte checks remain. Format and save destination remain
+as previously approved; remove the extraneous content/configuration settings.
+Legacy publication APIs retain their prior behavior and frozen snapshots.
+
 **Boundaries.** Existing no-hosted-backend and no-browser-management decisions
 remain. This does not authorize tests or release changes.
 [Phase 24 scope](addons/phase24-scope.md) separates the approved behavior from

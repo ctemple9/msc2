@@ -12474,6 +12474,7 @@
       "ContentCatalogCapabilityDTO": {
         "type": "object",
         "properties": {
+        "personalContentExports": {"type": "boolean", "default": false, "description": "Personal local modpack exports without publication approval prompts."},
         "contentPackExports": {"type": "boolean", "default": false, "description": "Supports full modpack export selection."},
           "contentZipExports": {
             "type": "boolean"

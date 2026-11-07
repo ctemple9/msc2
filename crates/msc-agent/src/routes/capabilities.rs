@@ -170,6 +170,7 @@ async fn capabilities_for_query(
             content_mrpack_exports: true,
             content_host_saves: true,
             content_pack_exports: true,
+            personal_content_exports: true,
             pack_acquisition: credential
                 .permissions
                 .contains(&msc_api::dto::PermissionCategoryDto::Addons),

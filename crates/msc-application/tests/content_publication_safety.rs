@@ -338,3 +338,38 @@ fn preview_defers_hashing_but_publication_still_rejects_changed_bytes() {
     assert!(review::preview(&server, &prepared.id, "owner").is_ok());
     assert!(review::load(&server, &prepared.id, "owner").is_err());
 }
+
+// Essential: personal local exports must include locally retained configuration
+// without publishing attestations or provider downloads. Guards the reported
+// zero-file export. Reuses the tiny fixture, no network/timers, expected <100 ms.
+#[test]
+fn personal_pack_export_uses_local_bytes_without_publication_approvals() {
+    let (_fixture, mut server, _) = fixture();
+    let entry = server
+        .content_collection
+        .as_mut()
+        .unwrap()
+        .player_files
+        .get_mut("config/example.toml")
+        .unwrap();
+    entry.redistribution_evidence = None;
+    entry
+        .extra
+        .insert("providerDistributionAllowed".into(), false.into());
+    let request = review::Request {
+        pack_export: true,
+        audiences: vec!["players".into()],
+        collection_revision: 5,
+        version_name: None,
+        player_setup: None,
+        approvals: vec![],
+        excluded: vec![],
+        server_paths: vec![],
+        datapacks: vec![],
+    };
+    let result = review::prepare(&server, "owner", request, &|| false).unwrap();
+    assert!(result.issues.is_empty(), "{:?}", result.issues);
+    assert_eq!(result.files.len(), 1);
+    assert_eq!(result.files[0].file.path, "config/example.toml");
+    assert!(review::load(&server, &result.id, "owner").is_ok());
+}

@@ -33,11 +33,9 @@ fn selected(
         entry.extra.insert("retainedPath".into(), source.into());
     }
     entry.classification_evidence = vec!["Selected by the owner’s modpack export mode".into()];
-    entry.unresolved_reasons.retain(|reason| {
-        !reason.contains("classification")
-            && !reason.contains("differs from the retained pack baseline")
-            && !reason.contains("missing or was excluded")
-    });
+    // Export selection preserves owner edits. Actual retained/live source bytes
+    // are verified by publication review; old editing prompts are not file errors.
+    entry.unresolved_reasons.clear();
     entry
 }
 fn walk(
@@ -253,7 +251,10 @@ pub fn project_with_progress(
         let existing = players.get(canonical);
         let server_changed = base.is_none_or(|base| base.sha512 != current.sha512);
         // Preserve client-specific overrides unless the owner changed the server copy.
-        if existing.is_none() || server_changed {
+        if existing.is_none()
+            || server_changed
+            || existing.is_some_and(|player| player.sha512 == current.sha512)
+        {
             current.path = canonical.into();
             players.insert(canonical.into(), current);
         }
@@ -281,6 +282,14 @@ pub fn project_with_progress(
         for path in removed {
             missing.remove(&path);
         }
+        missing.retain(|path, _| {
+            !players.get(path).is_some_and(|player| {
+                server_files
+                    .get(path)
+                    .or_else(|| server_files.get(&format!("{path}.disabled")))
+                    .is_some_and(|server| server.sha512 == player.sha512)
+            })
+        });
     }
     snapshot.collection.current_files = server_files;
     snapshot.collection.player_files = players;

@@ -112,33 +112,22 @@
   let historyOffset = 0;
   let preparationPercent: number | undefined;
   let audience: 'players' | 'server' = 'players';
-  let versionName = '',
-    selectedId = 'new';
+  let selectedId = 'new';
   let review: Review | undefined;
   let publication: Publication | undefined;
   let eligibility: Eligibility | undefined;
-  let incompleteConsent = false,
-    includeMrpack = false;
+  let includeMrpack = false;
   let destination: 'local' | 'host' = 'local';
   let hostPath = 'content-export.zip';
   let hostInfo: Schema['ContentHostDestinationResultDTO'] | undefined;
   let confirmedHostHash: string | undefined;
-  let evidence: Record<string, string> = {};
-  let reviewedConfig = new Set<string>(),
-    excluded = new Set<string>();
-  let additionalServerPaths = '',
-    playerLoader = '',
-    playerLoaderVersion = '';
   let worlds: Schema['WorldSlotsResponseDTO'] | undefined;
   let slotId = '';
   let datapacks: Datapack[] = [];
   let datapacksReady = true;
-  let datapackEvidence: Record<string, string> = {};
   const current = () => !disposed && connection.isCurrent?.() !== false;
-  const key = (item: { audience: string; path: string }) => `${item.audience}:${item.path}`;
   function changed(): void {
     dirty = true;
-    incompleteConsent = false;
   }
   async function historyPage(offset = 0): Promise<void> {
     const value = await connection.get<History>(`${root}/publications?offset=${offset}&limit=50`);
@@ -197,9 +186,12 @@
       if (
         !caps.contentCatalog?.contentPublications ||
         !caps.contentCatalog?.contentZipExports ||
-        !caps.contentCatalog?.contentPackExports
+        !caps.contentCatalog?.contentPackExports ||
+        !caps.contentCatalog?.personalContentExports
       )
-        throw new Error('Update this agent to export full modpacks with your changes.');
+        throw new Error(
+          'Update this agent to use local modpack exports without publication approvals.',
+        );
       const results = await Promise.allSettled([
         settingsRead<ContentSnapshot>(`${root}/collection?metadataOnly=true`, 'content metadata'),
         settingsRead<Schema['WorldSlotsResponseDTO']>('/v1/worlds', 'world settings'),
@@ -253,14 +245,6 @@
       if (current()) busy = false;
     }
   }
-  async function refreshCurrent(): Promise<void> {
-    if (busy) return;
-    review = undefined;
-    evidence = {};
-    reviewedConfig = new Set();
-    changed();
-    await initialize();
-  }
   async function prepare(): Promise<void> {
     if (!snapshot || busy || !current()) return;
     if (!datapacksReady) {
@@ -276,19 +260,6 @@
     eligibility = undefined;
     includeMrpack = false;
     try {
-      const approvals = (review?.candidates ?? [])
-        .filter(
-          (item) =>
-            evidence[key(item)]?.trim() ||
-            (item.configuration && reviewedConfig.has(key(item)) && item.redistributionEvidence),
-        )
-        .map((item) => ({
-          audience: item.audience,
-          path: item.path,
-          sha512: item.sha512,
-          redistributionEvidence: evidence[key(item)]?.trim() || item.redistributionEvidence,
-          reviewedConfiguration: reviewedConfig.has(key(item)),
-        }));
       const result = await publicationReviewOperation(
         connection,
         `${root}/publication-reviews`,
@@ -296,30 +267,11 @@
           packExport: true,
           audiences: [audience],
           collectionRevision: snapshot.collection.revision,
-          versionName: versionName.trim() || undefined,
-          ...(playerLoader
-            ? {
-                playerSetup: {
-                  loader: playerLoader,
-                  ...(playerLoaderVersion.trim()
-                    ? { loaderVersion: playerLoaderVersion.trim() }
-                    : {}),
-                },
-              }
-            : {}),
-          approvals: approvals.filter((item) => item.audience === audience),
-          excluded: [...excluded]
-            .filter((value) => value.startsWith(`${audience}:`))
-            .map((value) => ({ audience, path: value.slice(audience.length + 1) })),
-          serverPaths: additionalServerPaths
-            .split('\n')
-            .map((value) => value.trim())
-            .filter(Boolean),
           datapacks: datapacks.map((item) => ({
             slotId: item.slotId,
             path: item.path,
             sha512: item.sha512,
-            redistributionEvidence: datapackEvidence[item.path]?.trim() ?? '',
+            redistributionEvidence: '',
           })),
         },
         (line, amount) => {
@@ -347,9 +299,8 @@
       if (current()) {
         review = value;
         dirty = false;
-        incompleteConsent = false;
         preparationPercent = 100;
-        status = 'Export contents ready.';
+        status = value.complete ? 'Export contents ready.' : 'Export could not be prepared.';
       }
     } catch (cause) {
       if (current()) {
@@ -370,7 +321,6 @@
     if (current()) {
       publication = value;
       includeMrpack = false;
-      incompleteConsent = false;
     }
     try {
       const supported = await connection.get<Eligibility>(
@@ -391,7 +341,6 @@
     publication = undefined;
     eligibility = undefined;
     includeMrpack = false;
-    incompleteConsent = false;
     error = '';
     if (selectedId === 'new') return;
     busy = true;
@@ -404,14 +353,14 @@
     }
   }
   async function publish(): Promise<void> {
-    if (!review || dirty || busy || (!review.complete && !incompleteConsent)) return;
+    if (!review || dirty || busy || !review.complete) return;
     busy = true;
     error = '';
     try {
       const result = await contentOperation(
         connection,
         `${root}/publications`,
-        { reviewId: review.reviewId, incompleteConsent },
+        { reviewId: review.reviewId, incompleteConsent: false },
         (line) => {
           if (current()) status = line;
         },
@@ -443,7 +392,7 @@
       !publication ||
       busy ||
       !publication.audiences.includes(audience) ||
-      (publication.issues.length && !incompleteConsent)
+      publication.issues.length > 0
     )
       return;
     busy = true;
@@ -471,7 +420,7 @@
           publicationId: publication.id,
           audience,
           includeMrpack,
-          allowIncomplete: incompleteConsent,
+          allowIncomplete: false,
           ...(destination === 'host'
             ? {
                 hostDestination: {
@@ -553,30 +502,14 @@
     await reviewCurrent();
   }
 
-  async function approveSharing(): Promise<void> {
-    for (const item of review?.candidates ?? []) {
-      if (item.restricted) continue;
-      evidence[key(item)] =
-        item.redistributionEvidence || 'Owner confirms permission to share these reviewed bytes';
-      if (item.configuration) reviewedConfig.add(key(item));
-    }
-    reviewedConfig = new Set(reviewedConfig);
-    for (const item of datapacks) {
-      datapackEvidence[item.path] = 'Owner confirms permission to share these reviewed bytes';
-    }
-    await prepare();
-  }
   async function saveExport(): Promise<void> {
     const requestedMrpack = includeMrpack;
-    const consent = incompleteConsent;
     if (selectedId === 'new') {
       if (!datapacksReady) return;
       if (dirty) await prepare();
-      if (!review || error || (!review.complete && !consent)) return;
-      incompleteConsent = consent;
+      if (!review || error || !review.complete) return;
       await publish();
       if (!publication || error) return;
-      incompleteConsent = consent;
     }
     if (requestedMrpack && !eligibility?.supported) {
       error = eligibility?.reasons.join(' ') || 'This content cannot be represented as a .mrpack.';
@@ -653,26 +586,17 @@
       >{/if}
     {#if selectedId === 'new'}
       {#if review}
-        <p>
-          {review.files.length} files · {bytesLabel(review.contentBytes)} · dated ZIP with installation
-          instructions
-        </p>
+        {#if review.complete}<p>
+            {review.files.length} files · {bytesLabel(review.contentBytes)} · dated ZIP with installation
+            instructions
+          </p>{/if}
         {#if review.issues.length}
           <details>
-            <summary>Content needing attention ({review.issues.length})</summary>
+            <summary>Files that could not be exported ({review.issues.length})</summary>
             {#each review.issues as item}<p class="issue">
                 {item.path ?? item.audience}: {item.reason}
               </p>{/each}
           </details>
-          {#if review.issues.some((item) => item.reason.includes('Redistribution eligibility') || item.reason.includes('Redistribution permission') || item.reason.includes('Explicitly review this configuration'))}
-            <Button disabled={busy} onclick={() => void approveSharing()}
-              >I have permission to share these files and have reviewed the configuration</Button
-            >
-          {/if}
-          <label
-            ><input type="checkbox" bind:checked={incompleteConsent} disabled={busy} />Export an
-            incomplete pack with these missing files listed in its instructions.</label
-          >
         {/if}
         {#if review.exclusions.length}<details>
             <summary>Excluded content ({review.exclusions.length})</summary
@@ -686,48 +610,6 @@
             </p>{/each}
         </details>
       {/if}
-      <details>
-        <summary>Export details</summary>
-        {#if audience === 'players' && review?.issues.some((item) => item.reason
-              .toLowerCase()
-              .includes('loader'))}
-          <label
-            >Player loader<Select
-              ariaLabel="Player loader"
-              bind:value={playerLoader}
-              options={[
-                { value: '', label: 'Use server setup' },
-                ...['vanilla', 'fabric', 'forge', 'neoforge', 'quilt'].map((value) => ({
-                  value,
-                  label: value,
-                })),
-              ]}
-              disabled={busy}
-              onchange={changed}
-            /></label
-          >
-          <label
-            >Player loader version<input
-              bind:value={playerLoaderVersion}
-              disabled={busy}
-              oninput={changed}
-            /></label
-          >
-        {/if}
-        <label
-          >Version name (optional)<input
-            bind:value={versionName}
-            disabled={busy}
-            oninput={changed}
-            placeholder="e.g. Weekend pack"
-          /></label
-        >
-        <Button
-          disabled={busy}
-          onclick={() => void refreshCurrent().then(loadDatapacks).then(prepare)}
-          >Refresh contents</Button
-        >
-      </details>
     {/if}
     {#if publication}
       <p>
@@ -742,10 +624,6 @@
       {#each publication.issues as item}<p class="issue">
           {item.path ?? item.audience}: {item.reason}
         </p>{/each}
-      {#if publication.issues.length}<label
-          ><input type="checkbox" bind:checked={incompleteConsent} disabled={busy} />Export this
-          incomplete pack with its missing-file instructions.</label
-        >{/if}
     {/if}
     <label
       ><input
@@ -797,10 +675,9 @@
         variant="primary"
         disabled={busy ||
           (!publication && !review) ||
-          (review !== undefined && !review.complete && !incompleteConsent) ||
+          (review !== undefined && !review.complete) ||
           (publication !== undefined &&
-            (!publication.audiences.includes(audience) ||
-              (publication.issues.length > 0 && !incompleteConsent)))}
+            (!publication.audiences.includes(audience) || publication.issues.length > 0))}
         onclick={() => void saveExport()}>Export modpack</Button
       >
     </div>
@@ -821,10 +698,12 @@
           options={[
             { value: 'new', label: 'Current modpack' },
             ...(history?.items ?? [])
-              .filter((item) => item.available && item.audiences.includes(audience))
+              .filter(
+                (item) => item.available && item.complete && item.audiences.includes(audience),
+              )
               .map((item) => ({
                 value: item.publicationId,
-                label: `${item.createdAt} · ${item.versionName ?? `revision ${item.publicationRevision}`}${item.complete ? '' : ' · incomplete'}`,
+                label: `${item.createdAt} · ${item.versionName ?? `revision ${item.publicationRevision}`}`,
               })),
           ]}
           disabled={busy}

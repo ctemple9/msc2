@@ -500,3 +500,19 @@ this desktop recovery path. Mocked immediate terminal responses, no filesystem,
 network or timers; expected <5 ms total. Included in frontend type checking;
 not run. Rust and staged agent are unchanged. No live operation was cancelled
 by these implementation checks.
+
+
+### P24.37 — Export local content directly without publication approvals or partial packs
+
+**Status:** implemented candidate — awaiting owner verification
+**Files:** publication_review.rs/pack_export_selection.rs; content_publication_safety.rs; capability DTO/route and OpenAPI/generated types; ContentExportSheet.svelte; D-045 and Phase 24 records
+**What:** Apply the owner's explicit local-export correction. Personal pack export no longer gates local files on publication attestations, provider-download permission metadata or configuration editing prompts. Preserve exact-byte source checks and private/path exclusions. Prefer verified matching live server bytes over a retained duplicate, clear old editing prompts and resolve retained-missing records when those exact bytes are on the server. No provider acquisition is called. Remove sharing approval, incomplete consent and extraneous configuration controls from the sheet; actual source errors block Export instead of offering a partial bundle. Only call a result ready when complete. Both modes retain their earlier additions/removals/disabled-mod semantics. Advertise personalContentExports so old agents are refused clearly rather than producing the old empty/approval-driven preview. Legacy publication requests remain compatible.
+**Verify:** `npm --prefix clients/desktop-web run check`. With the updated agent, prepare the local ATM10 pack in both modes. Expect locally available content rather than 0 files/approval prompts. No sharing/configuration approval or incomplete-pack option should appear. Verify ZIP contents, owner changes and active-world datapacks; genuine file-read failures must block export. Existing permissions/host/private-path protections remain applicable.
+**Commit:** `P24.37: export local modpack content without publication approvals`
+**Batch:** owner-directed local export correction; physical verification pending
+
+One essential tiny local regression covers the reported zero-file result:
+retained local configuration with no permission evidence and provider-download
+metadata must export in personal mode without approval. Existing legacy tests
+protect the separate publication rules. No network/timers; expected <100 ms;
+compile only, not run. Check and staged-agent evidence is in the acceptance record.

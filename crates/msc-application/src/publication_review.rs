@@ -1,5 +1,5 @@
-//! Eligibility review binds owner approvals to exact bytes. Download permission
-//! alone is never used as evidence that a file may be redistributed in a ZIP.
+//! Reviews bind export selection to exact local bytes. Personal pack exports
+//! need no publication attestations; legacy publication requests retain them.
 use crate::content_management as management;
 use crate::content_publications::{PreparedPublicationFile, PublicationIssue, PublishedFile};
 use msc_domain::app_config_schema::ConfigServer;
@@ -528,14 +528,9 @@ pub fn prepare_with_progress(
             if approval.is_some_and(|approval| approval.sha512 != entry.sha512) {
                 return Err(format!("Approval bytes changed: {key}"));
             }
-            if config(path)
+            if !request.pack_export
+                && config(path)
                 && !approval.is_some_and(|approval| approval.reviewed_configuration)
-                && !(request.pack_export
-                    && (entry
-                        .extra
-                        .get("originalPackContent")
-                        .and_then(serde_json::Value::as_bool)
-                        == Some(true)))
             {
                 issues.push(issue(
                     audience,
@@ -545,11 +540,12 @@ pub fn prepare_with_progress(
                 ));
                 continue;
             }
-            if entry
-                .extra
-                .get("providerDistributionAllowed")
-                .and_then(serde_json::Value::as_bool)
-                == Some(false)
+            if !request.pack_export
+                && entry
+                    .extra
+                    .get("providerDistributionAllowed")
+                    .and_then(serde_json::Value::as_bool)
+                    == Some(false)
             {
                 issues.push(issue(
                     audience,
@@ -562,7 +558,12 @@ pub fn prepare_with_progress(
             let evidence = approval
                 .map(|approval| approval.redistribution_evidence.clone())
                 .or_else(|| entry.redistribution_evidence.clone())
-                .filter(|evidence| !evidence.trim().is_empty());
+                .filter(|evidence| !evidence.trim().is_empty())
+                .or_else(|| {
+                    request.pack_export.then(|| {
+                        "Personal export of local content; sharing rights not evaluated".to_string()
+                    })
+                });
             let Some(evidence) = evidence else {
                 issues.push(issue(audience,Some(path),!entry.optional,"Redistribution eligibility needs review; download authorization alone is insufficient"));
                 continue;
@@ -677,7 +678,7 @@ pub fn prepare_with_progress(
                 restricted: false,
                 redistribution_evidence: None,
             });
-            if selection.redistribution_evidence.trim().is_empty() {
+            if !request.pack_export && selection.redistribution_evidence.trim().is_empty() {
                 issues.push(issue(
                     audience,
                     Some(&path),
@@ -703,7 +704,14 @@ pub fn prepare_with_progress(
                     classification_evidence: vec![
                         "Owner selected content from this world slot".into(),
                     ],
-                    redistribution_evidence: selection.redistribution_evidence.clone(),
+                    redistribution_evidence: if request.pack_export
+                        && selection.redistribution_evidence.trim().is_empty()
+                    {
+                        "Personal export of local world datapacks; sharing rights not evaluated"
+                            .into()
+                    } else {
+                        selection.redistribution_evidence.clone()
+                    },
                     world_slot: Some(datapack.slot_id.clone()),
                 },
             });

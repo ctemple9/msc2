@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: 666ef6a8b52dc5249beb132185d53f8e824931af92326cdda50d3e61e4b521cd
+// Contract SHA-256: ce2f303e01b945ecf00bd8822d4969a1ebc2b46cb745878fea05a20752482206
 
 export interface paths {
   '/v1/active-server': {
@@ -9012,6 +9012,11 @@ export interface components {
       incompatibleInstallReview?: boolean;
       javaDatapacks?: string[];
       packAcquisition: boolean;
+      /**
+       * @description Personal local modpack exports without publication approval prompts.
+       * @default false
+       */
+      personalContentExports: boolean;
       playerContentManagement?: boolean;
       playerContentRecovery?: boolean;
       /** @default false */

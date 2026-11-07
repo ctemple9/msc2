@@ -92,6 +92,8 @@ pub struct ContentCatalogCapabilityDto {
     pub content_host_saves: bool,
     #[serde(default)]
     pub content_pack_exports: bool,
+    #[serde(default)]
+    pub personal_content_exports: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

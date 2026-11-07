@@ -33,22 +33,14 @@
     const scoped = contentRepair?.api;
     if (!scoped || scoped.isCurrent?.() === false) return;
     try {
-      const [nextHealth, nextProblems, content] = await Promise.all([
+      const [nextHealth, nextProblems] = await Promise.all([
         scoped.get<Schema['HealthResponseDTO']>('/v1/health'),
         scoped.get<Schema['HealthProblemsResponseDTO']>('/v1/health/problems'),
-        scoped.get<{ requirements: { state: string }[] }>(
-          `/v1/servers/${encodeURIComponent(serverId)}/content/collection`,
-        ),
       ]);
       if (scoped.isCurrent?.() === false) return;
       health = nextHealth;
       problems = nextProblems;
-      const count = content.requirements.filter(
-        (item) => !['matched', 'serverOnly', 'optionalMissing'].includes(item.state),
-      ).length;
-      notice = count
-        ? `Content changed. ${count} player requirements need review in Components → Player content.`
-        : 'Content changed; player requirements checked.';
+      notice = 'Content updated.';
     } catch (error) {
       if (scoped.isCurrent?.() !== false) notice = errorMessage(error);
     }

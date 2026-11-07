@@ -417,3 +417,21 @@ No tests added or run for removing duplicated presentation. Frontend check passe
 **Batch:** owner-requested player-content redesign; final visual/physical verification pending
 
 Frontend check passed (0 errors, 10 existing CSS warnings) and build passed with existing chunk/CSS warnings. No live content mutations or tests run. Two essential pure regression tests were added for the new UI decision mapping: preserve different server/player hashes without issuing a replacement, and include a newly optional shader without activating it. Backend transaction tests do not cover which actions this frontend chooses; controlled in-memory inputs, no services/files/timers/rendering, expected combined runtime <5ms. They were not run. Rust unchanged; prior Rust checks remain applicable. No automatic classification, permission attestation or hidden exclusion was introduced; supporting review issues remain visible in their grouped counts/details.
+
+
+### P24.32 — Simplify modpack export and apply owner changes automatically
+
+**Status:** implemented candidate — awaiting owner verification
+**Files:** crates/msc-application/src/{pack_export_selection,pack_retention,pack_activation,publication_review,content_guides}.rs; crates/msc-agent/src/routes/{capabilities,components}.rs and components/content_publications.rs; crates/msc-api/src/dto/provider_catalog.rs; content_publication_safety.rs; desktop components/addons/health surfaces and generated API types; OpenAPI contract; D-045 and Phase 24 ledger/acceptance
+**What:** Replace the Player content button and classification prompts with one Export modpack action. Offer original retained pack plus owner changes, or current server content. Derive selection without changing originals/live files: retain automatically filtered client content, apply deliberate removals, include later additions and active-world datapacks, preserve disabled mods and client-specific overrides. Record actual original installation and subsequent pack activation separately from server filtering. Prepare and freeze the dated revision during Export; keep historical exports collapsed, local/selected-host saving and optional eligible .mrpack. Summarize included content; exact-byte sharing/configuration attestation is one explicit action only for files actually needing it, with known restrictions still enforced. Pack maintenance remains in the existing component menu. Version new player instructions for world-slot datapacks without rewriting old guides.
+**Verify:** `npm --prefix clients/desktop-web run check`. In Components, verify one Export modpack action and no Player content button. Export both modes from an imported pack after adding a mod/datapack, removing an installed original mod and disabling another. Inspect the ZIP: full mode retains filtered client/shader/resource content, omits intentional removals, includes additions and keeps disabled JARs disabled; server mode contains current server content. Exercise local/host destinations and eligible .mrpack. Existing frozen exports must retain their original contents.
+**Commit:** `P24.32: simplify modpack exports and preserve owner changes`
+**Batch:** owner-requested autonomous correction; final owner review pending
+
+Essential regression source adds one local tiny-file case covering filtered-client
+retention versus owner deletion, disabled/added/updated bytes and read-only
+selection. Existing publication tests do not derive an export from a retained
+pack. No network/timing assumptions; expected <100 ms. Compiled with
+`cargo check -p msc-application --test content_publication_safety`; not run.
+Final non-test check/build results are recorded in phase24-acceptance.md. No live
+server mutation, service restart, release or phase closure is authorized here.

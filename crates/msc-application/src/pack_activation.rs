@@ -301,6 +301,17 @@ pub fn activate(
             }
         }
         let mut collection = plan.collection.clone();
+        // New pack files were only staged at review time. Record installation
+        // after activation, so a later owner removal cannot restore them in exports.
+        for change in &plan.changes {
+            if change.after.is_some()
+                && let Some(entry) = collection.current_files.get_mut(&change.path)
+            {
+                entry
+                    .extra
+                    .insert("packServerInstalled".into(), true.into());
+            }
+        }
         collection.extra.insert(
             "lastPackTransaction".into(),
             serde_json::Value::String(plan.id.clone()),

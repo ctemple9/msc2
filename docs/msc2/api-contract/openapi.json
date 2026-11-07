@@ -10775,6 +10775,7 @@
       "PublicationReviewRequestDTO": {
         "type": "object",
         "properties": {
+        "packExport": {"type": "boolean", "default": false, "description": "Derive retained pack plus owner edits or current server content."},
           "audiences": {
             "type": "array",
             "items": {
@@ -12472,6 +12473,7 @@
       "ContentCatalogCapabilityDTO": {
         "type": "object",
         "properties": {
+        "contentPackExports": {"type": "boolean", "default": false, "description": "Supports full modpack export selection."},
           "contentZipExports": {
             "type": "boolean"
           },

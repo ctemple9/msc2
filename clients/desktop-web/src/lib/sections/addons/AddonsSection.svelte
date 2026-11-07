@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import PlayerContentSheet from '../components/PlayerContentSheet.svelte';
+  import ContentExportSheet from '../components/ContentExportSheet.svelte';
   import PluginBrowserSheet from '../components/PluginBrowserSheet.svelte';
   import ContentSourcesSheet from '../components/ContentSourcesSheet.svelte';
   import { addOnKind } from '../components/model';
@@ -19,7 +19,7 @@
   export let serverId = '';
   let browserOpen = false;
   let sourcesOpen = false;
-  let playersOpen = false;
+  let exportOpen = false;
   let server: Schema['ServerDTO'] | undefined;
   let minecraftVersion: string | undefined;
   let addons: Schema['AddonItemDTO'][] = demoAddons;
@@ -69,20 +69,10 @@
     if (!api || api.isCurrent?.() === false) return;
     const scoped = api.snapshot?.() ?? api;
     try {
-      const [result, content] = await Promise.all([
-        scoped.get<Schema['AddonsResponseDTO']>(addonPaths.list),
-        scoped.get<{ requirements: { state: string }[] }>(
-          `/v1/servers/${encodeURIComponent(serverId)}/content/collection`,
-        ),
-      ]);
+      const result = await scoped.get<Schema['AddonsResponseDTO']>(addonPaths.list);
       if (scoped.isCurrent?.() === false) return;
       addons = result.addons;
-      const count = content.requirements.filter(
-        (item) => !['matched', 'serverOnly', 'optionalMissing'].includes(item.state),
-      ).length;
-      notice = count
-        ? `${count} player content requirements need review. Open Player content.`
-        : 'Content changed; player requirements checked.';
+      notice = 'Content updated.';
     } catch (error) {
       if (scoped.isCurrent?.() !== false) notice = errorMessage(error);
     }
@@ -201,9 +191,9 @@
       >
       <ActionButton
         kind="quiet"
-        label="Player content"
+        label="Export modpack"
         disabled={!server}
-        onclick={() => (playersOpen = true)}>Player content…</ActionButton
+        onclick={() => (exportOpen = true)}>Export modpack…</ActionButton
       >
       <ActionButton
         kind="quiet"
@@ -267,13 +257,6 @@
   />
 {/if}
 
-{#if playersOpen && api && server}
-  <PlayerContentSheet
-    {api}
-    {serverId}
-    javaFlavor={server.javaFlavor ?? ''}
-    minecraftVersion={minecraftVersion ?? ''}
-    onClose={() => (playersOpen = false)}
-    onChanged={() => void catalogChanged()}
-  />
+{#if exportOpen && api && server}
+  <ContentExportSheet {api} {serverId} onClose={() => (exportOpen = false)} />
 {/if}

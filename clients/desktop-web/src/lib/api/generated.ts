@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: 7b9d8771574a485165d9cced1f609faa0d48cc2343829016e074152cce6681d1
+// Contract SHA-256: 63e6d4e75e278c4082182c2326b6c57379327524a080551422184a718e117212
 
 export interface paths {
   '/v1/active-server': {
@@ -9000,6 +9000,11 @@ export interface components {
     ContentCatalogCapabilityDTO: {
       contentHostSaves?: boolean;
       contentMrpackExports?: boolean;
+      /**
+       * @description Supports full modpack export selection.
+       * @default false
+       */
+      contentPackExports: boolean;
       contentPublications?: boolean;
       contentZipExports?: boolean;
       /** @default false */
@@ -10355,6 +10360,11 @@ export interface components {
       collectionRevision: number;
       datapacks?: components['schemas']['PublicationDatapackDTO'][];
       excluded?: components['schemas']['PublicationExclusionDTO'][];
+      /**
+       * @description Derive retained pack plus owner edits or current server content.
+       * @default false
+       */
+      packExport: boolean;
       playerSetup?: components['schemas']['PublicationPlayerSetupDTO'] | null;
       serverPaths?: string[];
       versionName?: string | null;

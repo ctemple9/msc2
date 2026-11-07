@@ -44,8 +44,8 @@
   import VersionPickerSheet from './VersionPickerSheet.svelte';
   import PluginBrowserSheet from './PluginBrowserSheet.svelte';
   import ContentSourcesSheet from './ContentSourcesSheet.svelte';
-  import PlayerContentSheet from './PlayerContentSheet.svelte';
   import ContentExportSheet from './ContentExportSheet.svelte';
+  import PackChangesSheet from './PackChangesSheet.svelte';
   import { contentRoot, type ContentSnapshot } from './content-model';
   import PlayitSetupSheet from '../server-editor/PlayitSetupSheet.svelte';
   import ProjectDetailSheet from './ProjectDetailSheet.svelte';
@@ -156,36 +156,22 @@
   let showVersionPicker = false;
   let showBrowser = false;
   let showContentSources = false;
-  let showPlayerContent = false;
   let showContentExport = false;
-  let playerRequirementCount = 0;
-  let playerRequirementKey = '';
-
-  async function refreshAfterContentChange(): Promise<void> {
-    await loadAddons();
-    if (!api || !isModded) return;
+  let packManagement: { api: ScreenApi; snapshot: ContentSnapshot } | undefined;
+  async function managePack(): Promise<void> {
+    if (!api) return;
     const scoped = api.snapshot?.() ?? api;
     const id = serverId;
     try {
-      const caps = await scoped.get<Schema['CapabilitiesDTO']>('/v1/capabilities');
-      if (!caps.contentCatalog?.playerContentManagement) return;
-      const result = await scoped.get<ContentSnapshot>(`${contentRoot(id)}/collection`);
-      if (id !== serverId || scoped.isCurrent?.() === false) return;
-      playerRequirementKey = `${hostId}:${id}`;
-      playerRequirementCount = result.requirements.filter(
-        (item) =>
-          !['matched', 'serverOnly', 'serverDisabled', 'optionalMissing'].includes(item.state),
-      ).length;
-      if (playerRequirementCount)
-        flash(
-          `${playerRequirementCount} player content requirements need review after this server change.`,
-        );
+      const snapshot = await scoped.get<ContentSnapshot>(`${contentRoot(id)}/collection`);
+      if (id === serverId && scoped.isCurrent?.() !== false)
+        packManagement = { api: scoped, snapshot };
     } catch (cause) {
-      if (id === serverId)
-        flash(
-          `Server content changed; player requirement check could not complete: ${cause instanceof Error ? cause.message : String(cause)}`,
-        );
+      flash(cause instanceof Error ? cause.message : String(cause));
     }
+  }
+  async function refreshAfterContentChange(): Promise<void> {
+    await loadAddons();
   }
   let componentActionMenu: { x: number; y: number } | undefined;
   let serverCardMenu: { x: number; y: number } | undefined;
@@ -601,11 +587,9 @@
     <div class="header-actions">
       {#if activeServer?.serverType === 'java'}
         <Button size="sm" variant="secondary" onclick={() => (showContentExport = true)}
-          >Export content…</Button
+          >Export modpack…</Button
         >
-        <Button size="sm" variant="secondary" onclick={() => (showPlayerContent = true)}
-          >Player content…</Button
-        >{/if}
+      {/if}
       {#if kind}
         <Button size="sm" variant="secondary" onclick={() => (showBrowser = true)}>
           Browse {isModded ? 'mods' : 'plugins'}
@@ -621,11 +605,6 @@
   </div>
 
   {#if notice}<p class="notice" role="status">{notice}</p>{/if}
-  {#if playerRequirementCount > 0 && playerRequirementKey === `${hostId}:${serverId}`}<Button
-      size="sm"
-      onclick={() => (showPlayerContent = true)}
-      >Review player content ({playerRequirementCount})</Button
-    >{/if}
 
   {#if activeServer?.modpackIdentity}
     <section class="modpack-summary" aria-label="Imported modpack">
@@ -914,9 +893,9 @@
         onSelect: () => void openAddonFolder(),
       },
       {
-        label: 'Player content and packs…',
-        disabled: !api || !activeServer,
-        onSelect: () => (showPlayerContent = true),
+        label: 'Manage modpack…',
+        disabled: !api || !activeServer?.modpackIdentity,
+        onSelect: () => void managePack(),
       },
       {
         label: 'Content sources and updates…',
@@ -1112,15 +1091,19 @@
   {/key}
 {/if}
 
-{#if showPlayerContent && api}
+{#if packManagement}
   {#key `${hostId}:${serverId}`}
-    <PlayerContentSheet
-      {api}
+    <PackChangesSheet
+      api={packManagement.api}
       {serverId}
+      snapshot={packManagement.snapshot}
       javaFlavor={activeServer?.javaFlavor ?? ''}
       minecraftVersion={primaryComponent?.installedVersion ?? ''}
-      onClose={() => (showPlayerContent = false)}
-      onChanged={() => void refreshAfterContentChange()}
+      onClose={() => (packManagement = undefined)}
+      onChanged={() => {
+        packManagement = undefined;
+        void refreshAfterContentChange();
+      }}
     />
   {/key}
 {/if}

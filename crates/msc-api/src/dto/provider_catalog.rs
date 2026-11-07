@@ -90,6 +90,8 @@ pub struct ContentCatalogCapabilityDto {
     pub content_mrpack_exports: bool,
     #[serde(default)]
     pub content_host_saves: bool,
+    #[serde(default)]
+    pub content_pack_exports: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -340,6 +342,8 @@ pub struct PublicationDatapackDto {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct PublicationReviewRequestDto {
+    #[serde(default)]
+    pub pack_export: bool,
     #[serde(default = "publication_audiences")]
     pub audiences: Vec<String>,
     pub collection_revision: u64,

@@ -159,6 +159,7 @@ fn attestation_cannot_embed_known_restricted_content_or_skip_incomplete_consent(
             serde_json::Value::Bool(false),
         );
     let request = review::Request {
+        pack_export: false,
         audiences: vec!["players".into()],
         collection_revision: 5,
         version_name: None,
@@ -200,4 +201,95 @@ fn attestation_cannot_embed_known_restricted_content_or_skip_incomplete_consent(
         )
         .is_err()
     );
+}
+
+// Essential P24.32: a filtered client mod must survive export while an owner
+// removal must not be resurrected. Also protects disabled/added/updated bytes.
+// Existing publication tests do not select from an original pack. Local tiny
+// files, no network, timing or launcher assumptions; expected <100 ms.
+#[test]
+fn full_pack_export_applies_owner_edits_without_losing_filtered_client_content() {
+    let (fixture, mut server, _) = fixture();
+    let root = &fixture.0;
+    std::fs::create_dir_all(root.join("mods")).unwrap();
+    std::fs::create_dir_all(root.join("config")).unwrap();
+    let mut collection = ContentCollection::default();
+    for (name, installed) in [
+        ("client", false),
+        ("removed", true),
+        ("disabled", true),
+        ("updated", true),
+    ] {
+        let retained = format!(".msc2-content/packs/base/{name}");
+        std::fs::create_dir_all(root.join(".msc2-content/packs/base")).unwrap();
+        std::fs::write(root.join(&retained), name.as_bytes()).unwrap();
+        let identity =
+            msc_infrastructure::addon_provider::fingerprint::identify(&root.join(&retained))
+                .unwrap();
+        let path = format!("mods/{name}.jar");
+        let entry = ContentEntry {
+            path: path.clone(),
+            sha512: identity.sha512,
+            byte_size: identity.byte_size,
+            audience: ContentAudience::Both,
+            optional: false,
+            source: None,
+            redistribution_evidence: Some("Fixture permission".into()),
+            classification_evidence: vec!["Pack manifest".into()],
+            unresolved_reasons: vec![],
+            extra: BTreeMap::from([
+                ("retainedPath".into(), retained.into()),
+                ("packServerInstalled".into(), installed.into()),
+            ]),
+        };
+        collection
+            .upstream_files
+            .insert(path.clone(), entry.clone());
+        collection
+            .upstream_player_files
+            .insert(path.clone(), entry.clone());
+        collection.player_files.insert(path.clone(), entry.clone());
+        collection.current_files.insert(path, entry);
+    }
+    std::fs::write(root.join("mods/disabled.jar.disabled"), b"disabled").unwrap();
+    std::fs::write(root.join("mods/updated.jar"), b"new version").unwrap();
+    std::fs::write(root.join("mods/updated.jar.disabled"), b"old disabled copy").unwrap();
+    std::fs::write(root.join("mods/added.jar"), b"addition").unwrap();
+    std::fs::write(root.join("config/added.toml"), b"enabled = true").unwrap();
+    server.content_collection = Some(collection.clone());
+    let mut snapshot = msc_application::content_management::snapshot(&server).unwrap();
+    msc_application::pack_export_selection::project(&server, &mut snapshot, &|| false).unwrap();
+    let players = &snapshot.collection.player_files;
+    assert!(players.contains_key("mods/client.jar"));
+    assert!(!players.contains_key("mods/removed.jar"));
+    assert_eq!(players["mods/disabled.jar"].extra["enabled"], false);
+    assert!(players.contains_key("mods/added.jar"));
+    assert!(players.contains_key("mods/updated.jar.disabled"));
+    assert_ne!(
+        players["mods/updated.jar"].extra.get("enabled"),
+        Some(&false.into())
+    );
+    assert!(players.contains_key("config/added.toml"));
+    assert_eq!(
+        players["mods/updated.jar"].extra["retainedPath"],
+        "mods/updated.jar"
+    );
+    assert_ne!(
+        players["mods/updated.jar"].sha512,
+        collection.player_files["mods/updated.jar"].sha512
+    );
+    assert!(
+        !snapshot
+            .collection
+            .current_files
+            .contains_key("mods/client.jar")
+    );
+    assert!(
+        !snapshot
+            .collection
+            .current_files
+            .contains_key("mods/removed.jar")
+    );
+    assert!(snapshot.requirements.is_empty());
+    assert_eq!(server.content_collection.as_ref().unwrap(), &collection);
 }

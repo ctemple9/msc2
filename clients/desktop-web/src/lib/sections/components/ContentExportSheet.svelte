@@ -68,6 +68,7 @@
   }
   interface Publication {
     id: string;
+    contentFingerprint?: string;
     createdAt: string;
     publicationRevision: number;
     audiences: string[];
@@ -124,6 +125,7 @@
   let worlds: Schema['WorldSlotsResponseDTO'] | undefined;
   let slotId = '';
   let datapacks: Datapack[] = [];
+  let datapacksReady = true;
   let selectedDatapacks = new Set<string>();
   let datapackEvidence: Record<string, string> = {};
   const current = () => !disposed && connection.isCurrent?.() !== false;
@@ -131,13 +133,6 @@
   function changed(): void {
     dirty = true;
     incompleteConsent = false;
-  }
-  function toggle(set: Set<string>, value: string): Set<string> {
-    const next = new Set(set);
-    if (next.has(value)) next.delete(value);
-    else next.add(value);
-    changed();
-    return next;
   }
   async function historyPage(offset = 0): Promise<void> {
     const value = await connection.get<History>(`${root}/publications?offset=${offset}&limit=50`);
@@ -152,8 +147,12 @@
     worldError = '';
     try {
       const caps = await connection.get<Schema['CapabilitiesDTO']>('/v1/capabilities');
-      if (!caps.contentCatalog?.contentPublications || !caps.contentCatalog?.contentZipExports)
-        throw new Error('Update this agent to publish and export content.');
+      if (
+        !caps.contentCatalog?.contentPublications ||
+        !caps.contentCatalog?.contentZipExports ||
+        !caps.contentCatalog?.contentPackExports
+      )
+        throw new Error('Update this agent to export full modpacks with your changes.');
       const results = await Promise.allSettled([
         connection.get<ContentSnapshot>(`${root}/collection`),
         connection.get<Schema['WorldSlotsResponseDTO']>('/v1/worlds'),
@@ -163,8 +162,10 @@
       if (results[0].status === 'fulfilled') snapshot = results[0].value;
       else
         error = `Current content cannot be reviewed: ${errorMessage(results[0].reason)}. Existing frozen revisions can still be selected.`;
-      if (results[1].status === 'fulfilled') worlds = results[1].value;
-      else worldError = `World datapacks are unavailable: ${errorMessage(results[1].reason)}`;
+      if (results[1].status === 'fulfilled') {
+        worlds = results[1].value;
+        slotId = worlds.activeSlotId ?? '';
+      } else worldError = `World datapacks are unavailable: ${errorMessage(results[1].reason)}`;
       if (results[2].status === 'rejected')
         error += ` Publication history unavailable: ${errorMessage(results[2].reason)}`;
     } catch (cause) {
@@ -176,6 +177,8 @@
   async function loadDatapacks(): Promise<void> {
     datapacks = [];
     selectedDatapacks = new Set();
+    datapacksReady = !slotId;
+    if (worlds) worldError = '';
     changed();
     if (!slotId) return;
     busy = true;
@@ -184,9 +187,16 @@
       const response = await connection.get<{ items: Datapack[] }>(
         `${root}/publication-datapacks/${encodeURIComponent(slotId)}`,
       );
-      if (current()) datapacks = response.items;
+      if (current()) {
+        datapacks = response.items;
+        datapacksReady = true;
+        selectedDatapacks = new Set(datapacks.map((item) => item.path));
+      }
     } catch (cause) {
-      if (current()) error = errorMessage(cause);
+      if (current()) {
+        worldError = `World datapacks could not be included: ${errorMessage(cause)}`;
+        error = worldError;
+      }
     } finally {
       if (current()) busy = false;
     }
@@ -201,6 +211,10 @@
   }
   async function prepare(): Promise<void> {
     if (!snapshot || busy || !current()) return;
+    if (!datapacksReady) {
+      error = worldError || 'Refresh world datapacks before exporting.';
+      return;
+    }
     busy = true;
     dirty = true;
     error = '';
@@ -225,6 +239,7 @@
         connection,
         `${root}/publication-reviews`,
         {
+          packExport: true,
           audiences: [audience],
           collectionRevision: snapshot.collection.revision,
           versionName: versionName.trim() || undefined,
@@ -271,7 +286,7 @@
         review = value;
         dirty = false;
         incompleteConsent = false;
-        status = 'Review the included files, exclusions and unresolved content.';
+        status = 'Export contents ready.';
       }
     } catch (cause) {
       if (current()) error = errorMessage(cause);
@@ -456,279 +471,315 @@
       }
     }
   }
-  onMount(() => void initialize());
+  async function reviewCurrent(): Promise<void> {
+    await initialize();
+    if (!current() || !snapshot) return;
+    await loadDatapacks();
+    await prepare();
+  }
+  async function switchMode(): Promise<void> {
+    selectedId = 'new';
+    review = undefined;
+    changed();
+    try {
+      snapshot = await connection.get<ContentSnapshot>(`${root}/collection`);
+      if (current()) await prepare();
+    } catch (cause) {
+      if (current()) error = errorMessage(cause);
+    }
+  }
+  async function approveSharing(): Promise<void> {
+    for (const item of review?.candidates ?? []) {
+      if (item.restricted) continue;
+      evidence[key(item)] =
+        item.redistributionEvidence || 'Owner confirms permission to share these reviewed bytes';
+      if (item.configuration) reviewedConfig.add(key(item));
+    }
+    reviewedConfig = new Set(reviewedConfig);
+    for (const item of datapacks) {
+      if (selectedDatapacks.has(item.path))
+        datapackEvidence[item.path] = 'Owner confirms permission to share these reviewed bytes';
+    }
+    await prepare();
+  }
+  async function saveExport(): Promise<void> {
+    const requestedMrpack = includeMrpack;
+    const consent = incompleteConsent;
+    if (selectedId === 'new') {
+      if (!datapacksReady) return;
+      if (dirty) await prepare();
+      if (!review || error || (!review.complete && !consent)) return;
+      incompleteConsent = consent;
+      await publish();
+      if (!publication || error) return;
+      incompleteConsent = consent;
+    }
+    if (requestedMrpack && !eligibility?.supported) {
+      error = eligibility?.reasons.join(' ') || 'This content cannot be represented as a .mrpack.';
+      return;
+    }
+    includeMrpack = requestedMrpack;
+    await exportArchive();
+  }
+  onMount(() => void reviewCurrent());
   onDestroy(() => {
     disposed = true;
     transferAbort?.abort();
   });
 </script>
 
-<Sheet title="Export content" size="lg" onClose={busy ? undefined : onClose}>
+<Sheet title="Export modpack" size="lg" onClose={busy ? undefined : onClose}>
   <div class="content">
-    <p>
-      Export content as a local file. Each published revision is dated and keeps its reviewed files
-      so it can be exported again later.
-    </p>
-    <div class="actions">
-      <label
-        >Audience<select
-          bind:value={audience}
+    <div class="modes" role="group" aria-label="Modpack contents">
+      <label class="mode"
+        ><input
+          type="radio"
+          bind:group={audience}
+          value="players"
           disabled={busy}
-          onchange={() => {
-            changed();
-            void selectPublication();
-          }}><option value="players">Players</option><option value="server">Server</option></select
+          onchange={() => void switchMode()}
+        /><span
+          ><strong>Original modpack + your changes</strong><small
+            >All retained player content, including client mods, shaders and resource packs, plus
+            your additions. Removed mods stay out; disabled mods stay disabled.</small
+          ></span
         ></label
-      ><label
-        >Revision<select
-          bind:value={selectedId}
+      >
+      <label class="mode"
+        ><input
+          type="radio"
+          bind:group={audience}
+          value="server"
           disabled={busy}
-          onchange={() => void selectPublication()}
-          ><option value="new">Publish current content</option
-          >{#each history?.items ?? [] as item (item.publicationId)}<option
-              value={item.publicationId}
-              disabled={!item.available}
-              >{item.createdAt} · r{item.publicationRevision}
-              {item.versionName ?? ''}{item.complete ? '' : ' · incomplete'}</option
-            >{/each}</select
+          onchange={() => void switchMode()}
+        /><span
+          ><strong>Server content only</strong><small
+            >The mods and content currently on this server.</small
+          ></span
         ></label
       >
     </div>
-    {#if history?.unpublishedChanges}<p>
-        Current content has unpublished changes. Existing dated revisions remain unchanged.
-      </p>{/if}
-    {#if history?.comparisonError}<p>{history.comparisonError}</p>{/if}
-    {#if history && history.total > 50}<div class="actions">
-        <Button
-          disabled={busy || historyOffset === 0}
-          onclick={() =>
-            void historyPage(Math.max(0, historyOffset - 50)).catch(
-              (cause) => (error = errorMessage(cause)),
-            )}>Previous revisions</Button
-        ><Button
-          disabled={busy || historyOffset + 50 >= history.total}
-          onclick={() =>
-            void historyPage(historyOffset + 50).catch((cause) => (error = errorMessage(cause)))}
-          >Next revisions</Button
-        >
-      </div>{/if}
     {#if error}<p class="error" role="alert">{error}</p>{/if}
-    {#if status}<p role="status">{status}</p>{/if}
-    {#if busy && (operationId || transferAbort)}<Button onclick={() => void cancel()}
-        >Cancel current work</Button
+    {#if worldError && worldError !== error}<p class="issue">{worldError}</p>{/if}
+    {#if status || busy}<p role="status">
+        {busy ? status || 'Preparing export contents…' : status}
+      </p>{/if}
+    {#if busy && (operationId || transferAbort)}<Button onclick={() => void cancel()}>Cancel</Button
       >{/if}
     {#if selectedId === 'new'}
-      <Button disabled={busy} onclick={() => void refreshCurrent()}>Refresh current content</Button>
-      <label
-        >Version name (optional)<input
-          bind:value={versionName}
-          disabled={busy}
-          oninput={changed}
-          placeholder="e.g. Weekend pack"
-        /></label
-      >
-      {#if audience === 'players'}<div class="actions">
+      {#if review}
+        <p>
+          {review.files.length} files · {bytesLabel(review.contentBytes)} · dated ZIP with installation
+          instructions
+        </p>
+        {#if review.issues.length}
+          <details>
+            <summary>Content needing attention ({review.issues.length})</summary>
+            {#each review.issues as item}<p class="issue">
+                {item.path ?? item.audience}: {item.reason}
+              </p>{/each}
+          </details>
+          {#if review.issues.some((item) => item.reason.includes('Redistribution eligibility') || item.reason.includes('Redistribution permission') || item.reason.includes('Explicitly review this configuration'))}
+            <Button disabled={busy} onclick={() => void approveSharing()}
+              >I have permission to share these files and have reviewed the configuration</Button
+            >
+          {/if}
+          <label
+            ><input type="checkbox" bind:checked={incompleteConsent} disabled={busy} />Export an
+            incomplete pack with these missing files listed in its instructions.</label
+          >
+        {/if}
+        {#if review.exclusions.length}<details>
+            <summary>Excluded content ({review.exclusions.length})</summary
+            >{#each review.exclusions as item}<p>{item.path}: {item.reason}</p>{/each}
+          </details>{/if}
+        <details>
+          <summary>Included files</summary>{#each review.files as item}<p>
+              {item.file.path}{item.file.optional ? ' · optional' : ''}{item.file.enabled
+                ? ''
+                : ' · disabled'}
+            </p>{/each}
+        </details>
+      {/if}
+      <details>
+        <summary>Export details</summary>
+        {#if audience === 'players' && review?.issues.some((item) => item.reason
+              .toLowerCase()
+              .includes('loader'))}
           <label
             >Player loader<select bind:value={playerLoader} disabled={busy} onchange={changed}
-              ><option value="">Infer from the server/pack</option
+              ><option value="">Use server setup</option
               >{#each ['vanilla', 'fabric', 'forge', 'neoforge', 'quilt'] as loader}<option
                   value={loader}>{loader}</option
                 >{/each}</select
             ></label
-          ><label
-            >Exact loader version<input
+          >
+          <label
+            >Player loader version<input
               bind:value={playerLoaderVersion}
               disabled={busy}
               oninput={changed}
-              placeholder="Required for an explicit mod loader"
             /></label
           >
-        </div>{/if}
-      {#if audience === 'server'}<label
-          >Additional config/scripts (one exact relative path per line)<textarea
-            bind:value={additionalServerPaths}
+        {/if}
+        <label
+          >Version name (optional)<input
+            bind:value={versionName}
             disabled={busy}
             oninput={changed}
-            placeholder="config/example.toml"
-          ></textarea></label
-        >{/if}
-      <details>
-        <summary>Include datapacks from a world slot</summary>{#if worldError}<p>
-            {worldError}
-          </p>{/if}<label
-          >World<select bind:value={slotId} disabled={busy} onchange={() => void loadDatapacks()}
+            placeholder="e.g. Weekend pack"
+          /></label
+        >
+        <label
+          >World datapacks<select
+            bind:value={slotId}
+            disabled={busy}
+            onchange={async () => {
+              await loadDatapacks();
+              await prepare();
+            }}
             ><option value="">No world datapacks</option
             >{#each worlds?.slots ?? [] as slot (slot.id)}<option value={slot.id}
                 >{slot.name}</option
               >{/each}</select
           ></label
-        >{#each datapacks as file (file.path)}<div class="row">
-            <label
-              ><input
-                type="checkbox"
-                checked={selectedDatapacks.has(file.path)}
-                onchange={() => (selectedDatapacks = toggle(selectedDatapacks, file.path))}
-                disabled={busy}
-              />{file.path} · {bytesLabel(file.byteSize)}</label
-            ><input
-              aria-label={`Redistribution evidence for ${file.path}`}
-              bind:value={datapackEvidence[file.path]}
-              oninput={changed}
-              disabled={busy}
-              placeholder="License or redistribution permission"
-            />
-          </div>{/each}
-      </details>
-      <Button disabled={busy || !snapshot} onclick={() => void prepare()}
-        >{review ? 'Refresh publication review' : 'Review current content'}</Button
-      >
-      {#if review}
-        <h3>Included content · {bytesLabel(review.contentBytes)}</h3>
-        {#each review.files as item}<p>
-            {item.file.path} · {item.file.optional ? 'Optional' : 'Required'}{item.file.enabled
-              ? ''
-              : ' · inactive'}
-          </p>{/each}
-        <h3>Per-file inclusion and permission</h3>
-        <p>
-          Owner-selected optional content is included by default. Config/scripts need an explicit
-          content review. Download access does not establish redistribution permission.
-        </p>
-        {#each review.candidates as item (key(item))}<div class="row">
-            <label
-              ><input
-                type="checkbox"
-                checked={!excluded.has(key(item))}
-                onchange={() => (excluded = toggle(excluded, key(item)))}
-                disabled={busy}
-              />{item.path}{item.optional ? ' · optional' : ''} · {bytesLabel(item.byteSize)}</label
-            >{#if item.restricted}<p>
-                Provider redistribution restriction: this file cannot be embedded.
-              </p>{:else}<label
-                >Redistribution evidence<input
-                  bind:value={evidence[key(item)]}
-                  oninput={changed}
-                  disabled={busy}
-                  placeholder={item.redistributionEvidence ??
-                    'License or permission for these exact bytes'}
-                /></label
-              >{/if}{#if item.configuration}<label
-                ><input
-                  type="checkbox"
-                  checked={reviewedConfig.has(key(item))}
-                  onchange={() => (reviewedConfig = toggle(reviewedConfig, key(item)))}
-                  disabled={busy}
-                />I reviewed this config/script file for sharing.</label
-              >{/if}
-          </div>{/each}
-        {#each review.issues as item}<p class="issue">
-            {item.path ?? item.audience}: {item.reason}
-          </p>{/each}{#each review.exclusions as item}<p>
-            Excluded: {item.path ?? item.audience} · {item.reason}
-          </p>{/each}
-        {#if review.guideStatus === 'textFallback'}<p>
-            Text launcher instructions are available. Illustrated guides await the owner-supplied
-            screenshots.
-          </p>{/if}
-        {#if !review.complete}<label
-            ><input type="checkbox" bind:checked={incompleteConsent} disabled={busy} />Publish this
-            explicitly incomplete revision with the listed missing/restricted content recorded.</label
-          >{/if}
-        <Button
-          disabled={busy || dirty || (!review.complete && !incompleteConsent)}
-          onclick={() => void publish()}>Publish dated revision</Button
         >
-      {/if}
+        {#if worldError}<p class="issue">{worldError}</p>{/if}
+        <p>{datapacks.length} datapack files from the selected world.</p>
+        <Button
+          disabled={busy}
+          onclick={() => void refreshCurrent().then(loadDatapacks).then(prepare)}
+          >Refresh contents</Button
+        >
+      </details>
     {/if}
     {#if publication}
-      <h3>
-        {dateLabel(publication.createdAt)} · revision {publication.publicationRevision}{publication.versionName
-          ? ` · ${publication.versionName}`
-          : ''}
-      </h3>
-      {#if !publication.audiences.includes(audience)}<p>
-          Choose an audience included in this revision before exporting.
+      <p>
+        {dateLabel(publication.createdAt)} · revision {publication.publicationRevision} · {Object.keys(
+          audience === 'players' ? publication.playerFiles : publication.serverFiles,
+        ).length} files
+      </p>
+      {#if !publication.contentFingerprint?.startsWith('pack-v1:')}<p>
+          This older export uses its previously selected content; it may not contain the full
+          original pack.
         </p>{/if}
-      {#each Object.values(audience === 'players' ? publication.playerFiles : publication.serverFiles) as file (file.path)}<p
-        >
-          {file.path} · {bytesLabel(file.byteSize)}{file.optional ? ' · optional' : ''}{file.enabled
-            ? ''
-            : ' · inactive'}
-        </p>{/each}
       {#each publication.issues as item}<p class="issue">
           {item.path ?? item.audience}: {item.reason}
-        </p>{/each}{#each publication.exclusions as item}<p>
-          Excluded: {item.path ?? item.audience} · {item.reason}
         </p>{/each}
       {#if publication.issues.length}<label
           ><input type="checkbox" bind:checked={incompleteConsent} disabled={busy} />Export this
-          explicitly incomplete revision with its warnings and missing-file instructions.</label
+          incomplete pack with its missing-file instructions.</label
         >{/if}
-      <label
-        ><input
-          type="checkbox"
-          bind:checked={includeMrpack}
-          disabled={busy || !eligibility?.supported}
-        />Include a launcher-importable .mrpack inside the ZIP</label
-      >
-      {#each eligibility?.reasons ?? [] as reason}<p>
-          .mrpack unavailable: {reason}
-        </p>{/each}{#each eligibility?.warnings ?? [] as warning}<p>{warning}</p>{/each}
-      <label
-        >Save to<select bind:value={destination} disabled={busy}
-          ><option value="local">This computer (native save dialog)</option><option value="host"
-            >Selected host’s server exports folder</option
-          ></select
-        ></label
-      >
-      {#if destination === 'host'}<label
-          >ZIP filename inside exports/<input
-            bind:value={hostPath}
-            disabled={busy}
-            oninput={() => {
-              hostInfo = undefined;
-              confirmedHostHash = undefined;
-            }}
-          /></label
-        >{#if hostInfo}<p>
-            Host destination: {hostInfo.root}/{hostInfo.relativePath}
-          </p>{/if}{#if hostInfo?.existingSha512}<label
-            ><input
-              type="checkbox"
-              checked={confirmedHostHash === hostInfo.existingSha512}
-              disabled={busy}
-              onchange={(event) =>
-                (confirmedHostHash = event.currentTarget.checked
-                  ? (hostInfo?.existingSha512 ?? undefined)
-                  : undefined)}
-            />Replace the existing file at this reviewed destination.</label
-          >{/if}
-        <p>
-          Host saving requires Add-ons and Admin permission. Other host paths are not exposed.
-        </p>{/if}
-      <Button
-        disabled={busy ||
-          !publication.audiences.includes(audience) ||
-          (publication.issues.length > 0 && !incompleteConsent)}
-        onclick={() => void exportArchive()}>Export ZIP</Button
-      >
     {/if}
+    <label
+      ><input
+        type="checkbox"
+        bind:checked={includeMrpack}
+        disabled={busy || (publication !== undefined && !eligibility?.supported)}
+      />Include a launcher-importable .mrpack inside the ZIP</label
+    >
+    {#each eligibility?.reasons ?? [] as reason}<p>.mrpack unavailable: {reason}</p>{/each}
+    {#each eligibility?.warnings ?? [] as warning}<p>{warning}</p>{/each}
+    <label
+      >Save to<select bind:value={destination} disabled={busy}
+        ><option value="local">This computer</option><option value="host"
+          >Selected host’s server exports folder</option
+        ></select
+      ></label
+    >
+    {#if destination === 'host'}
+      <label
+        >ZIP filename inside exports/<input
+          bind:value={hostPath}
+          disabled={busy}
+          oninput={() => {
+            hostInfo = undefined;
+            confirmedHostHash = undefined;
+          }}
+        /></label
+      >
+      {#if hostInfo}<p>{hostInfo.root}/{hostInfo.relativePath}</p>{/if}
+      {#if hostInfo?.existingSha512}<label
+          ><input
+            type="checkbox"
+            checked={confirmedHostHash === hostInfo.existingSha512}
+            disabled={busy}
+            onchange={(event) =>
+              (confirmedHostHash = event.currentTarget.checked
+                ? (hostInfo?.existingSha512 ?? undefined)
+                : undefined)}
+          />Replace the existing file at this destination.</label
+        >{/if}
+    {/if}
+    <Button
+      disabled={busy ||
+        (!publication && !review) ||
+        (review !== undefined && !review.complete && !incompleteConsent) ||
+        (publication !== undefined &&
+          (!publication.audiences.includes(audience) ||
+            (publication.issues.length > 0 && !incompleteConsent)))}
+      onclick={() => void saveExport()}>Export modpack</Button
+    >
+    {#if history?.items.length}<details>
+        <summary>Previous exports</summary>
+        <label
+          >Dated export<select
+            bind:value={selectedId}
+            disabled={busy}
+            onchange={() => {
+              if (selectedId === 'new') void switchMode();
+              else void selectPublication();
+            }}
+            ><option value="new">Current modpack</option
+            >{#each history.items.filter( (item) => item.audiences.includes(audience) ) as item (item.publicationId)}<option
+                value={item.publicationId}
+                disabled={!item.available}
+                >{item.createdAt} · {item.versionName ??
+                  `revision ${item.publicationRevision}`}{item.complete
+                  ? ''
+                  : ' · incomplete'}</option
+              >{/each}</select
+          ></label
+        >
+        {#if history.total > 50}<div class="actions">
+            <Button
+              disabled={busy || historyOffset === 0}
+              onclick={() => void historyPage(Math.max(0, historyOffset - 50))}>Previous</Button
+            ><Button
+              disabled={busy || historyOffset + 50 >= history.total}
+              onclick={() => void historyPage(historyOffset + 50)}>Next</Button
+            >
+          </div>{/if}
+      </details>{/if}
   </div>
 </Sheet>
 
 <style>
   .content {
     display: grid;
-    gap: 12px;
+    gap: 14px;
   }
-  p {
+  p,
+  small {
     margin: 0;
     font-size: 12px;
     line-height: 1.5;
     color: var(--msc2-text-secondary);
   }
-  h3 {
-    margin: 8px 0 0;
+  .modes {
+    display: grid;
+    gap: 14px;
+  }
+  .mode {
+    display: flex;
+    align-items: flex-start;
+    gap: 9px;
+  }
+  .mode span {
+    display: grid;
+    gap: 4px;
+  }
+  strong {
     font-size: 13px;
     font-weight: 500;
   }
@@ -739,7 +790,7 @@
   }
   label {
     display: grid;
-    gap: 4px;
+    gap: 5px;
     font-size: 12px;
   }
   label:has(input[type='checkbox']) {
@@ -747,9 +798,8 @@
     align-items: center;
     gap: 6px;
   }
-  input:not([type='checkbox']),
-  select,
-  textarea {
+  input:not([type='checkbox'], [type='radio']),
+  select {
     min-width: 0;
     padding: 7px 9px;
     background: var(--msc2-tier-content);
@@ -757,23 +807,17 @@
     border: 1px solid var(--msc2-hairline-subtle);
     border-radius: 6px;
   }
-  textarea {
-    min-height: 60px;
-    resize: vertical;
-  }
-  .row {
-    display: grid;
-    gap: 7px;
-    padding: 10px 0;
-    border-bottom: 1px solid var(--msc2-hairline-subtle);
-  }
   .error,
   .issue {
     color: var(--msc2-status-error);
   }
   summary {
-    font-size: 13px;
+    font-size: 12px;
     cursor: pointer;
+    margin-bottom: 8px;
+  }
+  details > label,
+  details > p {
     margin-bottom: 8px;
   }
 </style>

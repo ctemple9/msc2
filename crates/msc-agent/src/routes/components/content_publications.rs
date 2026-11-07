@@ -308,7 +308,7 @@ pub(super) async fn history(
         }
         let comparison=ids.last().map(|id| {
             let publication=snapshots::load(&server,id)?;
-            service::fingerprint(&server,&publication.reviewed_server_paths,&publication.reviewed_datapacks).map(|current|current!=publication.content_fingerprint)
+            (if publication.content_fingerprint.starts_with("pack-v1:") { service::pack_fingerprint(&server,&publication.reviewed_server_paths,&publication.reviewed_datapacks) } else { service::fingerprint(&server,&publication.reviewed_server_paths,&publication.reviewed_datapacks) }).map(|current|current!=publication.content_fingerprint)
         }).transpose();
         let (unpublished,error)=match comparison {Ok(Some(changed))=>(changed,None),Ok(None)=>(true,None),Err(error)=>(true,Some(error))};
         Ok::<_,String>(serde_json::json!({"items":items,"offset":query.offset,"limit":limit,"total":ids.len(),"unpublishedChanges":unpublished,"comparisonError":error}))

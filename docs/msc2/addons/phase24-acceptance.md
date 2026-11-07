@@ -7,7 +7,7 @@ Contract: [integration specification](phase24-contract.md).
 |---|---|---|
 | Modrinth/CurseForge search, details, pinned files, install and updates | pending | unverified |
 | Both creation mismatch choices; staged-content conflicts | pending | unverified |
-| Full client retention and separate audience editing | pending | unverified |
+| Automatic full-pack/server-only selection with additions, removals and disabled mods | pending | unverified |
 | Individual mod player dependencies, unknown/conflicting classification | pending | unverified |
 | Existing server recovery without live changes | pending | unverified |
 | Update preserves edits/removals; restore upstream per conflict | pending | unverified |
@@ -259,3 +259,40 @@ launcher-guides/README.md, integrate approved assets under a new guide version,
 record the physical scenarios above, and request the other agent's phase-gate
 review. The implementing agent has not performed that independent review and
 has not marked a step or phase accepted.
+
+
+### P24.32 — Automatic full/server modpack export candidate (2026-11-07)
+
+Owner amendment replaces the separate Player content action with Export modpack.
+Full mode derives retained originals plus owner edits; server mode derives live
+content. The export action freezes the dated revision automatically. Missing
+content/known distribution restrictions remain explicit; unknown sharing rights
+and changed configuration use one exact-byte owner attestation instead of a
+classification action on every file. Previous dated exports remain immutable.
+The normal UI no longer asks owners to classify supporting files. Pack maintenance
+is still available from Components → action menu → Manage modpack.
+
+Passed non-test checks: `cargo fmt --all`, `cargo clippy -p msc-agent -- -D warnings`,
+`cargo check -p msc-application --test content_publication_safety` (compile only),
+API generation, frontend check (0 errors, 10 existing CSS warnings), frontend
+production build (existing CSS/chunk-size warnings), and development agent/helper
+staging including the Intel BedrockSidecar build. New regression source covers
+filtered client content versus intentional deletion, disabled/added/updated files,
+coexisting active/disabled copies and read-only original preservation. It was not
+run. No tests, service restarts, live server mutations or releases were performed.
+Native desktop Rust code is unchanged; this step did not repeat its earlier check.
+
+Development agent and staged copy SHA256:
+`ad9e93ef5846b0adb0bba252d4b5e81ccea84d88734271a0f376049f63c96c73`.
+Staged at `clients/desktop-web/src-tauri/target/Resources/agent/msc`; running
+local/remote agents still need the owner's normal update/repair action. New clients
+check `contentPackExports` before offering the revised derivation to an old agent.
+
+Owner verification remains pending: export full/server modes after adding,
+removing and disabling content; inspect organized ZIP bytes/instructions and an
+eligible .mrpack; check active-world datapacks, local/remote save destinations and
+historical re-export. A pack containing world-slot datapacks still cannot be
+represented as a launcher-only .mrpack; the UI reports its existing eligibility
+reason and the organized ZIP remains available. Older servers without retained
+client bytes must still supply the original pack for missing client content.
+Illustrated launcher guides and phase acceptance remain open.

@@ -28,6 +28,8 @@ pub struct Exclusion {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Request {
+    #[serde(default)]
+    pub pack_export: bool,
     #[serde(default = "default_audiences")]
     pub audiences: Vec<String>,
     pub collection_revision: u64,
@@ -157,6 +159,19 @@ fn fingerprint_snapshot(
     Ok(format!("{:x}", Sha512::digest(bytes)))
 }
 
+pub fn pack_fingerprint(
+    server: &ConfigServer,
+    server_paths: &[String],
+    datapacks: &[crate::publication_datapacks::Selection],
+) -> Result<String, String> {
+    let mut snapshot = management::snapshot(server)?;
+    crate::pack_export_selection::project(server, &mut snapshot, &|| false)?;
+    Ok(format!(
+        "pack-v1:{}",
+        fingerprint_snapshot(server, &snapshot, server_paths, datapacks)?
+    ))
+}
+
 pub fn prepare(
     server: &ConfigServer,
     owner: &str,
@@ -189,7 +204,8 @@ pub fn prepare(
     {
         return Err("Choose players, server, or both publication audiences".into());
     }
-    if !audiences.contains("server")
+    if !request.pack_export
+        && !audiences.contains("server")
         && (!request.server_paths.is_empty() || !request.datapacks.is_empty())
     {
         return Err("Server paths/datapacks require the server publication audience".into());
@@ -200,7 +216,11 @@ pub fn prepare(
             return Err("Player setup requires the player publication audience".into());
         }
     }
-    let snapshot = management::snapshot(server)?;
+    let mut snapshot = management::snapshot(server)?;
+
+    if request.pack_export {
+        crate::pack_export_selection::project(server, &mut snapshot, cancelled)?;
+    }
     if request.collection_revision != snapshot.collection.revision {
         return Err("Content changed; refresh publication review".into());
     }
@@ -398,7 +418,8 @@ pub fn prepare(
                 redistribution_evidence: entry.redistribution_evidence.clone(),
             });
             let key = scoped(audience, path)?;
-            if audience == "players"
+            if !request.pack_export
+                && audience == "players"
                 && path.starts_with("mods/")
                 && !entry.optional
                 && entry
@@ -465,7 +486,15 @@ pub fn prepare(
             if approval.is_some_and(|approval| approval.sha512 != entry.sha512) {
                 return Err(format!("Approval bytes changed: {key}"));
             }
-            if config(path) && !approval.is_some_and(|approval| approval.reviewed_configuration) {
+            if config(path)
+                && !approval.is_some_and(|approval| approval.reviewed_configuration)
+                && !(request.pack_export
+                    && (entry
+                        .extra
+                        .get("originalPackContent")
+                        .and_then(serde_json::Value::as_bool)
+                        == Some(true)))
+            {
                 issues.push(issue(
                     audience,
                     Some(path),
@@ -574,47 +603,76 @@ pub fn prepare(
         })
         .collect();
     for datapack in datapack_files {
-        let path = format!("datapacks/{}/{}", datapack.slot_id, datapack.path);
-        management::content_path(&path)?;
-        let selection = datapack_grants
-            .get(&(datapack.slot_id.as_str(), datapack.path.as_str()))
-            .ok_or("Datapack selection disappeared")?;
-        if excluded.contains(&format!("server/{path}")) {
-            exclusions.push(issue(
-                "server",
-                Some(&path),
-                false,
-                "Owner excluded selected world datapack content",
-            ));
-            issues.push(issue(
-                "server",
-                Some(&path),
-                true,
-                "Selected world datapack content was excluded",
-            ));
-            continue;
-        }
-        files.push(PreparedPublicationFile {
-            audience: "server".into(),
-            source_relative: datapack
-                .source_relative
-                .ok_or("Selected datapack was not retained")?,
-            file: PublishedFile {
-                path,
-                sha512: datapack.sha512,
-                sha1: datapack.sha1,
+        for audience in &request.audiences {
+            let path = format!("datapacks/{}/{}", datapack.slot_id, datapack.path);
+            management::content_path(&path)?;
+            let selection = datapack_grants
+                .get(&(datapack.slot_id.as_str(), datapack.path.as_str()))
+                .ok_or("Datapack selection disappeared")?;
+            if excluded.contains(&format!("{audience}/{path}")) {
+                exclusions.push(issue(
+                    audience,
+                    Some(&path),
+                    false,
+                    "Owner excluded selected world datapack content",
+                ));
+                issues.push(issue(
+                    audience,
+                    Some(&path),
+                    true,
+                    "Selected world datapack content was excluded",
+                ));
+                continue;
+            }
+            candidates.push(Candidate {
+                audience: audience.clone(),
+                path: path.clone(),
+                sha512: datapack.sha512.clone(),
                 byte_size: datapack.byte_size,
                 optional: false,
-                enabled: true,
-                source: None,
-                classification_evidence: vec!["Owner selected content from this world slot".into()],
-                redistribution_evidence: selection.redistribution_evidence.clone(),
-                world_slot: Some(datapack.slot_id),
-            },
-        });
+                configuration: false,
+                restricted: false,
+                redistribution_evidence: None,
+            });
+            if selection.redistribution_evidence.trim().is_empty() {
+                issues.push(issue(
+                    audience,
+                    Some(&path),
+                    true,
+                    "Redistribution permission is needed for this world datapack",
+                ));
+                continue;
+            }
+            files.push(PreparedPublicationFile {
+                audience: audience.clone(),
+                source_relative: datapack
+                    .source_relative
+                    .clone()
+                    .ok_or("Selected datapack was not retained")?,
+                file: PublishedFile {
+                    path,
+                    sha512: datapack.sha512.clone(),
+                    sha1: datapack.sha1.clone(),
+                    byte_size: datapack.byte_size,
+                    optional: false,
+                    enabled: true,
+                    source: None,
+                    classification_evidence: vec![
+                        "Owner selected content from this world slot".into(),
+                    ],
+                    redistribution_evidence: selection.redistribution_evidence.clone(),
+                    world_slot: Some(datapack.slot_id.clone()),
+                },
+            });
+        }
     }
-    let content_fingerprint =
+    let fingerprint =
         fingerprint_snapshot(server, &snapshot, &request.server_paths, &request.datapacks)?;
+    let content_fingerprint = if request.pack_export {
+        format!("pack-v1:{fingerprint}")
+    } else {
+        fingerprint
+    };
     let review = Review {
         id: uuid::Uuid::new_v4().to_string(),
         owner: owner.into(),
@@ -664,12 +722,20 @@ pub fn load(server: &ConfigServer, id: &str, owner: &str) -> Result<Review, Stri
     {
         return Err("Publication review expired or server changed".into());
     }
-    if fingerprint(
-        server,
-        &review.request.server_paths,
-        &review.request.datapacks,
-    )? != review.content_fingerprint
-    {
+    let current_fingerprint = if review.request.pack_export {
+        pack_fingerprint(
+            server,
+            &review.request.server_paths,
+            &review.request.datapacks,
+        )?
+    } else {
+        fingerprint(
+            server,
+            &review.request.server_paths,
+            &review.request.datapacks,
+        )?
+    };
+    if current_fingerprint != review.content_fingerprint {
         return Err("Content bytes or options changed after publication review".into());
     }
     for prepared in &review.files {
@@ -700,7 +766,6 @@ fn selected_datapacks(
                 .sha512
                 .bytes()
                 .all(|byte| byte.is_ascii_hexdigit())
-            || selection.redistribution_evidence.trim().is_empty()
             || selection.redistribution_evidence.len() > 2048
             || selection
                 .redistribution_evidence

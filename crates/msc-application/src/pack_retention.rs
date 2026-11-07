@@ -741,7 +741,20 @@ pub fn collection(
             server_dir.to_str().ok_or("Server path is not Unicode")?,
             &path,
         )?;
-        match msc_infrastructure::addon_provider::fingerprint::identify(&actual_path) {
+        let actual = msc_infrastructure::addon_provider::fingerprint::identify(&actual_path);
+        let previously_recorded = previous
+            .filter(|collection| {
+                collection.extra.get("basePackId").and_then(|v| v.as_str())
+                    == Some(pack.id.as_str())
+            })
+            .and_then(|collection| collection.current_files.get(&path))
+            .and_then(|entry| entry.extra.get("packServerInstalled"))
+            .cloned();
+        entry.extra.insert(
+            "packServerInstalled".into(),
+            previously_recorded.unwrap_or_else(|| serde_json::Value::Bool(actual.is_ok())),
+        );
+        match actual {
             Ok(actual) if actual.sha512 == entry.sha512 => {}
             Ok(actual) => {
                 entry.sha512 = actual.sha512;

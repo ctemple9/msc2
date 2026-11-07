@@ -1,7 +1,7 @@
 //! Versioned text fallback. Illustrated launcher-specific guides are supplied
 //! in P24.20; these files make that limitation explicit without remote assets.
 use crate::content_publications::Publication;
-pub const VERSION: &str = "text-v3-launchers";
+pub const VERSION: &str = "text-v4-pack-exports";
 pub struct Asset {
     pub path: String,
     pub bytes: Vec<u8>,
@@ -39,6 +39,7 @@ pub fn assets(publication: &Publication) -> Vec<Asset> {
     let mut player = format!(
         "PLAYER CONTENT\n\n{player_header}\nCreate a separate instance in your compatible launcher with the exact Minecraft and loader versions above. Open that instance's Minecraft folder. Copy the exported mods, config, scripts, kubejs, defaultconfigs, resourcepacks and shaderpacks folders into their matching locations, preserving subfolders.\n\nUse a clean instance for updates so old mod versions do not remain alongside new ones. Back up personal settings before replacing configuration. Compare the manifest with the files you copied before joining the server.\n\nOwner-selected optional content is included when eligible. Leave optional shader/resource packs inactive until you choose to enable them in Minecraft. A launcher may not automatically disable optional mod JARs; check the manifest and choose which optional mods to use.\n\n"
     );
+    player.push_str("Datapacks under datapacks/<world-slot-id>/ belong to the source world. They are included for completeness; joining this server does not require installing them in your launcher. To use them in a separate local world, copy the contents of the chosen slot group into that world's datapacks folder. Do not copy the slot ID as an extra subfolder. This bundle contains no world terrain or player saves.\n\n");
     for file in publication.player_files.values() {
         player.push_str(&format!(
             "{}{}{}\n",

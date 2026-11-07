@@ -2410,12 +2410,46 @@ pub async fn remove_component(
         return error_response(StatusCode::NOT_FOUND, "not_found", "Add-on not found.");
     };
     match addons::remove(&StdFileSystem, &path, server.pack_managed) {
-        Ok(()) => Json(AddonRemoveResultDto {
-            success: true,
-            message: "Removed add-on.".to_string(),
-            jar_stem: body.jar_stem,
-        })
-        .into_response(),
+        Ok(()) => {
+            let relative = path
+                .strip_prefix(&server.server_dir)
+                .ok()
+                .and_then(|path| path.to_str())
+                .map(|path| path.trim_end_matches(".disabled").replace('\\', "/"));
+            if let Some(relative) = relative {
+                let saved = state
+                    .lifecycle
+                    .try_mutate_config(|config| -> Result<(), ()> {
+                        let current = config
+                            .servers
+                            .iter_mut()
+                            .find(|current| {
+                                current.id == server.id && current.server_dir == server.server_dir
+                            })
+                            .ok_or(())?;
+                        if let Some(collection) = current.content_collection.as_mut() {
+                            if !collection.excluded_paths.contains(&relative) {
+                                collection.excluded_paths.push(relative);
+                            }
+                            collection.revision = collection.revision.checked_add(1).ok_or(())?;
+                        }
+                        Ok(())
+                    });
+                if saved.is_err() {
+                    return error_response(
+                        StatusCode::CONFLICT,
+                        "removal_metadata_unconfirmed",
+                        "The mod was removed, but its pack removal record could not be saved. Refresh before exporting.",
+                    );
+                }
+            }
+            Json(AddonRemoveResultDto {
+                success: true,
+                message: "Removed add-on.".to_string(),
+                jar_stem: body.jar_stem,
+            })
+            .into_response()
+        }
         Err(AddonMutationError::PackManaged) => error_response(
             StatusCode::CONFLICT,
             "conflict",

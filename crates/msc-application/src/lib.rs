@@ -62,3 +62,5 @@ pub mod xbox_broadcast;
 pub mod storage;
 
 pub mod content_export_saving;
+
+pub mod pack_export_selection;

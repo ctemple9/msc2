@@ -1472,6 +1472,20 @@ step, explicit UI approval, final owner acceptance, independent gate review and
 test/release restrictions remain. See [execution protocol](addons/phase24-execution.md).
 This amendment changes workflow only; this plan revision does not begin code work.
 
+**Export simplification, owner-approved 2026-11-06; resumed 2026-11-07.**
+Cameron replaced the normal separate Player content workflow with one Export
+modpack action: original retained pack plus owner changes, or current server
+content only. Preserve the original client content before server filtering.
+Include later additions and world-slot datapacks; intentionally removed files
+stay out, disabled mods stay disabled. Automatic server filtering is not an
+owner removal. Routine export derives these choices without per-file audience
+classification or a separate publish action. Keep immutable dated snapshots,
+local/selected-host saving, optional eligible .mrpack, exact-byte permission and
+restriction checks, private-file exclusion and exceptional missing-file reports.
+Pack recovery/update/replacement remains under the component actions menu.
+This supersedes the normal separate-editing/check-every-file presentation above;
+legacy APIs and historical publications remain compatible.
+
 **Boundaries.** Existing no-hosted-backend and no-browser-management decisions
 remain. This does not authorize tests or release changes.
 [Phase 24 scope](addons/phase24-scope.md) separates the approved behavior from

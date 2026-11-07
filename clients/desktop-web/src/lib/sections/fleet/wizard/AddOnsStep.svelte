@@ -588,59 +588,102 @@
 {/if}
 {#if packCandidate}
   <Sheet title="Review modpack setup" size="lg" onClose={acceptingPack ? undefined : () => void discardCandidate()}>
-    <h2>{packCandidate.inspection.packName ?? packCandidate.name}</h2>
-    <p>
-      Pack: Minecraft {packCandidate.inspection.minecraftVersion ?? 'unknown'} · {packCandidate
-        .inspection.loaderName ?? 'unknown'} · loader {packCandidate.inspection.loaderVersion ??
-        'unknown'}
-    </p>
-    <p>
-      Current: Minecraft {resolvedMcVersion ?? 'unknown'} · {draft.javaFlavor}. Matching setup
-      updates Minecraft and loader automatically. Trying the current setup may leave incompatible
-      content and does not prove the pack will run.
-    </p>
-    {#each packCandidate.inspection.warnings ?? [] as warning}<p class="hint warn">
-        {warning}
-      </p>{/each}
-    {#if draft.pendingAddOns.length}
-      <h3>Staged individual content</h3>
+    <div class="pack-setup">
+      <h2>{packCandidate.inspection.packName ?? packCandidate.name}</h2>
       <p>
-        These selections were made before this pack. Uncheck items to remove them; retained items
-        are checked again when installed. Local files have no proven provider compatibility.
+        Pack: Minecraft {packCandidate.inspection.minecraftVersion ?? 'unknown'} · {packCandidate
+          .inspection.loaderName ?? 'unknown'} · loader {packCandidate.inspection.loaderVersion ??
+          'unknown'}
       </p>
-      {#each draft.pendingAddOns as item (item.id)}
+      <p>
+        Current: Minecraft {resolvedMcVersion ?? 'unknown'} · {draft.javaFlavor}. Matching setup
+        updates Minecraft and loader automatically. Trying the current setup may leave incompatible
+        content and does not prove the pack will run.
+      </p>
+      {#each packCandidate.inspection.warnings ?? [] as warning}<p class="hint warn">
+          {warning}
+        </p>{/each}
+      {#if draft.pendingAddOns.length}
+        <h3>Staged individual content</h3>
+        <p>
+          These selections were made before this pack. Uncheck items to remove them; retained items
+          are checked again when installed. Local files have no proven provider compatibility.
+        </p>
+        {#each draft.pendingAddOns as item (item.id)}
+          <label
+            ><input
+              type="checkbox"
+              checked={!omitted.has(item.id)}
+              onchange={(event) => {
+                const next = new Set(omitted);
+                if (event.currentTarget.checked) next.delete(item.id);
+                else next.add(item.id);
+                omitted = next;
+              }}
+            />{item.kind === 'catalog' ? item.title : item.fileName} — {stagedCompatibility[
+              item.id
+            ] ?? 'Checking compatibility…'}</label
+          >
+        {/each}
         <label
-          ><input
-            type="checkbox"
-            checked={!omitted.has(item.id)}
-            onchange={(event) => {
-              const next = new Set(omitted);
-              if (event.currentTarget.checked) next.delete(item.id);
-              else next.add(item.id);
-              omitted = next;
-            }}
-          />{item.kind === 'catalog' ? item.title : item.fileName} — {stagedCompatibility[
-            item.id
-          ] ?? 'Checking compatibility…'}</label
+          ><input type="checkbox" bind:checked={reviewedStaged} />I reviewed which individual items to
+          keep with this pack.</label
         >
-      {/each}
-      <label
-        ><input type="checkbox" bind:checked={reviewedStaged} />I reviewed which individual items to
-        keep with this pack.</label
-      >
-    {/if}
-    {#if stageError}<p class="hint warn">{stageError}</p>{/if}
-    <Button disabled={!reviewedStaged || checkingStaged || acceptingPack} onclick={() => void acceptPack('matching')}
-      >Use matching setup</Button
-    >
-    <Button
-      disabled={!reviewedStaged || checkingStaged || acceptingPack || !resolvedMcVersion}
-      onclick={() => void acceptPack('current')}>Try current setup anyway</Button
-    >
+      {/if}
+      {#if stageError}<p class="hint warn">{stageError}</p>{/if}
+      <div class="setup-actions">
+        <Button disabled={!reviewedStaged || checkingStaged || acceptingPack} onclick={() => void acceptPack('matching')}
+          >Use matching setup</Button
+        >
+        <Button
+          disabled={!reviewedStaged || checkingStaged || acceptingPack || !resolvedMcVersion}
+          onclick={() => void acceptPack('current')}>Try current setup anyway</Button
+        >
+      </div>
+    </div>
   </Sheet>
 {/if}
 
 <style>
+  .pack-setup {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    font-size: 12.5px;
+    line-height: 1.5;
+    color: var(--msc2-text-secondary);
+  }
+  .pack-setup h2 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--msc2-text-primary);
+  }
+  .pack-setup h3 {
+    margin: 4px 0 0;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--msc2-text-primary);
+  }
+  .pack-setup p {
+    margin: 0;
+  }
+  .pack-setup label {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .pack-setup input[type='checkbox'] {
+    flex-shrink: 0;
+    margin: 3px 0 0;
+  }
+  .setup-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 4px;
+  }
+
   .addons {
     display: flex;
     flex-direction: column;

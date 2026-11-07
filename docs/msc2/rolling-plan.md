@@ -362,3 +362,14 @@ No tests added or run for this reversible layout change. Rust is unchanged; prio
 **Batch:** owner-requested bounded shared-view revision; final visual verification pending
 
 Frontend check/build passed with existing CSS/chunk warnings. No tests added or run for this presentation refactor; Rust unchanged, so prior Rust checks remain applicable. Owner visual/interactive acceptance remains pending.
+
+### P24.27 — Match modpack setup review typography to the wizard
+
+**Status:** implemented — awaiting owner visual verification
+**Files:** clients/desktop-web/src/lib/sections/fleet/wizard/AddOnsStep.svelte; docs/msc2/rolling-plan.md
+**What:** Replace unstyled browser-default heading/body sizes in the modpack setup review with the wizard's 15px pack heading, 12.5px body, 13px section headings and restrained weights/colors. Set explicit paragraph spacing, align staged-item checkboxes and group the setup actions with the normal button gap. Preserve setup choices and validation.
+**Verify:** `npm --prefix clients/desktop-web run check`. Select a modpack during creation and compare the setup review typography with the surrounding wizard, including staged-item and warning content.
+**Commit:** `P24.27: align modpack setup review typography`
+**Batch:** owner-requested bounded styling revision; visual verification pending
+
+No tests added or run for this reversible styling change. Rust is unchanged; prior Rust checks remain applicable. Frontend check passed with the existing CSS warnings.

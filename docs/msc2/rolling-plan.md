@@ -384,3 +384,14 @@ No tests added or run for this reversible styling change. Rust is unchanged; pri
 **Batch:** owner-requested creation behavior correction; physical verification pending
 
 Frontend check passed with the existing CSS warnings. No tests added or run; Rust unchanged and previous Rust checks remain applicable. Compatibility behavior requires the owner scenarios above; no live server creation performed.
+
+### P24.29 — Record pack review identity after staging the pack
+
+**Status:** implemented — awaiting owner verification
+**Files:** clients/desktop-web/src/lib/sections/fleet/wizard/AddOnsStep.svelte; docs/msc2/rolling-plan.md
+**What:** Fix P24.28's shared staging helper recording the reviewed setup identity before assigning stagedModpack. javaSelectionKey includes the pack's Minecraft/loader metadata, so adding the pack immediately invalidated its own review and falsely blocked creation. Stamp the identity after staging for both automatic exact-match selection and approved setup changes. Preserve the existing check against actual later changes.
+**Verify:** `npm --prefix clients/desktop-web run check`. Select a matching pack or approve Use matching setup for a different loader/version, proceed to Confirm and verify neither path reports a setup change. A subsequent manual Configure change must still require review.
+**Commit:** `P24.29: record accepted setup after staging the modpack`
+**Batch:** owner-reported creation regression; physical verification pending
+
+No tests added or run for this narrowly scoped assignment-order correction. Frontend check passed with existing CSS warnings; Rust unchanged and prior Rust checks remain applicable. No live server creation performed.

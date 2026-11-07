@@ -152,8 +152,10 @@
       setupMode: mode,
       currentMinecraftVersion: mode === 'current' ? resolvedMcVersion : undefined,
       currentLoaderVersion: mode === 'current' ? resolvedLoaderVersion : undefined,
-      reviewedSetupKey: javaSelectionKey(draft),
     };
+    // The setup identity includes the staged pack's Minecraft/loader metadata.
+    // Record it after assignment so the pack itself is not mistaken for an edit.
+    draft.stagedModpack.reviewedSetupKey = javaSelectionKey(draft);
     packCandidate = undefined;
   }
   function reviewPack(

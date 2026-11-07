@@ -395,3 +395,14 @@ Frontend check passed with the existing CSS warnings. No tests added or run; Rus
 **Batch:** owner-reported creation regression; physical verification pending
 
 No tests added or run for this narrowly scoped assignment-order correction. Frontend check passed with existing CSS warnings; Rust unchanged and prior Rust checks remain applicable. No live server creation performed.
+
+### P24.30 — Consolidate modpack inspection outcomes
+
+**Status:** implemented — awaiting owner visual verification
+**Files:** clients/desktop-web/src/lib/sections/fleet/wizard/ModpackCreationSummarySheet.svelte; docs/msc2/rolling-plan.md
+**What:** Remove the redundant Recovered from Modrinth section from the installed-pack summary. Keep individual recovery/exclusion outcomes and provider attribution in Files flagged during inspection, and remove its obsolete reference to the list above. Preserve import results and the directly downloaded file list.
+**Verify:** `npm --prefix clients/desktop-web run check`. Inspect a completed pack summary with recovered files: each flagged file should report its outcome once, with no separate recovery section.
+**Commit:** `P24.30: consolidate modpack inspection outcomes`
+**Batch:** owner-requested bounded presentation revision; visual verification pending
+
+No tests added or run for removing duplicated presentation. Frontend check passed with existing CSS warnings; Rust unchanged and prior Rust checks remain applicable.

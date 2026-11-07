@@ -90,28 +90,12 @@
       </section>
     {/if}
 
-    {#if summary.recoveredModrinthFiles.length > 0}
-      <section class="recovered" aria-labelledby="modpack-recovered-title">
-        <h3 id="modpack-recovered-title">Recovered from Modrinth</h3>
-        <p>
-          {summary.recoveredModrinthFiles.length} file{summary.recoveredModrinthFiles.length === 1
-            ? ' was'
-            : 's were'} installed automatically from Modrinth.
-        </p>
-        <div class="file-list">
-          {#each summary.recoveredModrinthFiles as file}
-            <span>{file}</span>
-          {/each}
-        </div>
-      </section>
-    {/if}
-
     {#if summary.flaggedFileOutcomes?.length}
       <section class="recovered" aria-label="Inspection warning outcomes">
         <h3>Files flagged during inspection</h3>
         <p>
           Here is what happened to each of the {summary.flaggedFileOutcomes.length} files that might have
-          needed manual completion. Recovered downloads are also listed above.
+          needed manual completion.
         </p>
         <div class="file-list">
           {#each summary.flaggedFileOutcomes as file}

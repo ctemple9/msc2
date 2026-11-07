@@ -90,6 +90,8 @@
   let packCandidate:
     | { id: string; name: string; inspection: Schema['ModpackInspectionResultDTO']; api: ScreenApi }
     | undefined;
+  let matchingPackSetup = false;
+  let creationPackSetupSupported = false;
   let reviewedStaged = false;
   let omitted = new Set<string>();
   let resolvedLoaderVersion: string | undefined;
@@ -129,6 +131,31 @@
       checkingStaged = false;
     }
   }
+  function packMatchesCurrentSetup(inspection: Schema['ModpackInspectionResultDTO']): boolean {
+    return (
+      inspection.success &&
+      !!resolvedMcVersion &&
+      !!resolvedLoaderVersion &&
+      inspection.minecraftVersion === resolvedMcVersion &&
+      inspection.loaderName?.toLowerCase() === draft.javaFlavor &&
+      inspection.loaderVersion === resolvedLoaderVersion
+    );
+  }
+  function stageReviewedPack(
+    candidate: NonNullable<typeof packCandidate>,
+    mode: 'matching' | 'current',
+  ): void {
+    draft.stagedModpack = {
+      fileName: candidate.name,
+      stagedUploadId: candidate.id,
+      inspection: candidate.inspection,
+      setupMode: mode,
+      currentMinecraftVersion: mode === 'current' ? resolvedMcVersion : undefined,
+      currentLoaderVersion: mode === 'current' ? resolvedLoaderVersion : undefined,
+      reviewedSetupKey: javaSelectionKey(draft),
+    };
+    packCandidate = undefined;
+  }
   function reviewPack(
     id: string,
     name: string,
@@ -139,10 +166,21 @@
       throw new Error('Remove the current base pack before selecting another.');
     retainWizardUploadApi(draft, scoped, id);
     packCandidate = { id, name, inspection, api: scoped };
+    matchingPackSetup = packMatchesCurrentSetup(inspection);
+    stageError = undefined;
     reviewedStaged = draft.pendingAddOns.length === 0;
     omitted = new Set();
     showPacks = false;
     stagedCompatibility = {};
+    if (
+      matchingPackSetup &&
+      creationPackSetupSupported &&
+      !draft.pendingAddOns.length &&
+      scoped.isCurrent?.() !== false
+    ) {
+      stageReviewedPack(packCandidate, 'matching');
+      return;
+    }
     void recheckStaged(packCandidate);
   }
   async function acceptPack(mode: 'matching' | 'current'): Promise<void> {
@@ -178,13 +216,14 @@
       );
       if (!entry)
         throw new Error('The selected setup is outside the supported Minecraft/loader catalog.');
-      if (disposed || packCandidate !== candidate || candidate.api.isCurrent?.() === false) throw new Error('The selected host or pack changed.');
+      if (disposed || packCandidate !== candidate || candidate.api.isCurrent?.() === false)
+        throw new Error('The selected host or pack changed.');
       for (const id of omitted) {
-        const item = draft.pendingAddOns.find(value => value.id === id);
+        const item = draft.pendingAddOns.find((value) => value.id === id);
         if (item?.kind === 'localFile') await discardWizardInput(draft, item.stagedUploadId);
-        draft.pendingAddOns = draft.pendingAddOns.filter(value => value.id !== id);
+        draft.pendingAddOns = draft.pendingAddOns.filter((value) => value.id !== id);
       }
-      if (mode === 'matching') {
+      if (mode === 'matching' && !packMatchesCurrentSetup(candidate.inspection)) {
         draft.javaFlavor = loader as typeof draft.javaFlavor;
         draft.javaCategory = 'modded';
         draft.versionId = entry.id;
@@ -193,19 +232,12 @@
         resolvedMcVersion = mc;
         resolvedLoaderVersion = candidate.inspection.loaderVersion;
       }
-      draft.stagedModpack = {
-        fileName: candidate.name,
-        stagedUploadId: candidate.id,
-        inspection: candidate.inspection,
-        setupMode: mode,
-        currentMinecraftVersion: mode === 'current' ? resolvedMcVersion : undefined,
-        currentLoaderVersion: mode === 'current' ? resolvedLoaderVersion : undefined,
-      };
-      draft.stagedModpack.reviewedSetupKey = javaSelectionKey(draft);
-      packCandidate = undefined;
+      stageReviewedPack(candidate, mode);
     } catch (cause) {
       stageError = errorMessage(cause);
-    } finally { acceptingPack = false; }
+    } finally {
+      acceptingPack = false;
+    }
   }
   async function discardCandidate(): Promise<void> {
     if (!packCandidate) return;
@@ -230,20 +262,20 @@
 
   onMount(async () => {
     if (!api || draft.serverType !== 'java') return;
+    const selectionKey = javaSelectionKey(draft);
     try {
-      const response = await api.get<Schema['VersionsResponseDTO']>(
-        versionsForCreatePath('java', draft.javaFlavor),
-      );
+      const [response, caps] = await Promise.all([
+        api.get<Schema['VersionsResponseDTO']>(versionsForCreatePath('java', draft.javaFlavor)),
+        api.get<Schema['CapabilitiesDTO']>('/v1/capabilities'),
+      ]);
+      if (disposed || api.isCurrent?.() === false || javaSelectionKey(draft) !== selectionKey) return;
+      creationPackSetupSupported = caps.contentCatalog?.creationPackSetup === true;
       const versions = response.versions ?? [];
       const picked = draft.versionId
         ? versions.find((entry) => entry.id === draft.versionId)
-        : undefined;
-      resolvedLoaderVersion =
-        picked?.loaderVersion ?? versions.find((entry) => entry.isLatest)?.loaderVersion;
-      resolvedMcVersion =
-        picked?.mcVersion ??
-        versions.find((entry) => entry.isLatest)?.mcVersion ??
-        versions[0]?.mcVersion;
+        : (versions.find((entry) => entry.isLatest) ?? versions[0]);
+      resolvedLoaderVersion = picked?.loaderVersion;
+      resolvedMcVersion = picked?.mcVersion;
     } catch {
       resolvedMcVersion = undefined;
     }
@@ -409,7 +441,12 @@
             {stagingJar ? 'Staging…' : addOnKind === 'mod' ? 'Import Mods…' : 'Import Plugins…'}
           </Button>
           {#if addOnKind === 'mod' && !draft.stagedModpack}
-            <Button size="sm" variant="secondary" disabled={!api || stagingModpack || !!packCandidate} onclick={() => (showPacks = true)}>Browse Modpacks…</Button>
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={!api || stagingModpack || !!packCandidate}
+              onclick={() => (showPacks = true)}>Browse Modpacks…</Button
+            >
             <Button
               size="sm"
               variant="secondary"
@@ -433,7 +470,12 @@
           <span class="card-subtitle">Search and add {noun} by name or keyword.</span>
         </button>
         {#if addOnKind === 'mod'}
-          <button type="button" class="card" disabled={!api || stagingModpack || !!packCandidate} onclick={() => (showPacks = true)}>
+          <button
+            type="button"
+            class="card"
+            disabled={!api || stagingModpack || !!packCandidate}
+            onclick={() => (showPacks = true)}
+          >
             <span class="card-title">Browse Modpacks</span>
             <span class="card-subtitle">Find a modpack on Modrinth or CurseForge.</span>
           </button>
@@ -453,7 +495,13 @@
           disabled={stagingJar}
           onclick={() => void chooseOwnJar()}
         >
-          <span class="card-title">{stagingJar ? 'Staging…' : addOnKind === 'mod' ? 'Import Mods' : 'Import Plugins'}</span>
+          <span class="card-title"
+            >{stagingJar
+              ? 'Staging…'
+              : addOnKind === 'mod'
+                ? 'Import Mods'
+                : 'Import Plugins'}</span
+          >
           <span class="card-subtitle">Already have a {itemNoun} file? Add its .jar directly.</span>
         </button>
       </div>
@@ -587,7 +635,11 @@
   />
 {/if}
 {#if packCandidate}
-  <Sheet title="Review modpack setup" size="lg" onClose={acceptingPack ? undefined : () => void discardCandidate()}>
+  <Sheet
+    title="Review modpack setup"
+    size="lg"
+    onClose={acceptingPack ? undefined : () => void discardCandidate()}
+  >
     <div class="pack-setup">
       <h2>{packCandidate.inspection.packName ?? packCandidate.name}</h2>
       <p>
@@ -596,9 +648,12 @@
           'unknown'}
       </p>
       <p>
-        Current: Minecraft {resolvedMcVersion ?? 'unknown'} · {draft.javaFlavor}. Matching setup
-        updates Minecraft and loader automatically. Trying the current setup may leave incompatible
-        content and does not prove the pack will run.
+        Current: Minecraft {resolvedMcVersion ?? 'unknown'} · {draft.javaFlavor} · loader {resolvedLoaderVersion ??
+          'unknown'}.
+        {#if matchingPackSetup}The pack matches your setup. Review the staged content below before
+          adding it.
+        {:else}Matching setup updates Minecraft and loader automatically. Trying the current setup
+          may leave incompatible content and does not prove the pack will run.{/if}
       </p>
       {#each packCandidate.inspection.warnings ?? [] as warning}<p class="hint warn">
           {warning}
@@ -626,19 +681,21 @@
           >
         {/each}
         <label
-          ><input type="checkbox" bind:checked={reviewedStaged} />I reviewed which individual items to
-          keep with this pack.</label
+          ><input type="checkbox" bind:checked={reviewedStaged} />I reviewed which individual items
+          to keep with this pack.</label
         >
       {/if}
       {#if stageError}<p class="hint warn">{stageError}</p>{/if}
       <div class="setup-actions">
-        <Button disabled={!reviewedStaged || checkingStaged || acceptingPack} onclick={() => void acceptPack('matching')}
-          >Use matching setup</Button
-        >
         <Button
-          disabled={!reviewedStaged || checkingStaged || acceptingPack || !resolvedMcVersion}
-          onclick={() => void acceptPack('current')}>Try current setup anyway</Button
+          disabled={!reviewedStaged || checkingStaged || acceptingPack}
+          onclick={() => void acceptPack('matching')}
+          >{matchingPackSetup ? 'Add modpack' : 'Use matching setup'}</Button
         >
+        {#if !matchingPackSetup}<Button
+            disabled={!reviewedStaged || checkingStaged || acceptingPack || !resolvedMcVersion}
+            onclick={() => void acceptPack('current')}>Try current setup anyway</Button
+          >{/if}
       </div>
     </div>
   </Sheet>

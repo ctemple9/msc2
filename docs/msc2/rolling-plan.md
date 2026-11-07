@@ -373,3 +373,14 @@ Frontend check/build passed with existing CSS/chunk warnings. No tests added or 
 **Batch:** owner-requested bounded styling revision; visual verification pending
 
 No tests added or run for this reversible styling change. Rust is unchanged; prior Rust checks remain applicable. Frontend check passed with the existing CSS warnings.
+
+### P24.28 — Skip setup choices for an exactly matching modpack
+
+**Status:** implemented — awaiting owner verification
+**Files:** clients/desktop-web/src/lib/sections/fleet/wizard/AddOnsStep.svelte; docs/msc2/rolling-plan.md
+**What:** Compare the inspected pack against the selected catalog entry's Minecraft version, loader type and exact loader version. A successful exact match on a capable agent with no individual staged items goes directly into the draft, preserving the chosen setup and Java runtime. Keep staged-item review when needed, but show a single Add modpack action and matching copy rather than incompatible choices. Show the current loader version explicitly. Missing/unknown or different loader metadata still requires setup review; an unavailable explicitly selected catalog entry no longer falls back to latest and falsely establishes compatibility. Reject stale setup-resolution responses and retain inspection warnings in the staged-pack summary.
+**Verify:** `npm --prefix clients/desktop-web run check`. Select an exactly matching NeoForge pack with no staged mods and confirm immediate staging; change Minecraft or loader version and confirm setup choices remain. Repeat with staged individual mods and confirm content review remains without the mismatch action for an exact match.
+**Commit:** `P24.28: skip setup choices for exactly matching modpacks`
+**Batch:** owner-requested creation behavior correction; physical verification pending
+
+Frontend check passed with the existing CSS warnings. No tests added or run; Rust unchanged and previous Rust checks remain applicable. Compatibility behavior requires the owner scenarios above; no live server creation performed.

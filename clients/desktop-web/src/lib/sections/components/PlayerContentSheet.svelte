@@ -1,11 +1,25 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
+  import PlayerContentList from './PlayerContentList.svelte';
+  import {
+    actionAllowed,
+    playerContentChanges,
+    contentItems,
+    primary,
+    needsAttention,
+    itemMatches,
+    supportingFolder,
+    primaryFolders,
+    categoryNames,
+    changeNames,
+    type PlayerContentItem,
+  } from './player-content-view';
   import Sheet from '../../components/base/Sheet.svelte';
   import Button from '../../components/base/Button.svelte';
   import StagedUploadSheet from './StagedUploadSheet.svelte';
   import PackChangesSheet from './PackChangesSheet.svelte';
   import { pickUploadSource, type UploadSource } from '../shared/upload-source';
-  import { errorMessage, bytesLabel, type Schema, type ScreenApi } from '../shared/types';
+  import { errorMessage, type Schema, type ScreenApi } from '../shared/types';
   import {
     contentOperation,
     contentRoot,
@@ -35,13 +49,84 @@
   let optional = false;
   let pendingSource: UploadSource | undefined;
   let uploadPath = '';
-  let fileEvidence: Record<string, string> = {};
+  let loading = true;
+  let query = '';
+  let filter = 'all';
+  let selected = new Set<string>();
+  let bulkAction = 'required';
+  let expandedGroups = new Set<string>();
+  $: items = contentItems(snapshot);
+  $: attention = items.filter((item) => primary(item) && needsAttention(item));
+  $: supportingAttention = items.filter((item) => !primary(item) && needsAttention(item) && itemMatches(item, query, filter)).length;
+  $: categories = primaryFolders
+    .map((name) => ({
+      name,
+      items: items.filter(
+        (item) =>
+          item.path.startsWith(`${name}/`) &&
+          (item.player || needsAttention(item)) &&
+          itemMatches(item, query, filter),
+      ),
+    }))
+    .filter((group) => group.items.length);
+  $: serverOnly = items.filter(
+    (item) =>
+      primary(item) && !item.player && !needsAttention(item) && itemMatches(item, query, filter),
+  );
+  $: supportGroups = groupSupporting(
+    items.filter((item) => !primary(item) && itemMatches(item, query, filter)),
+  );
+  $: selectedItems = items.filter((item) => selected.has(item.path));
+  $: bulkAllowed =
+    selectedItems.length > 0 && selectedItems.every((item) => actionAllowed(item, bulkAction));
+  function groupSupporting(
+    entries: PlayerContentItem[],
+  ): { name: string; items: PlayerContentItem[] }[] {
+    const groups = new Map<string, PlayerContentItem[]>();
+    for (const item of entries) {
+      const name = supportingFolder(item);
+      const group = groups.get(name) ?? [];
+      group.push(item);
+      groups.set(name, group);
+    }
+    return [...groups].map(([name, items]) => ({ name, items }));
+  }
+  function toggleGroup(name: string, open: boolean): void {
+    const next = new Set(expandedGroups);
+    if (open) next.add(name);
+    else next.delete(name);
+    expandedGroups = next;
+  }
+  function selectItems(paths: string[], checked: boolean): void {
+    const next = new Set(selected);
+    for (const path of paths) {
+      if (checked) next.add(path);
+      else next.delete(path);
+    }
+    selected = next;
+  }
+  function reviewSelection(): void {
+    if (!bulkAllowed || busy) return;
+    try {
+      void prepare(playerContentChanges(selectedItems, bulkAction));
+    } catch (cause) {
+      error = errorMessage(cause);
+    }
+  }
+  function reviewEvidence(entry: ContentEntry, evidence: string): void {
+    change(entry, 'setPlayerOptions', { redistributionEvidence: evidence });
+  }
   const current = () => !disposed && connection.isCurrent?.() !== false;
   async function refresh(): Promise<void> {
     const result = await connection.get<ContentSnapshot>(`${root}/collection`);
-    if (current()) snapshot = result;
+    if (current()) {
+      snapshot = result;
+      selected = new Set();
+    }
   }
   async function load(): Promise<void> {
+    if (busy || !current()) return;
+    loading = true;
     busy = true;
     error = '';
     try {
@@ -52,7 +137,10 @@
     } catch (cause) {
       if (current()) error = errorMessage(cause);
     } finally {
-      if (current()) busy = false;
+      if (current()) {
+        busy = false;
+        loading = false;
+      }
     }
   }
   async function prepare(changes: Partial<Schema['ContentChangeDTO']>[]): Promise<void> {
@@ -185,11 +273,11 @@
   });
 </script>
 
-<Sheet title="Player content" size="lg" onClose={busy ? undefined : onClose}>
+<Sheet title="Player content" size="lg" onClose={busy && !loading ? undefined : onClose}>
   <div class="content">
     <p>
-      Keep a separate collection for players. Server-only content stays on the server; player
-      changes here do not install or delete server files.
+      Choose what players receive: required mods, optional content and the files that support your
+      pack. Server files stay unchanged.
     </p>
     <div class="actions">
       <Button disabled={busy} onclick={() => void load()}>Refresh</Button><Button
@@ -200,131 +288,188 @@
     {#if error}<p class="error" role="alert">{error}</p>{/if}
     {#if status}<p role="status">{status}</p>{/if}
     {#if operationId}<Button onclick={() => void cancel()}>Cancel save</Button>{/if}
+    {#if loading}<p class="loading" role="status">
+        {snapshot ? 'Refreshing player content…' : 'Loading player content…'}
+      </p>{/if}
+    {#if busy && !loading && !operationId}<p role="status">Preparing content changes…</p>{/if}
     {#if snapshot}
-      <h3>Player requirements</h3>
-      {#each snapshot.requirements.filter((item) => !['matched', 'serverOnly', 'serverDisabled', 'optionalMissing'].includes(item.state)) as requirement}
-        <p><strong>{requirement.path}</strong> — {requirement.reason}</p>
-      {/each}
-      <h3>Server content</h3>
-      {#each Object.values(snapshot.collection.currentFiles) as entry (entry.path)}
-        <div class="row">
-          <strong>{entry.path}</strong>
-          <p>
-            {entry.audience} · {bytesLabel(entry.byteSize)}{entry.optional ? ' · optional' : ''}
-          </p>
-          {#each entry.unresolvedReasons as reason}<p>{reason}</p>{/each}
-          <div class="actions">
-            <Button disabled={busy} onclick={() => change(entry, 'copyServerToPlayers')}
-              >Players need this</Button
-            ><Button
-              disabled={busy}
-              onclick={() => change(entry, 'setServerAudience', { audience: 'server' })}
-              >Server only</Button
-            ><Button
-              disabled={busy}
-              onclick={() =>
-                void prepare([
-                  {
-                    action: 'copyServerToPlayers',
-                    path: entry.path,
-                    sha512: entry.sha512,
-                    optional: true,
-                  },
-                  {
-                    action: 'setServerAudience',
-                    path: entry.path,
-                    sha512: entry.sha512,
-                    audience: 'both',
-                    optional: true,
-                  },
-                ])}>Optional for players</Button
-            >
-          </div>
-        </div>
-      {/each}
       <p>
-        Changing classification keeps an existing player copy until you explicitly remove it below.
+        {Object.keys(snapshot.collection.playerFiles).length} player files · {items.filter(
+          (item) => item.player && primary(item),
+        ).length} mods and packs · {items.filter((item) => !primary(item)).length} supporting files
       </p>
-      <h3>Player collection</h3>
-      {#each Object.values(snapshot.collection.playerFiles) as entry (entry.path)}
-        <div class="row">
-          <strong>{entry.path}</strong>
+      {#if attention.length}
+        <section class="attention-summary">
+          <h3>Needs attention · {attention.length}</h3>
           <p>
-            {entry.optional ? 'Optional' : 'Required'} · {entry.enabled === false
-              ? 'Inactive'
-              : 'Selected'} · {bytesLabel(entry.byteSize)}
+            Missing player content, uncertain audience or different versions. Review these items
+            before sharing.
           </p>
-          {#each entry.unresolvedReasons as reason}<p>{reason}</p>{/each}
-          <label
-            >License or redistribution evidence<input
-              disabled={busy}
-              bind:value={fileEvidence[entry.path]}
-              placeholder={entry.redistributionEvidence ?? 'Unknown'}
-            /></label
-          >
           <Button
-            disabled={busy || !fileEvidence[entry.path]?.trim()}
-            onclick={() =>
-              change(entry, 'setPlayerOptions', {
-                redistributionEvidence: fileEvidence[entry.path].trim(),
-              })}>Save evidence for this file</Button
+            size="sm"
+            variant="secondary"
+            disabled={busy}
+            onclick={() => { query = ''; filter = 'attention'; }}>Show items needing attention</Button
           >
-          <div class="actions">
-            <Button
-              disabled={busy}
-              onclick={() => change(entry, 'setPlayerOptions', { optional: !entry.optional })}
-              >{entry.optional ? 'Make required' : 'Make optional'}</Button
-            ><Button
-              disabled={busy}
-              onclick={() =>
-                change(entry, 'setPlayerOptions', { enabled: entry.enabled === false })}
-              >{entry.enabled === false ? 'Select' : 'Leave inactive'}</Button
-            ><Button disabled={busy} onclick={() => change(entry, 'removePlayerFile')}
-              >Remove from players</Button
-            >
-            {#if snapshot.collection.upstreamPlayerFiles[entry.path]}<Button
-                disabled={busy}
-                onclick={() =>
-                  change(
-                    snapshot!.collection.upstreamPlayerFiles[entry.path],
-                    'restorePlayerUpstream',
-                  )}>Restore upstream</Button
-              >{/if}
-          </div>
-        </div>
-      {/each}
-      <h3>Add player content</h3>
-      <p>
-        Select one file and its Minecraft folder. Config/scripts require individual review;
-        credentials, account files and worlds are excluded.
-      </p>
-      <div class="actions">
-        <label
-          >Folder<select bind:value={folder} disabled={busy}
-            >{#each ['mods', 'resourcepacks', 'shaderpacks', 'datapacks', 'config', 'scripts', 'kubejs', 'defaultconfigs'] as name}<option
-                value={name}>{name}</option
-              >{/each}</select
-          ></label
-        ><label
-          >Relative filename (optional)<input
-            bind:value={relativeName}
-            placeholder="Use the selected file’s name"
+        </section>
+      {/if}
+      <div class="actions filters">
+        <label class="search"
+          >Search content<input
+            bind:value={query}
+            placeholder="Name or folder…"
             disabled={busy}
           /></label
         >
+        <label
+          >Show<select bind:value={filter} disabled={busy}>
+            <option value="all">All content</option><option value="required">Required</option
+            ><option value="optional">Optional</option><option value="inactive">Inactive</option
+            ><option value="attention">Needs attention</option>
+          </select></label
+        >
       </div>
-      <label
-        ><input type="checkbox" bind:checked={optional} disabled={busy} />Optional content selected
-        by the owner</label
-      >
-      <label
-        >Redistribution permission or license evidence (optional)<input
-          bind:value={evidence}
-          disabled={busy}
-          placeholder="Leave unknown until reviewed"
-        /></label
-      >
-      <Button disabled={busy} onclick={() => void chooseFile()}>Choose file…</Button>
+      <div class="bulk-actions">
+        <span>{selected.size} selected</span>
+        <select
+          aria-label="Action for selected files"
+          bind:value={bulkAction}
+          disabled={busy || !selected.size}
+        >
+          <option value="required">Required for players</option><option value="optional"
+            >Optional for players</option
+          >
+          <option value="inactive" disabled={!selectedItems.every((item) => !!item.player)}
+            >Leave inactive</option
+          >
+          <option value="active" disabled={!selectedItems.every((item) => !!item.player)}
+            >Select for players</option
+          >
+          <option value="serverOnly" disabled={!selectedItems.every((item) => !!item.server)}
+            >Server only</option
+          >
+          <option value="remove" disabled={!selectedItems.every((item) => !!item.player)}
+            >Remove from players</option
+          >
+          <option value="restore" disabled={!selectedItems.every((item) => !!item.upstream)}
+            >Restore original pack files</option
+          >
+        </select>
+        <Button size="sm" disabled={busy || !bulkAllowed} onclick={reviewSelection}
+          >Review changes…</Button
+        >
+        {#if selected.size}<Button
+            size="sm"
+            variant="secondary"
+            disabled={busy}
+            onclick={() => (selected = new Set())}>Clear selection</Button
+          >{/if}
+      </div>
+      <p class="selection-note">
+        Changes are reviewed before saving. Existing player customizations are kept unless you
+        choose Restore original pack files. Server-only classification does not remove an existing
+        player copy.
+      </p>
+      {#each categories as category (category.name)}
+        <section>
+          <h3>{categoryNames[category.name]}</h3>
+          <PlayerContentList
+            items={category.items}
+            {selected}
+            {busy}
+            onSelect={selectItems}
+            onEvidence={reviewEvidence}
+          />
+        </section>
+      {:else}<p>
+          {query || filter !== 'all'
+            ? 'No mods or packs match this view.'
+            : 'No player mods or packs selected yet. Add files below, or recover the original client pack.'}
+        </p>{/each}
+      {#if serverOnly.length}
+        <details class="folder-group">
+          <summary>Server-only or disabled content · {serverOnly.length}</summary>
+          <p>These files stay on the server. Select files to review including them for players.</p>
+          <PlayerContentList
+            items={serverOnly}
+            {selected}
+            {busy}
+            onSelect={selectItems}
+            onEvidence={reviewEvidence}
+          />
+        </details>
+      {/if}
+      {#if supportGroups.length}
+        <details class="supporting">
+          <summary
+            >Supporting files · {supportGroups.reduce(
+              (count, group) => count + group.items.length,
+              0,
+            )}{supportingAttention ? ` · ${supportingAttention} need review` : ''}</summary
+          >
+          <p>
+            Configuration, scripts and other pack files are grouped by folder. Keep the pack’s
+            player copies, or select files together to review their audience. Permissions and
+            private-file checks still apply at export.
+          </p>
+          {#each supportGroups as group (group.name)}
+            <details
+              class="folder-group"
+              ontoggle={(event) => toggleGroup(group.name, event.currentTarget.open)}
+            >
+              <summary
+                >{group.name} · {group.items.length} files{group.items.some(needsAttention)
+                  ? ' · needs review'
+                  : ''}</summary
+              >
+              {#if expandedGroups.has(group.name)}
+                <PlayerContentList
+                  items={group.items}
+                  {selected}
+                  {busy}
+                  onSelect={selectItems}
+                  onEvidence={reviewEvidence}
+                />
+              {/if}
+            </details>
+          {/each}
+        </details>
+      {/if}
+      <details class="add-content">
+        <summary>Add player content</summary>
+
+        <p>
+          Select one file and its Minecraft folder. Config/scripts require individual review;
+          credentials, account files and worlds are excluded.
+        </p>
+        <div class="actions">
+          <label
+            >Folder<select bind:value={folder} disabled={busy}
+              >{#each ['mods', 'resourcepacks', 'shaderpacks', 'datapacks', 'config', 'scripts', 'kubejs', 'defaultconfigs'] as name}<option
+                  value={name}>{name}</option
+                >{/each}</select
+            ></label
+          ><label
+            >Relative filename (optional)<input
+              bind:value={relativeName}
+              placeholder="Use the selected file’s name"
+              disabled={busy}
+            /></label
+          >
+        </div>
+        <label
+          ><input type="checkbox" bind:checked={optional} disabled={busy} />Optional content
+          selected by the owner</label
+        >
+        <label
+          >Redistribution permission or license evidence (optional)<input
+            bind:value={evidence}
+            disabled={busy}
+            placeholder="Leave unknown until reviewed"
+          /></label
+        >
+        <Button disabled={busy} onclick={() => void chooseFile()}>Choose file…</Button>
+      </details>
     {/if}
   </div>
 </Sheet>
@@ -339,9 +484,21 @@
         These changes apply to the player collection at revision {review.collectionRevision}.
         Changed server files require a fresh review.
       </p>
-      {#each review.changes as item}<p>
-          <strong>{item.path}</strong> · {item.action}{item.optional === true ? ' · optional' : ''}
-        </p>{/each}
+      <div class="review-list">
+        {#each review.changes as item}<p>
+            <strong>{item.path}</strong> · {changeNames[item.action] ?? item.action}
+            {#if typeof item.optional === 'boolean'}
+              · {item.optional ? 'Optional' : 'Required'}{/if}
+            {#if item.audience}
+              · {item.audience === 'server'
+                ? 'Server only'
+                : item.audience === 'both'
+                  ? 'Server and players'
+                  : 'Players only'}{/if}
+            {#if typeof item.enabled === 'boolean'}
+              · {item.enabled ? 'Selected' : 'Inactive'}{/if}
+          </p>{/each}
+      </div>
       {#each review.warnings as warning}<p>{warning}</p>{/each}
       {#if error}<p class="error" role="alert">{error}</p>{/if}
       {#if operationId}<Button onclick={() => void cancel()}>Cancel save</Button>{/if}
@@ -370,13 +527,74 @@
     {snapshot}
     onClose={() => (showPacks = false)}
     onChanged={() => {
-      void refresh();
+      void load();
       onChanged();
     }}
   />
 {/if}
 
 <style>
+  .review-list {
+    max-height: 360px;
+    overflow-y: auto;
+    display: grid;
+    gap: 8px;
+  }
+  section {
+    min-width: 0;
+  }
+  .search {
+    flex: 1;
+    min-width: 180px;
+  }
+  .bulk-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--msc2-hairline-subtle);
+    font-size: 12px;
+  }
+  .selection-note {
+    font-size: 11px;
+    color: var(--msc2-text-tertiary);
+  }
+  .loading {
+    padding: 32px 0;
+  }
+  .attention-summary {
+    display: grid;
+    gap: 8px;
+  }
+  .attention-summary h3 {
+    color: var(--msc2-status-warn);
+  }
+  .supporting,
+  .folder-group,
+  .add-content {
+    border-top: 1px solid var(--msc2-hairline-subtle);
+    padding-top: 12px;
+  }
+  summary {
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    color: var(--msc2-text-primary);
+    overflow-wrap: anywhere;
+  }
+  details > p,
+  details > .actions,
+  details > label {
+    margin-top: 10px;
+  }
+  details[open] > summary {
+    margin-bottom: 10px;
+  }
+  .supporting .folder-group {
+    margin-top: 12px;
+  }
+
   .content {
     display: grid;
     gap: 12px;
@@ -397,12 +615,6 @@
     margin: 8px 0 0;
     font-size: 13px;
     font-weight: 500;
-  }
-  .row {
-    display: grid;
-    gap: 6px;
-    padding: 10px 0;
-    border-bottom: 1px solid var(--msc2-hairline-subtle);
   }
   strong {
     overflow-wrap: anywhere;

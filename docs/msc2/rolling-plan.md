@@ -483,3 +483,20 @@ No tests added or run for removing selection UI and wiring existing close/cancel
 behavior. Relevant frontend check/build results are recorded in the acceptance
 record. Rust and agent binary are unchanged; previous Rust checks/staged hash
 remain applicable. No agent rebuild, live mutation, restart or release is needed.
+
+
+### P24.36 — Wait for an earlier export preparation without an admission error
+
+**Status:** implemented candidate — awaiting owner verification
+**Files:** desktop ContentExportSheet.svelte/content-model.ts; tests/screens/export-preparation.test.ts; Phase 24 records
+**What:** Handle a structured operation_conflict from publication-review admission by observing only the indicated same-server content-publication-review operation. Show its progress until terminal, then start a fresh review with the current request; never reuse the old result or claim ownership/cancel the observed task. Bound repeated admission races to three attempts. Stop observing when the sheet closes or host context changes. Request cancellation of owned work on all unmounts, including navigation/reload, and continue to cancel late-admitted owned work. Other task/server conflicts remain errors and keep the agent's exclusive reservation intact.
+**Verify:** `npm --prefix clients/desktop-web run check`. Close and immediately reopen Export modpack during preparation: display prior preparation progress until it stops, then prepare the current choices instead of showing the raw already-running error. X/Escape must remain available. A different server/task must never be adopted or cancelled by this flow.
+**Commit:** `P24.36: wait for previous export preparation before retrying`
+**Batch:** owner-reported reopen/admission conflict; owner verification pending
+
+Essential source-only regression checks fresh-result/owned-ID selection and
+refusal to adopt another server/task. Backend admission tests do not exercise
+this desktop recovery path. Mocked immediate terminal responses, no filesystem,
+network or timers; expected <5 ms total. Included in frontend type checking;
+not run. Rust and staged agent are unchanged. No live operation was cancelled
+by these implementation checks.

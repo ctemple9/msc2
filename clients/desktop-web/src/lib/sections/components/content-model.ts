@@ -1,5 +1,6 @@
 import type { Schema, ScreenApi } from '../shared/types';
 import { pollOperation } from './model';
+import { ApiError } from '../../api/client';
 import { getPlatform } from '../../platform';
 import { reportTransferFailure } from '../shared/transfer-notices';
 export interface ContentEntry {
@@ -85,6 +86,50 @@ export async function contentOperation(
         (operation?.state === 'cancelled' ? 'Operation cancelled.' : 'Operation did not complete.'),
     );
   return operation.result ?? {};
+}
+// A dismissed preparation may still be reaching a safe cancellation boundary.
+// Observe only a review for this server; never reuse its result or cancel work
+// whose ownership this sheet has not established.
+export async function publicationReviewOperation(
+  api: ScreenApi,
+  path: string,
+  body: unknown,
+  progress: (line: string, amount?: { current: number; total: number } | null) => void,
+  onOperation: (id: string) => void,
+  scope: { serverId: string; isCurrent: () => boolean },
+): Promise<Record<string, unknown>> {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    if (!scope.isCurrent()) throw new Error('Export sheet closed.');
+    try {
+      return await contentOperation(api, path, body, progress, onOperation);
+    } catch (cause) {
+      if (
+        !(cause instanceof ApiError) ||
+        cause.status !== 409 ||
+        cause.error.code !== 'operation_conflict'
+      )
+        throw cause;
+      const details = cause.error.details as Record<string, unknown> | undefined;
+      const id = details?.conflictingOperationId;
+      if (typeof id !== 'string' || details?.target !== scope.serverId) throw cause;
+      if (attempt === 2)
+        throw new Error('Another preparation is still running. Retry when it finishes.');
+      const operationPath = `/v1/operations/${encodeURIComponent(id)}`;
+      const existing = await api.get<Schema['OperationDTO']>(operationPath);
+      if (existing.type !== 'content-publication-review' || existing.target !== scope.serverId)
+        throw new Error('Another server task is running. Retry after it finishes.');
+      await pollOperation(api, id, (operation) => {
+        if (!scope.isCurrent()) throw new Error('Export sheet closed.');
+        if (operation.type !== 'content-publication-review' || operation.target !== scope.serverId)
+          throw new Error('The previous preparation no longer matches this server.');
+        progress(
+          `Waiting for the previous preparation to finish: ${operation.statusLine ?? 'Working…'}`,
+          operation.progress,
+        );
+      });
+    }
+  }
+  throw new Error('Export preparation could not start.');
 }
 export async function uploadReviewedFile(
   api: ScreenApi,

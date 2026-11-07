@@ -10,7 +10,12 @@
     type Schema,
     type ScreenApi,
   } from '../shared/types';
-  import { contentRoot, contentOperation, type ContentSnapshot } from './content-model';
+  import {
+    contentRoot,
+    contentOperation,
+    publicationReviewOperation,
+    type ContentSnapshot,
+  } from './content-model';
   import { reportTransferFailure } from '../shared/transfer-notices';
   export let api: ScreenApi;
   export let serverId: string;
@@ -284,7 +289,7 @@
           redistributionEvidence: evidence[key(item)]?.trim() || item.redistributionEvidence,
           reviewedConfiguration: reviewedConfig.has(key(item)),
         }));
-      const result = await contentOperation(
+      const result = await publicationReviewOperation(
         connection,
         `${root}/publication-reviews`,
         {
@@ -326,7 +331,11 @@
               Math.min(100, 15 + Math.floor((amount.current * 85) / amount.total)),
             );
         },
-        trackOperation,
+        (id) => {
+          preparationPercent = 15;
+          trackOperation(id);
+        },
+        { serverId, isCurrent: current },
       );
       if (typeof result.reviewId !== 'string')
         throw new Error('Publication review identity is missing.');
@@ -581,13 +590,12 @@
     if (!current()) void cancel();
   }
   function closeSheet(): void {
-    void cancel();
     onClose();
   }
   onMount(() => void reviewCurrent());
   onDestroy(() => {
     disposed = true;
-    transferAbort?.abort();
+    void cancel();
   });
 </script>
 

@@ -378,3 +378,24 @@ passed (existing CSS/chunk-size warnings). No tests added or run. Rust unchanged
 P24.34 Rust checks and staged agent hash remain applicable. No agent rebuild,
 restart, release or live content mutation performed. A subsequent owner report
 of an already-running preparation is tracked separately in P24.36.
+
+
+### P24.36 — Reopened preparation admission conflict (2026-11-07)
+
+Owner screenshot showed an earlier content-publication-review still holding the
+server reservation. Desktop now uses the structured conflictingOperationId and
+target, validates the operation's same-server review type, displays its progress
+until terminal and starts a fresh review. It never reuses the prior request's
+review/result or cancels an observed task whose ownership it has not established.
+Repeated admission races are bounded; other server/task types are refused.
+Owned work is now cancelled on all sheet unmounts (including navigation/reload),
+with late admission still handled. Closing stops the waiting observer.
+
+Passed frontend check (0 errors/10 existing CSS warnings) and production build
+(existing CSS/chunk-size warnings). Two essential mocked source regressions cover
+fresh-result/owned-ID selection and refusal to adopt another server/task. Immediate
+terminal responses avoid timers, network and filesystem; expected <5 ms total.
+Type checked, not run. Rust unchanged; P24.34 staged hash remains applicable.
+No agent rebuild, service restart, live cancellation/mutation or release performed.
+Physical close/reopen recovery and cross-host/permission behavior remain owner
+verification items; no phase acceptance inferred.

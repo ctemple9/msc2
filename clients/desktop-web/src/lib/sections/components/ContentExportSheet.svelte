@@ -128,7 +128,6 @@
   let slotId = '';
   let datapacks: Datapack[] = [];
   let datapacksReady = true;
-  let selectedDatapacks = new Set<string>();
   let datapackEvidence: Record<string, string> = {};
   const current = () => !disposed && connection.isCurrent?.() !== false;
   const key = (item: { audience: string; path: string }) => `${item.audience}:${item.path}`;
@@ -183,6 +182,8 @@
     settingsCompleted = 0;
     settingsPending.clear();
     snapshot = undefined;
+    worlds = undefined;
+    slotId = '';
     try {
       const caps = await settingsRead<Schema['CapabilitiesDTO']>(
         '/v1/capabilities',
@@ -217,10 +218,15 @@
   }
   async function loadDatapacks(): Promise<void> {
     datapacks = [];
-    selectedDatapacks = new Set();
-    datapacksReady = !slotId;
+    datapacksReady = worlds !== undefined && !slotId;
     if (worlds) worldError = '';
     changed();
+    if (!worlds) {
+      error =
+        worldError ||
+        'The active world could not be checked. Retry preparation to include its datapacks.';
+      return;
+    }
     if (!slotId) return;
     busy = true;
     status = 'Inspecting world datapacks…';
@@ -232,7 +238,6 @@
       if (current()) {
         datapacks = response.items;
         datapacksReady = true;
-        selectedDatapacks = new Set(datapacks.map((item) => item.path));
       }
     } catch (cause) {
       if (current()) {
@@ -305,14 +310,12 @@
             .split('\n')
             .map((value) => value.trim())
             .filter(Boolean),
-          datapacks: datapacks
-            .filter((item) => selectedDatapacks.has(item.path))
-            .map((item) => ({
-              slotId: item.slotId,
-              path: item.path,
-              sha512: item.sha512,
-              redistributionEvidence: datapackEvidence[item.path]?.trim() ?? '',
-            })),
+          datapacks: datapacks.map((item) => ({
+            slotId: item.slotId,
+            path: item.path,
+            sha512: item.sha512,
+            redistributionEvidence: datapackEvidence[item.path]?.trim() ?? '',
+          })),
         },
         (line, amount) => {
           if (!current()) return;
@@ -323,7 +326,7 @@
               Math.min(100, 15 + Math.floor((amount.current * 85) / amount.total)),
             );
         },
-        (id) => (operationId = id),
+        trackOperation,
       );
       if (typeof result.reviewId !== 'string')
         throw new Error('Publication review identity is missing.');
@@ -403,7 +406,7 @@
         (line) => {
           if (current()) status = line;
         },
-        (id) => (operationId = id),
+        trackOperation,
       );
       if (typeof result.publicationId !== 'string')
         throw new Error('Publication identity is missing.');
@@ -472,7 +475,7 @@
         (line) => {
           if (current()) status = line;
         },
-        (id) => (operationId = id),
+        trackOperation,
       );
       if (destination === 'host') {
         if (current()) {
@@ -538,13 +541,9 @@
     selectedId = 'new';
     review = undefined;
     changed();
-    try {
-      snapshot = await connection.get<ContentSnapshot>(`${root}/collection?metadataOnly=true`);
-      if (current()) await prepare();
-    } catch (cause) {
-      if (current()) error = errorMessage(cause);
-    }
+    await reviewCurrent();
   }
+
   async function approveSharing(): Promise<void> {
     for (const item of review?.candidates ?? []) {
       if (item.restricted) continue;
@@ -554,8 +553,7 @@
     }
     reviewedConfig = new Set(reviewedConfig);
     for (const item of datapacks) {
-      if (selectedDatapacks.has(item.path))
-        datapackEvidence[item.path] = 'Owner confirms permission to share these reviewed bytes';
+      datapackEvidence[item.path] = 'Owner confirms permission to share these reviewed bytes';
     }
     await prepare();
   }
@@ -578,6 +576,14 @@
     includeMrpack = requestedMrpack;
     await exportArchive();
   }
+  function trackOperation(id: string): void {
+    operationId = id;
+    if (!current()) void cancel();
+  }
+  function closeSheet(): void {
+    void cancel();
+    onClose();
+  }
   onMount(() => void reviewCurrent());
   onDestroy(() => {
     disposed = true;
@@ -585,7 +591,7 @@
   });
 </script>
 
-<Sheet title="Export modpack" size="lg" onClose={busy ? undefined : onClose}>
+<Sheet title="Export modpack" size="lg" onClose={closeSheet}>
   <div class="content">
     <div class="modes" role="group" aria-label="Modpack contents">
       <label class="mode"
@@ -708,23 +714,6 @@
             placeholder="e.g. Weekend pack"
           /></label
         >
-        <label
-          >World datapacks<Select
-            ariaLabel="World datapacks"
-            bind:value={slotId}
-            options={[
-              { value: '', label: 'No world datapacks' },
-              ...(worlds?.slots ?? []).map((slot) => ({ value: slot.id, label: slot.name })),
-            ]}
-            disabled={busy}
-            onchange={async () => {
-              await loadDatapacks();
-              await prepare();
-            }}
-          /></label
-        >
-        {#if worldError}<p class="issue">{worldError}</p>{/if}
-        <p>{datapacks.length} datapack files from the selected world.</p>
         <Button
           disabled={busy}
           onclick={() => void refreshCurrent().then(loadDatapacks).then(prepare)}

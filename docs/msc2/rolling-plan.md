@@ -468,3 +468,18 @@ missing review workspace is created and contains the saved review. This protects
 the concrete first-export failure without another fixture or test case. Expected
 runtime remains <100 ms; compile only, not run. Non-test check/build and staged
 candidate results are recorded in phase24-acceptance.md.
+
+
+### P24.35 — Include active-world datapacks automatically and allow closing during loading
+
+**Status:** implemented candidate — awaiting owner verification
+**Files:** desktop ContentExportSheet.svelte; D-045 and Phase 24 execution/acceptance records
+**What:** Remove the world/datapack selector and opt-out. Every new full/server export includes all inspected datapacks from the active world; missing world metadata or unreadable datapacks blocks preparation rather than silently omitting them. Refresh the active-world context when changing export modes. Keep the sheet close button and Escape available during loading; dismiss immediately, abort native transfer and request operation cancellation. Also cancel operations admitted after the sheet has already closed. Historical exports retain their frozen contents.
+**Verify:** `npm --prefix clients/desktop-web run check`. Open Export modpack: no World datapacks or No world datapacks setting should exist. Confirm active-world datapacks are included in both new export modes. Close with X or Escape during initial loading and preparation; the sheet should dismiss immediately and request cancellation without starting subsequent work.
+**Commit:** `P24.35: include active world datapacks and allow closing exports`
+**Batch:** owner-requested datapack simplification and loading exit; verification pending
+
+No tests added or run for removing selection UI and wiring existing close/cancel
+behavior. Relevant frontend check/build results are recorded in the acceptance
+record. Rust and agent binary are unchanged; previous Rust checks/staged hash
+remain applicable. No agent rebuild, live mutation, restart or release is needed.

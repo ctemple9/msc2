@@ -1486,6 +1486,13 @@ Pack recovery/update/replacement remains under the component actions menu.
 This supersedes the normal separate-editing/check-every-file presentation above;
 legacy APIs and historical publications remain compatible.
 
+**Active-world datapack amendment, owner-approved 2026-11-07.** New full and
+server exports automatically include the active world's datapacks. There is no
+world selector or datapack opt-out in the normal export sheet. Other worlds'
+datapacks remain with those worlds. An unreadable active-world inventory is a
+preparation error, not an empty selection. The export sheet remains dismissible
+with X/Escape during loading, requesting cancellation of in-flight work.
+
 **Boundaries.** Existing no-hosted-backend and no-browser-management decisions
 remain. This does not authorize tests or release changes.
 [Phase 24 scope](addons/phase24-scope.md) separates the approved behavior from

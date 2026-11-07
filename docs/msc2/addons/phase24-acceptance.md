@@ -361,3 +361,20 @@ Built and staged development agent SHA256:
 `5387f963fe28dd85d13d93b52a48a1a7a0df7563457d0e6e62670f2ae30cc3aa`.
 Running agents still need the owner's normal update/repair action; reopen Export
 modpack after updating. The missing live directory was not created by hand.
+
+
+### P24.35 — Automatic active-world datapacks and loading exit (2026-11-07)
+
+Removed the datapack world selector/opt-out. New full and server exports include
+all active-world datapacks automatically; failed world discovery/inventory blocks
+preparation rather than silently dropping content. Mode changes refresh world
+context; historical frozen exports remain unchanged. X/Escape dismiss during
+loading, abort native transfer and request operation cancellation, including
+operations admitted after dismissal. Owner screenshot confirms the selector is
+absent; physical export/exit verification remains pending.
+
+Frontend check passed (0 errors/10 existing CSS warnings) and production build
+passed (existing CSS/chunk-size warnings). No tests added or run. Rust unchanged;
+P24.34 Rust checks and staged agent hash remain applicable. No agent rebuild,
+restart, release or live content mutation performed. A subsequent owner report
+of an already-running preparation is tracked separately in P24.36.

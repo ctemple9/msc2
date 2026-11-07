@@ -19,16 +19,12 @@
   // covers projects with no icon, same shape as ModrinthBrowserView's own
   // `Color.secondary.opacity(0.15)` fallback.
   import ProviderCatalogBrowser from './ProviderCatalogBrowser.svelte';
-  import Sheet from '../../components/base/Sheet.svelte';
-  import Button from '../../components/base/Button.svelte';
-  import Field from '../../components/base/Field.svelte';
-  import Badge from '../../components/base/Badge.svelte';
-  import EmptyState from '../../components/base/EmptyState.svelte';
-  import Icon from '../../components/base/Icon.svelte';
+  import CatalogBrowseSheet from './CatalogBrowseSheet.svelte';
+  import CatalogBrowseContent from './CatalogBrowseContent.svelte';
   import ProjectDetailSheet from './ProjectDetailSheet.svelte';
   import type { Schema, ScreenApi } from '../shared/types';
   import { mutate } from '../shared/types';
-  import { addonPaths, formatCount, pollOperation } from './model';
+  import { addonPaths, pollOperation } from './model';
 
   export let serverId = '';
   export let serverName = '';
@@ -163,27 +159,12 @@
   }
 </script>
 
-<Sheet title={`Browse ${noun}`} size="lg" {onClose}>
-  <div class="providers" role="group" aria-label="Content provider">
-    <button
-      type="button"
-      class:chosen={provider === 'modrinth'}
-      aria-pressed={provider === 'modrinth'}
-      onclick={() => {
-        provider = 'modrinth';
-        detailItem = undefined;
-      }}>Modrinth</button
-    >
-    <button
-      type="button"
-      class:chosen={provider === 'curseforge'}
-      aria-pressed={provider === 'curseforge'}
-      onclick={() => {
-        provider = 'curseforge';
-        detailItem = undefined;
-      }}>CurseForge</button
-    >
-  </div>
+<CatalogBrowseSheet
+  title={`Browse ${noun}`}
+  bind:provider
+  {onClose}
+  onProviderChanged={() => (detailItem = undefined)}
+>
   {#if provider === 'curseforge'}
     <ProviderCatalogBrowser
       {api}
@@ -198,61 +179,21 @@
       {onInstalled}
     />
   {:else}
-    <div class="header">
-      <Field bind:value={query} placeholder={`Search ${noun}…`} />
-      <p class="subtitle">Modrinth{subtitle ? ` · ${subtitle}` : ''}</p>
-    </div>
-    {#if notice}<p class="notice" role="status">{notice}</p>{/if}
-
-    {#if !supportsAddons}
-      <EmptyState title={`This server doesn't accept ${noun}`}>
-        <Icon name="box" size={26} slot="icon" />
-      </EmptyState>
-    {:else if loading && results.length === 0}
-      <p class="explain">Searching…</p>
-    {:else if results.length === 0}
-      <EmptyState
-        title={note ?? `No ${noun} found`}
-        message={note ? undefined : 'Try a different search term.'}
-      >
-        <Icon name="box" size={26} slot="icon" />
-      </EmptyState>
-    {:else}
-      <div class="results">
-        {#each results as item (item.projectId)}
-          <div class="result">
-            <button type="button" class="result-link" onclick={() => (detailItem = item)}>
-              <div class="icon">
-                {#if item.iconURL}
-                  <img src={item.iconURL} alt="" width="40" height="40" loading="lazy" />
-                {:else}
-                  <Icon name="box" size={18} />
-                {/if}
-              </div>
-              <div class="info">
-                <div class="title-row">
-                  <span class="title">{item.title}</span>
-                  {#if item.isClientOnly}<Badge variant="status" tone="warn">Client-only</Badge
-                    >{/if}
-                  <Icon name="chevron" size={10} />
-                </div>
-                <p class="meta">by {item.author} · {formatCount(item.downloads)} downloads</p>
-                <p class="description">{item.description}</p>
-              </div>
-            </button>
-            {#if installed.has(item.projectId)}
-              <span class="added">Added</span>
-            {:else if installing.has(item.projectId)}
-              <span class="added">Installing…</span>
-            {:else}
-              <Button size="sm" variant="secondary" onclick={() => void install(item)}>Add</Button>
-            {/if}
-          </div>
-        {/each}
-      </div>
-    {/if}
+    <CatalogBrowseContent
+      bind:query
+      {noun}
+      subtitle={`Modrinth${subtitle ? ` · ${subtitle}` : ''}`}
+      {results}
+      {loading}
+      {notice}
+      emptyTitle={!supportsAddons ? `This server doesn't accept ${noun}` : (note ?? '')}
+      {installed}
+      working={installing}
+      onDetail={(item) => (detailItem = item)}
+      onAdd={(item) => void install(item)}
+    />
   {/if}
-</Sheet>
+</CatalogBrowseSheet>
 
 {#if detailItem && provider === 'modrinth'}
   <ProjectDetailSheet
@@ -266,143 +207,3 @@
     onStaged={handleDetailStaged}
   />
 {/if}
-
-<style>
-  .providers {
-    display: flex;
-    gap: 20px;
-    margin-bottom: 18px;
-    border-bottom: 1px solid var(--msc2-hairline-subtle);
-  }
-  .providers button {
-    padding: 0 0 10px;
-    background: none;
-    border: 0;
-    border-bottom: 2px solid transparent;
-    color: var(--msc2-text-tertiary);
-    font: inherit;
-    font-size: 12px;
-    cursor: pointer;
-  }
-  .providers button.chosen {
-    border-bottom-color: var(--msc2-selection);
-    color: var(--msc2-text-primary);
-    font-weight: 500;
-  }
-  .providers button:focus-visible {
-    outline: 2px solid var(--msc2-selection);
-    outline-offset: 3px;
-  }
-
-  .header {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    margin-bottom: 12px;
-  }
-  .subtitle {
-    margin: 0;
-    font-size: 11px;
-    color: var(--msc2-text-tertiary);
-  }
-  .notice {
-    margin: 0 0 10px;
-    font-size: 12px;
-    color: var(--msc2-text-secondary);
-  }
-  .explain {
-    margin: 0;
-    font-size: 12px;
-    color: var(--msc2-text-tertiary);
-  }
-  .results {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    max-height: 480px;
-    overflow-y: auto;
-    scrollbar-width: none;
-    -ms-overflow-style: none;
-  }
-  .results::-webkit-scrollbar {
-    display: none;
-    width: 0;
-  }
-  .result {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 10px 0;
-    border-top: 1px solid var(--msc2-hairline-subtle);
-  }
-  .result:first-child {
-    border-top: none;
-  }
-  .result-link {
-    display: flex;
-    align-items: flex-start;
-    gap: 12px;
-    min-width: 0;
-    flex: 1;
-    background: none;
-    border: none;
-    padding: 0;
-    text-align: left;
-    cursor: pointer;
-    color: inherit;
-    font: inherit;
-  }
-  .icon {
-    flex-shrink: 0;
-    width: 40px;
-    height: 40px;
-    border-radius: 8px;
-    overflow: hidden;
-    background: var(--msc2-tier-chrome);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--msc2-text-tertiary);
-  }
-  .icon img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-  .info {
-    min-width: 0;
-    flex: 1;
-  }
-  .title-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  .title {
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--msc2-text-primary);
-  }
-  .meta {
-    margin: 2px 0 0;
-    font-size: 11px;
-    color: var(--msc2-text-tertiary);
-  }
-  .description {
-    margin: 4px 0 0;
-    font-size: 12px;
-    color: var(--msc2-text-secondary);
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-  }
-  .added {
-    flex-shrink: 0;
-    font-size: 12px;
-    font-weight: 500;
-    color: var(--msc2-status-ok);
-  }
-</style>

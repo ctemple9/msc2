@@ -3,13 +3,12 @@
   import ContentManualDownloadSheet from './ContentManualDownloadSheet.svelte';
   import { onDestroy } from 'svelte';
   import { openExternal } from '../../platform';
-  import Icon from '../../components/base/Icon.svelte';
+  import CatalogBrowseContent from './CatalogBrowseContent.svelte';
   import Button from '../../components/base/Button.svelte';
-  import Field from '../../components/base/Field.svelte';
   import type { Schema, ScreenApi } from '../shared/types';
   import { can, mutate } from '../shared/types';
   import { ApiError } from '../../api/client';
-  import { formatCount, pollOperation } from './model';
+  import { pollOperation } from './model';
 
   export let api: ScreenApi | undefined;
   export let kind: 'mod' | 'plugin';
@@ -274,125 +273,77 @@
 </script>
 
 <div class="catalog">
-  <Field bind:value={query} placeholder={`Search ${kind === 'mod' ? 'mods' : 'plugins'}…`} />
-  <p class="context">
-    CurseForge · {[javaFlavor, minecraftVersion].filter(Boolean).join(' · ') || 'All versions'}
-  </p>
-  {#if status}<p class="context" role="status">{status}</p>{/if}
-  {#if error}
-    <p class="error" role="alert">{error}</p>
-    {#if !needsKey}<Button
-        size="sm"
-        variant="secondary"
-        onclick={() => (supported ? void search(offset) : void initialize())}>Retry</Button
-      >{/if}
-  {/if}
-  {#if needsKey && can(permissions, 'admin')}
-    <button
-      type="button"
-      class="key-link"
-      onclick={() => document.getElementById('provider-api-key')?.focus()}
-      >CurseForge API key…</button
-    >
-  {/if}
-  {#if needsKey}
-    <p class="context">
-      CurseForge requires an API key for catalog access. Save it on this agent to browse and
-      download supported content.
-    </p>
-    <a
-      class="key-link"
-      href="https://console.curseforge.com/"
-      target="_blank"
-      rel="noopener noreferrer"
-      onclick={openConsole}>Open CurseForge console</a
-    >
-    {#if can(permissions, 'admin')}
-      <form
-        onsubmit={(event) => {
-          event.preventDefault();
-          void saveKey();
-        }}
+  <CatalogBrowseContent
+    bind:query
+    noun={kind === 'mod' ? 'mods' : 'plugins'}
+    subtitle={`CurseForge · ${[javaFlavor, minecraftVersion].filter(Boolean).join(' · ') || 'All versions'}`}
+    {results}
+    loading={busy}
+    disabled={!!adding}
+    canAdd={(mode === 'stage' || !!serverId) && installSupported}
+    {installed}
+    working={new Set(adding ? [adding] : [])}
+    workingLabel={installingReleaseId ? 'Installing…' : 'Checking…'}
+    onDetail={(item) => void open(item)}
+    onAdd={(item) => void add(item)}
+    showEmpty={ready && supported && !error}
+    {offset}
+    {total}
+    onPage={(page) => {
+      if (supported) void search(page);
+    }}
+  >
+    {#if status}<p class="context" role="status">{status}</p>{/if}
+    {#if error}
+      <p class="error" role="alert">{error}</p>
+      {#if !needsKey}<Button
+          size="sm"
+          variant="secondary"
+          onclick={() => (supported ? void search(offset) : void initialize())}>Retry</Button
+        >{/if}
+    {/if}
+    {#if needsKey && can(permissions, 'admin')}
+      <button
+        type="button"
+        class="key-link"
+        onclick={() => document.getElementById('provider-api-key')?.focus()}
+        >CurseForge API key…</button
       >
-        <label for="provider-api-key">API key for this agent</label>
-        <input id="provider-api-key" type="password" autocomplete="off" bind:value={key} />
-        <Button size="sm" type="submit" disabled={savingKey || !key.trim()}
-          >{savingKey ? 'Saving…' : 'Save key'}</Button
+    {/if}
+    {#if needsKey}
+      <p class="context">
+        CurseForge requires an API key for catalog access. Save it on this agent to browse and
+        download supported content.
+      </p>
+      <a
+        class="key-link"
+        href="https://console.curseforge.com/"
+        target="_blank"
+        rel="noopener noreferrer"
+        onclick={openConsole}>Open CurseForge console</a
+      >
+      {#if can(permissions, 'admin')}
+        <form
+          onsubmit={(event) => {
+            event.preventDefault();
+            void saveKey();
+          }}
         >
-      </form>
-    {:else}<p class="context">Ask this host's owner to configure its CurseForge key.</p>{/if}
-  {/if}
-  {#if ready && supported && !installSupported}<p class="context">
-      Update this agent to install reviewed CurseForge content.
-    </p>{/if}
-  {#if ready && installSupported && !mismatchSupported}<p class="context">
-      Update this agent to enable Install anyway for incompatible releases.
-    </p>{/if}
-  {#if busy}<p class="context" role="status">Loading CurseForge content…</p>{/if}
-  <div class="results">
-    {#each results as item (item.projectId)}
-      <div class="result">
-        <button
-          type="button"
-          class="result-link"
-          disabled={busy || !!adding}
-          onclick={() => void open(item)}
-        >
-          <div class="icon">
-            {#if item.iconURL}<img
-                src={item.iconURL}
-                alt=""
-                width="40"
-                height="40"
-                loading="lazy"
-              />{:else}<Icon name="box" size={18} />{/if}
-          </div>
-          <div class="info">
-            <div class="title-row">
-              <span class="title">{item.title}</span><Icon name="chevron" size={10} />
-            </div>
-            <p class="meta">by {item.author} · {formatCount(item.downloads)} downloads</p>
-            <p class="description">{item.description}</p>
-          </div>
-        </button>
-        {#if installed.has(item.projectId)}
-          <span class="context">Added</span>
-        {:else}
-          <Button
-            size="sm"
-            variant="secondary"
-            disabled={busy || !!adding || (mode === 'install' && !serverId) || !installSupported}
-            onclick={() => void add(item)}
-            >{adding === item.projectId
-              ? installingReleaseId
-                ? 'Installing…'
-                : 'Checking…'
-              : 'Add'}</Button
+          <label for="provider-api-key">API key for this agent</label>
+          <input id="provider-api-key" type="password" autocomplete="off" bind:value={key} />
+          <Button size="sm" type="submit" disabled={savingKey || !key.trim()}
+            >{savingKey ? 'Saving…' : 'Save key'}</Button
           >
-        {/if}
-      </div>
-    {/each}
-  </div>
-  {#if !busy && ready && supported && !error && results.length === 0}<p class="context">
-      No results. Try another search.
-    </p>{/if}
-  <div class="pagination">
-    <Button
-      size="sm"
-      variant="secondary"
-      disabled={busy || !supported || offset === 0}
-      onclick={() => void search(Math.max(0, offset - 50))}>Previous</Button
-    >
-    <span class="context"
-      >{offset + (results.length ? 1 : 0)}–{offset + results.length} of {total}</span
-    >
-    <Button
-      size="sm"
-      variant="secondary"
-      disabled={busy || !supported || offset + results.length >= total}
-      onclick={() => void search(offset + 50)}>Next</Button
-    >
-  </div>
+        </form>
+      {:else}<p class="context">Ask this host's owner to configure its CurseForge key.</p>{/if}
+    {/if}
+    {#if ready && supported && !installSupported}<p class="context">
+        Update this agent to install reviewed CurseForge content.
+      </p>{/if}
+    {#if ready && installSupported && !mismatchSupported}<p class="context">
+        Update this agent to enable Install anyway for incompatible releases.
+      </p>{/if}
+  </CatalogBrowseContent>
 </div>
 
 {#if selected && connection}
@@ -427,10 +378,6 @@
 {/if}
 
 <style>
-  .catalog {
-    display: grid;
-    gap: 10px;
-  }
   .context {
     margin: 0;
     color: var(--msc2-text-tertiary);
@@ -443,91 +390,6 @@
     color: var(--msc2-status-error);
     font-size: 12px;
   }
-  .results {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    max-height: 480px;
-    overflow-y: auto;
-    scrollbar-width: none;
-    -ms-overflow-style: none;
-  }
-  .results::-webkit-scrollbar {
-    display: none;
-    width: 0;
-  }
-  .result {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 10px 0;
-    border-top: 1px solid var(--msc2-hairline-subtle);
-  }
-  .result:first-child {
-    border-top: none;
-  }
-  .result-link {
-    display: flex;
-    align-items: flex-start;
-    gap: 12px;
-    min-width: 0;
-    flex: 1;
-    background: none;
-    border: none;
-    padding: 0;
-    text-align: left;
-    cursor: pointer;
-    color: inherit;
-    font: inherit;
-  }
-  .icon {
-    flex-shrink: 0;
-    width: 40px;
-    height: 40px;
-    border-radius: 8px;
-    overflow: hidden;
-    background: var(--msc2-tier-chrome);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--msc2-text-tertiary);
-  }
-  .icon img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-  .info {
-    min-width: 0;
-    flex: 1;
-  }
-  .title-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  .title {
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--msc2-text-primary);
-  }
-  .meta {
-    margin: 2px 0 0;
-    font-size: 11px;
-    color: var(--msc2-text-tertiary);
-  }
-  .description {
-    margin: 4px 0 0;
-    font-size: 12px;
-    color: var(--msc2-text-secondary);
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-  }
-
   .key-link {
     width: fit-content;
     background: none;
@@ -538,13 +400,6 @@
     font-size: 11px;
     text-decoration: underline;
     cursor: pointer;
-  }
-  .pagination {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    margin-top: 12px;
   }
   form {
     display: grid;

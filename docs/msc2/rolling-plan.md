@@ -351,3 +351,14 @@ checks when no affected source has changed. New module paths are proposals.
 **Batch:** owner-requested bounded visual revision; final verification pending
 
 No tests added or run for this reversible layout change. Rust is unchanged; prior Rust formatting/Clippy results remain applicable. Frontend check passed with the existing CSS warnings.
+
+### P24.26 — Share the catalog browse sheet across mods and modpacks
+
+**Status:** implemented — awaiting owner visual verification
+**Files:** clients/desktop-web/src/lib/sections/components/{CatalogBrowseSheet,CatalogBrowseContent,PluginBrowserSheet,ProviderCatalogBrowser,PackCatalogSheet}.svelte; docs/msc2/rolling-plan.md
+**What:** Owner-requested reuse of the actual mod browser sheet for modpacks. Extract one shared sheet/provider-tab frame and one shared search/result/pagination component. Both providers' mods/plugins and the modpack browser consume them, eliminating duplicate row styles. Shared rows own artwork, title/chevron, downloads, description clamping, Add state and scroll height. Pack search is debounced like mod search; Add opens exact release selection before the existing pack acquisition/setup review. Retain missing-key-only entry, original host/operation guards, manual exceptions and existing installation actions.
+**Verify:** `npm --prefix clients/desktop-web run check`. Compare Add Server → Add-ons → Browse Mods and Browse Modpacks, including both providers, search, paging, project details and selecting an exact pack release.
+**Commit:** `P24.26: share catalog browsing across mods and modpacks`
+**Batch:** owner-requested bounded shared-view revision; final visual verification pending
+
+Frontend check/build passed with existing CSS/chunk warnings. No tests added or run for this presentation refactor; Rust unchanged, so prior Rust checks remain applicable. Owner visual/interactive acceptance remains pending.

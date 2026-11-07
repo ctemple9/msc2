@@ -1,6 +1,7 @@
 <script lang="ts">
-  import { onDestroy, onMount } from 'svelte';
-  import Sheet from '../../components/base/Sheet.svelte';
+  import { onDestroy } from 'svelte';
+  import CatalogBrowseSheet from './CatalogBrowseSheet.svelte';
+  import CatalogBrowseContent from './CatalogBrowseContent.svelte';
   import Button from '../../components/base/Button.svelte';
   import ProjectDetailSheet from './ProjectDetailSheet.svelte';
   import { ApiError } from '../../api/client';
@@ -134,44 +135,45 @@
       if (current()) error = errorMessage(cause);
     }
   }
-  onMount(() => void search());
+  let searchTimer: ReturnType<typeof setTimeout> | undefined;
+  $: {
+    query;
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => void search(), 350);
+  }
   onDestroy(() => {
     disposed = true;
     generation++;
+    clearTimeout(searchTimer);
   });
 </script>
 
-<Sheet title="Browse modpacks" size="lg" onClose={busy ? undefined : onClose}>
-  <div class="content">
-    <div class="providers">
-      {#each ['modrinth', 'curseforge'] as name}
-        <button
-          type="button"
-          class:chosen={provider === name}
-          disabled={busy}
-          onclick={() => {
-            provider = name as typeof provider;
-            void search();
-          }}>{name === 'modrinth' ? 'Modrinth' : 'CurseForge'}</button
-        >
-      {/each}
-    </div>
-    <form
-      onsubmit={(event) => {
-        event.preventDefault();
-        void search();
-      }}
-    >
-      <input
-        aria-label="Search modpacks"
-        bind:value={query}
-        placeholder="Search modpacks…"
-      /><Button type="submit" disabled={busy}>Search</Button>
-    </form>
-    <p>
-      All packs are shown. Choose an exact release, then review its Minecraft and loader setup
-      before adding it to the draft.
-    </p>
+<CatalogBrowseSheet
+  title="Browse modpacks"
+  bind:provider
+  disabled={busy}
+  onClose={busy ? undefined : onClose}
+  onProviderChanged={() => {
+    selected = undefined;
+    clearTimeout(searchTimer);
+    void search();
+  }}
+>
+  <CatalogBrowseContent
+    bind:query
+    noun="modpacks"
+    subtitle={`${provider === 'modrinth' ? 'Modrinth' : 'CurseForge'}${[javaFlavor, minecraftVersion].filter(Boolean).length ? ` · ${[javaFlavor, minecraftVersion].filter(Boolean).join(' · ')}` : ''} · All packs shown`}
+    {results}
+    loading={busy}
+    disabled={!!operationId}
+    onDetail={(item) => (selected = item)}
+    onAdd={(item) => (selected = item)}
+    showEmpty={!error}
+    notice={status}
+    {offset}
+    {total}
+    onPage={(page) => void search(page)}
+  >
     {#if error}<p class="error" role="alert">{error}</p>{/if}
     {#if needsKey}
       <form
@@ -194,34 +196,9 @@
           )}>Open CurseForge console</Button
       >
     {/if}
-    {#if status}<p role="status">{status}</p>{/if}
     {#if operationId}<Button onclick={() => void cancel()}>Cancel download</Button>{/if}
-    {#each results as item (item.projectId)}
-      <button type="button" class="row" disabled={busy} onclick={() => (selected = item)}>
-        {#if item.iconURL}<img
-            src={item.iconURL}
-            alt=""
-            width="40"
-            height="40"
-            loading="lazy"
-          />{/if}
-        <span
-          ><strong>{item.title}</strong><small>by {item.author}</small><span
-            >{item.description}</span
-          ></span
-        ><span>Versions</span>
-      </button>
-    {/each}
-    <div class="pages">
-      <Button disabled={busy || offset === 0} onclick={() => void search(Math.max(0, offset - 50))}
-        >Previous</Button
-      ><span>{offset + (results.length ? 1 : 0)}–{offset + results.length} of {total}</span><Button
-        disabled={busy || offset + results.length >= total}
-        onclick={() => void search(offset + 50)}>Next</Button
-      >
-    </div>
-  </div>
-</Sheet>
+  </CatalogBrowseContent>
+</CatalogBrowseSheet>
 {#if selected}
   <ProjectDetailSheet
     api={connection}
@@ -237,30 +214,10 @@
 {/if}
 
 <style>
-  .content {
-    display: grid;
-    gap: 12px;
-  }
-  .providers,
-  form,
-  .pages {
+  form {
     display: flex;
     gap: 12px;
     align-items: center;
-  }
-  .pages {
-    justify-content: space-between;
-  }
-  .providers button {
-    background: none;
-    border: 0;
-    color: var(--msc2-text-secondary);
-    padding: 6px 0;
-    cursor: pointer;
-  }
-  .providers button.chosen {
-    color: var(--msc2-text-primary);
-    border-bottom: 2px solid var(--msc2-accent);
   }
   input {
     flex: 1;
@@ -270,37 +227,11 @@
     border: 1px solid var(--msc2-hairline-subtle);
     background: var(--msc2-tier-content);
     color: var(--msc2-text-primary);
-  }
-  p,
-  small,
-  .pages {
-    margin: 0;
-    font-size: 12px;
-    color: var(--msc2-text-secondary);
+    font: inherit;
   }
   .error {
+    margin: 0 0 10px;
+    font-size: 12px;
     color: var(--msc2-status-error);
-  }
-  .row {
-    display: flex;
-    gap: 12px;
-    align-items: start;
-    text-align: left;
-    background: none;
-    color: var(--msc2-text-primary);
-    border: 0;
-    border-bottom: 1px solid var(--msc2-hairline-subtle);
-    padding: 10px 0;
-    cursor: pointer;
-  }
-  .row > span:first-of-type {
-    display: grid;
-    flex: 1;
-    gap: 4px;
-    font-size: 13px;
-  }
-  img {
-    border-radius: 6px;
-    object-fit: cover;
   }
 </style>

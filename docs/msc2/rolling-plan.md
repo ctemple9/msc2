@@ -452,3 +452,19 @@ another owner is refused and publication still rejects changed bytes. Existing
 coverage did not distinguish preview from commit. Controlled tiny local files,
 no network/timing assumptions, expected <100 ms; compile only, not run. Check
 and staged-artifact results are recorded in phase24-acceptance.md.
+
+
+### P24.34 — Create the first export review workspace and show startup progress
+
+**Status:** implemented candidate — awaiting owner verification
+**Files:** application publication_review.rs and existing publication regression source; desktop ContentExportSheet.svelte; Phase 24 ledger/acceptance
+**What:** Fix the owner-reported missing publication-reviews parent folder: validate its server scope, create missing parents and then atomically save the first review. Reject linked review paths using the existing checked-source boundary. Display preparation percentage from initial settings requests, identify pending capabilities/content/world requests, time out settings reads after 30 seconds with Retry, and continue into file-inspection progress without resetting to zero. Clear failed operation status and suppress the duplicated normal status line when an error is shown.
+**Verify:** `npm --prefix clients/desktop-web run check`. On a server with no prior export review, open Export modpack and verify progress is visible immediately, preparation reaches a result without a missing-parent error, and an error appears once with a working Retry. Verify both export modes still prepare. Do not delete a live review folder just to simulate a clean server.
+**Commit:** `P24.34: create export review workspace and show startup progress`
+**Batch:** owner-reported first-export regression and startup progress correction; owner verification pending
+
+Extend the existing tiny publication preview/commit fixture to assert that a
+missing review workspace is created and contains the saved review. This protects
+the concrete first-export failure without another fixture or test case. Expected
+runtime remains <100 ms; compile only, not run. Non-test check/build and staged
+candidate results are recorded in phase24-acceptance.md.

@@ -317,7 +317,18 @@ fn preview_defers_hashing_but_publication_still_rejects_changed_bytes() {
         server_paths: vec![],
         datapacks: vec![],
     };
+    // A clean server has no review workspace; first preparation must create it.
+    assert!(!fixture.0.join(".msc2-content/publication-reviews").exists());
     let prepared = review::prepare(&server, "owner", request, &|| false).unwrap();
+    assert!(
+        fixture
+            .0
+            .join(format!(
+                ".msc2-content/publication-reviews/{}.json",
+                prepared.id
+            ))
+            .is_file()
+    );
     assert!(review::preview(&server, &prepared.id, "different-owner").is_err());
     std::fs::write(
         fixture.0.join(file.source_relative),

@@ -90,8 +90,8 @@ fn now() -> u64 {
 }
 fn path(server: &ConfigServer, id: &str) -> Result<std::path::PathBuf, String> {
     uuid::Uuid::parse_str(id).map_err(|_| "Invalid publication review identity")?;
-    crate::content_install::managed_path(
-        &server.server_dir,
+    crate::content_publications::checked_source(
+        server,
         &format!(".msc2-content/publication-reviews/{id}.json"),
     )
 }
@@ -740,6 +740,12 @@ pub fn prepare_with_progress(
     if bytes.len() > 32 * 1024 * 1024 {
         return Err("Publication review exceeds its size limit".into());
     }
+    // The shared atomic writer requires an existing parent. First export has
+    // never created this workspace; validate its scope before making it.
+    let directory =
+        crate::content_publications::checked_source(server, ".msc2-content/publication-reviews")?;
+    std::fs::create_dir_all(directory)
+        .map_err(|error| format!("Could not create the export review folder: {error}"))?;
     msc_infrastructure::atomic_write::atomic_write(
         &msc_infrastructure::fs::StdFileSystem,
         &path(server, &review.id)?,

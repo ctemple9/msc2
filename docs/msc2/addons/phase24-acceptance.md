@@ -329,3 +329,35 @@ The running agent still needs the owner's normal update/repair action for numeri
 progress and the lighter metadata read. Owner visual/interactive verification is
 pending for themed Save to, both preparation modes, cancellation, history and
 changed-content refusal at export commit. No phase acceptance is inferred.
+
+
+### P24.34 — First review folder and initial progress (2026-11-07)
+
+Owner screenshot exposed an uncreated `.msc2-content/publication-reviews` parent:
+the atomic writer intentionally requires the caller to create its directory.
+Preparation now validates that workspace through checked_source, creates missing
+parents and atomically saves the review; review reads reject linked paths too.
+The existing local preview/commit fixture additionally asserts a clean workspace
+is absent before preparation and contains the saved review afterwards. This
+covers the reported failure without another test case or larger fixture.
+
+The sheet shows percentage from 0% during settings reads, names pending capability,
+content and world requests, times out a settings read after 30 seconds, and offers
+Retry. Initial completed requests advance to 12%, file preparation starts at 15%
+and then uses the existing work progress through 100%. Percentages represent work
+stages, not elapsed-time estimates. Failed operations display one error message
+rather than repeating it as normal status. Retry resets any failed frozen/current
+selection before preparing current content again.
+
+Passed: Rust fmt, focused agent Clippy, existing publication regression source
+compilation only, frontend check (0 errors/10 existing CSS warnings), production
+frontend build (existing CSS/chunk-size warnings), and development agent/helper
+staging including Intel BedrockSidecar. No tests, live folder repairs, service
+restarts, server mutations, releases or phase closure were performed. Physical
+first-export, initial percentage/timeout/Retry and both export modes remain owner
+verification items. Native desktop Rust is unchanged.
+
+Built and staged development agent SHA256:
+`5387f963fe28dd85d13d93b52a48a1a7a0df7563457d0e6e62670f2ae30cc3aa`.
+Running agents still need the owner's normal update/repair action; reopen Export
+modpack after updating. The missing live directory was not created by hand.

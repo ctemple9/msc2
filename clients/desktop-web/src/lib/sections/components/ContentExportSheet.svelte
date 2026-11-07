@@ -105,7 +105,6 @@
   let snapshot: ContentSnapshot | undefined;
   let history: History | undefined;
   let historyOffset = 0;
-  let preparing = false;
   let preparationPercent: number | undefined;
   let audience: 'players' | 'server' = 'players';
   let versionName = '',
@@ -144,14 +143,51 @@
       historyOffset = offset;
     }
   }
+  const settingsPending = new Set<string>();
+  let settingsCompleted = 0;
+  async function settingsRead<T>(url: string, label: string): Promise<T> {
+    settingsPending.add(label);
+    if (current()) status = `Loading ${[...settingsPending].join(' and ')}…`;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      return await Promise.race([
+        connection.get<T>(url),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(
+            () =>
+              reject(
+                new Error(
+                  `The agent did not return ${label} within 30 seconds. Retry preparation.`,
+                ),
+              ),
+            30_000,
+          );
+        }),
+      ]);
+    } finally {
+      clearTimeout(timer);
+      settingsPending.delete(label);
+      settingsCompleted += 1;
+      if (current()) {
+        preparationPercent = Math.min(12, settingsCompleted * 4);
+        if (settingsPending.size) status = `Waiting for ${[...settingsPending].join(' and ')}…`;
+      }
+    }
+  }
   async function initialize(): Promise<void> {
     busy = true;
     error = '';
     worldError = '';
     status = 'Loading export settings…';
-    preparationPercent = undefined;
+    preparationPercent = 0;
+    settingsCompleted = 0;
+    settingsPending.clear();
+    snapshot = undefined;
     try {
-      const caps = await connection.get<Schema['CapabilitiesDTO']>('/v1/capabilities');
+      const caps = await settingsRead<Schema['CapabilitiesDTO']>(
+        '/v1/capabilities',
+        'agent capabilities',
+      );
       if (
         !caps.contentCatalog?.contentPublications ||
         !caps.contentCatalog?.contentZipExports ||
@@ -159,8 +195,8 @@
       )
         throw new Error('Update this agent to export full modpacks with your changes.');
       const results = await Promise.allSettled([
-        connection.get<ContentSnapshot>(`${root}/collection?metadataOnly=true`),
-        connection.get<Schema['WorldSlotsResponseDTO']>('/v1/worlds'),
+        settingsRead<ContentSnapshot>(`${root}/collection?metadataOnly=true`, 'content metadata'),
+        settingsRead<Schema['WorldSlotsResponseDTO']>('/v1/worlds', 'world settings'),
       ]);
       if (!current()) return;
       if (results[0].status === 'fulfilled') snapshot = results[0].value;
@@ -173,7 +209,10 @@
     } catch (cause) {
       if (current()) error = errorMessage(cause);
     } finally {
-      if (current()) busy = false;
+      if (current()) {
+        busy = false;
+        if (error) status = '';
+      }
     }
   }
   async function loadDatapacks(): Promise<void> {
@@ -219,8 +258,7 @@
       return;
     }
     busy = true;
-    preparing = true;
-    preparationPercent = 0;
+    preparationPercent = 15;
     status = 'Checking server content…';
     dirty = true;
     error = '';
@@ -282,7 +320,7 @@
           if (amount && amount.total > 0)
             preparationPercent = Math.max(
               preparationPercent ?? 0,
-              Math.min(100, Math.floor((amount.current * 100) / amount.total)),
+              Math.min(100, 15 + Math.floor((amount.current * 85) / amount.total)),
             );
         },
         (id) => (operationId = id),
@@ -302,11 +340,13 @@
         status = 'Export contents ready.';
       }
     } catch (cause) {
-      if (current()) error = errorMessage(cause);
+      if (current()) {
+        error = errorMessage(cause);
+        status = '';
+      }
     } finally {
       if (current()) {
         busy = false;
-        preparing = false;
         operationId = '';
       }
     }
@@ -577,11 +617,19 @@
       >
     </div>
     {#if error}<p class="error" role="alert">{error}</p>{/if}
+    {#if error && !busy}<Button
+        onclick={() => {
+          selectedId = 'new';
+          review = undefined;
+          publication = undefined;
+          void reviewCurrent();
+        }}>Retry preparation</Button
+      >{/if}
     {#if worldError && worldError !== error}<p class="issue">{worldError}</p>{/if}
-    {#if status || busy}<p role="status">
+    {#if !error && (status || busy)}<p role="status">
         {busy ? status || 'Preparing export contents…' : status}
       </p>{/if}
-    {#if preparing && preparationPercent !== undefined}
+    {#if busy && selectedId === 'new' && preparationPercent !== undefined}
       <div class="preparation-progress">
         <progress max="100" value={preparationPercent} aria-label="Export preparation"></progress>
         <span>{preparationPercent}%</span>

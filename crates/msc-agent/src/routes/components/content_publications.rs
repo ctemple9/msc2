@@ -97,13 +97,19 @@ pub(super) async fn review(
             if cancelled() {
                 return Err("Publication review cancelled or permission revoked".into());
             }
-            let review =
-                service::prepare(&current, &credential.credential_id, request, &cancelled)?;
+            let review = service::prepare_with_progress(
+                &current,
+                &credential.credential_id,
+                request,
+                &cancelled,
+                &|done, total, label| {
+                    let _ = operations.progress(&operation, done, total, label);
+                },
+            )?;
             let fresh = server(&state, &server_id)?;
             if fresh != current || cancelled() {
                 return Err("Server or permission changed during review".into());
             }
-            service::load(&fresh, &review.id, &credential.credential_id)?;
             if cancelled() {
                 return Err("Publication review cancelled or permission revoked".into());
             }
@@ -140,7 +146,7 @@ pub(super) async fn get_review(
         return response;
     }
     let result = tokio::task::spawn_blocking(move || {
-        service::load(
+        service::preview(
             &server(&state, &server_id)?,
             &review_id,
             &credential.credential_id,

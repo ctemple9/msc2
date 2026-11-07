@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: 63e6d4e75e278c4082182c2326b6c57379327524a080551422184a718e117212
+// Contract SHA-256: 666ef6a8b52dc5249beb132185d53f8e824931af92326cdda50d3e61e4b521cd
 
 export interface paths {
   '/v1/active-server': {
@@ -13213,7 +13213,10 @@ export interface operations {
   };
   getContentCollection: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Read persisted collection metadata without hashing live files. Export preparation verifies live bytes in its operation. */
+        metadataOnly?: boolean;
+      };
       header?: never;
       path: {
         server_id: string;

@@ -43,7 +43,7 @@ fn selected(
 fn walk(
     server: &ConfigServer,
     relative: &str,
-    files: &mut BTreeMap<String, ContentEntry>,
+    paths: &mut Vec<String>,
     count: &mut usize,
     depth: usize,
     cancelled: &dyn Fn() -> bool,
@@ -77,27 +77,9 @@ fn walk(
             return Err("Content folders contain a link; export requires regular files".into());
         }
         if kind.is_dir() {
-            walk(server, &relative, files, count, depth + 1, cancelled)?;
-        } else if kind.is_file()
-            && content_management::content_path(&relative).is_ok()
-            && !files.contains_key(&relative)
-        {
-            let identity = identify(&managed_path(&server.server_dir, &relative)?)?;
-            files.insert(
-                relative.clone(),
-                ContentEntry {
-                    path: relative,
-                    sha512: identity.sha512,
-                    byte_size: identity.byte_size,
-                    audience: ContentAudience::Both,
-                    optional: false,
-                    source: None,
-                    redistribution_evidence: None,
-                    classification_evidence: vec![],
-                    unresolved_reasons: vec![],
-                    extra: BTreeMap::new(),
-                },
-            );
+            walk(server, &relative, paths, count, depth + 1, cancelled)?;
+        } else if kind.is_file() && content_management::content_path(&relative).is_ok() {
+            paths.push(relative);
         }
     }
     Ok(())
@@ -108,9 +90,19 @@ pub fn project(
     snapshot: &mut content_management::Snapshot,
     cancelled: &dyn Fn() -> bool,
 ) -> Result<(), String> {
+    project_with_progress(server, snapshot, cancelled, &|_, _, _| {})
+}
+
+pub fn project_with_progress(
+    server: &ConfigServer,
+    snapshot: &mut content_management::Snapshot,
+    cancelled: &dyn Fn() -> bool,
+    progress: &dyn Fn(u64, u64, &str),
+) -> Result<(), String> {
     let stored = server.content_collection.as_ref();
     let mut live = snapshot.collection.current_files.clone();
     let mut count = 0;
+    let mut paths = Vec::new();
     // Only known content folders, never the server directory, worlds, accounts or runtime.
     for folder in [
         "resourcepacks",
@@ -120,8 +112,43 @@ pub fn project(
         "kubejs",
         "defaultconfigs",
     ] {
-        walk(server, folder, &mut live, &mut count, 0, cancelled)?;
+        walk(server, folder, &mut paths, &mut count, 0, cancelled)?;
     }
+    let total = paths.len().max(1) as u64;
+    for (index, relative) in paths.into_iter().enumerate() {
+        if cancelled() {
+            return Err("Modpack export review cancelled".into());
+        }
+        progress(
+            index as u64,
+            total,
+            &format!(
+                "Checking supporting file {}/{}: {relative}",
+                index + 1,
+                total
+            ),
+        );
+        if live.contains_key(&relative) {
+            continue;
+        }
+        let identity = identify(&managed_path(&server.server_dir, &relative)?)?;
+        live.insert(
+            relative.clone(),
+            ContentEntry {
+                path: relative,
+                sha512: identity.sha512,
+                byte_size: identity.byte_size,
+                audience: ContentAudience::Both,
+                optional: false,
+                source: None,
+                redistribution_evidence: None,
+                classification_evidence: vec![],
+                unresolved_reasons: vec![],
+                extra: BTreeMap::new(),
+            },
+        );
+    }
+    progress(total, total, "Supporting content checked");
     live.retain(|path, _| {
         snapshot.server_baseline.contains_key(path)
             || snapshot

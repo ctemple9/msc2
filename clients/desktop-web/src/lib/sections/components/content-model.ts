@@ -71,13 +71,13 @@ export async function contentOperation(
   api: ScreenApi,
   path: string,
   body: unknown,
-  progress: (line: string) => void,
+  progress: (line: string, amount?: { current: number; total: number } | null) => void,
   onOperation: (id: string) => void = () => {},
 ): Promise<Record<string, unknown>> {
   const accepted = await api.post<{ operationId: string }>(path, body);
   onOperation(accepted.operationId);
   const operation = await pollOperation(api, accepted.operationId, (value) =>
-    progress(value.statusLine ?? 'Working…'),
+    progress(value.statusLine ?? 'Working…', value.progress),
   );
   if (operation?.state !== 'succeeded')
     throw new Error(

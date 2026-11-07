@@ -107,6 +107,14 @@ fn fresh_entry(
 }
 
 pub fn snapshot(server: &ConfigServer) -> Result<Snapshot, String> {
+    snapshot_with_progress(server, &|_, _, _| {}, &|| false)
+}
+
+pub fn snapshot_with_progress(
+    server: &ConfigServer,
+    progress: &dyn Fn(u64, u64, &str),
+    cancelled: &dyn Fn() -> bool,
+) -> Result<Snapshot, String> {
     let mut collection = server.content_collection.clone().unwrap_or_default();
     let mut baseline = BTreeMap::new();
     if let Some(kind) = server.java_flavor.add_on_kind() {
@@ -118,7 +126,17 @@ pub fn snapshot(server: &ConfigServer) -> Result<Snapshot, String> {
             Err(error) => return Err(error.to_string()),
         };
         if let Some(entries) = entries {
-            for (index, entry) in entries.enumerate() {
+            let entries = entries.take(10_001).collect::<Vec<_>>();
+            let total = entries.len().max(1) as u64;
+            for (index, entry) in entries.into_iter().enumerate() {
+                if cancelled() {
+                    return Err("Content inspection cancelled".into());
+                }
+                progress(
+                    index as u64 * 50 / total,
+                    100,
+                    "Checking installed mod files",
+                );
                 if index >= 10_000 {
                     return Err("Too many server add-ons to review".into());
                 }
@@ -178,7 +196,16 @@ pub fn snapshot(server: &ConfigServer) -> Result<Snapshot, String> {
             }
         }
     }
-    for (path, entry) in &mut collection.current_files {
+    let total = collection.current_files.len().max(1) as u64;
+    for (index, (path, entry)) in collection.current_files.iter_mut().enumerate() {
+        if cancelled() {
+            return Err("Content inspection cancelled".into());
+        }
+        progress(
+            50 + index as u64 * 50 / total,
+            100,
+            "Checking retained server content",
+        );
         if baseline.contains_key(path) {
             if !path.ends_with(".jar.disabled") {
                 entry.extra.remove("serverEnabled");
@@ -216,6 +243,7 @@ pub fn snapshot(server: &ConfigServer) -> Result<Snapshot, String> {
             }
         }
     }
+    progress(100, 100, "Server content checked");
     let mut requirements = Vec::new();
     for (path, entry) in &collection.current_files {
         let (state, reason) = if (path.ends_with(".jar.disabled") && baseline.contains_key(path))

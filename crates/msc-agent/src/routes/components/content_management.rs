@@ -17,12 +17,31 @@ fn server(
 pub(super) fn public_review(review: service::Review) -> serde_json::Value {
     serde_json::json!({"reviewId": review.id, "collectionRevision": review.source_collection.as_ref().map_or(0, |collection| collection.revision), "collection":review.result, "changes":review.changes, "warnings":review.warnings})
 }
+#[derive(Default, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct CollectionQuery {
+    #[serde(default)]
+    metadata_only: bool,
+}
 pub(super) async fn get(
     State(state): State<ComponentsRoutesState>,
     Extension(_credential): Extension<AuthenticatedCredential>,
     AxumPath(server_id): AxumPath<String>,
+    axum::extract::Query(query): axum::extract::Query<CollectionQuery>,
 ) -> Response {
-    match tokio::task::spawn_blocking(move || service::snapshot(&server(&state, &server_id)?)).await
+    match tokio::task::spawn_blocking(move || {
+        let server = server(&state, &server_id)?;
+        if query.metadata_only {
+            Ok(service::Snapshot {
+                collection: server.content_collection.unwrap_or_default(),
+                server_baseline: BTreeMap::new(),
+                requirements: Vec::new(),
+            })
+        } else {
+            service::snapshot(&server)
+        }
+    })
+    .await
     {
         Ok(Ok(snapshot)) => Json(snapshot).into_response(),
         Ok(Err(error)) => error_response(StatusCode::CONFLICT, "content_unavailable", &error),

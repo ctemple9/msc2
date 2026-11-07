@@ -293,3 +293,37 @@ fn full_pack_export_applies_owner_edits_without_losing_filtered_client_content()
     assert!(snapshot.requirements.is_empty());
     assert_eq!(server.content_collection.as_ref().unwrap(), &collection);
 }
+
+// Essential P24.33: a fast display preview must not weaken the publication
+// commit's stale-byte or owner checks. Tiny local fixture, expected <100 ms;
+// compiled only unless the owner explicitly requests running this command.
+#[test]
+fn preview_defers_hashing_but_publication_still_rejects_changed_bytes() {
+    let (fixture, server, file) = fixture();
+    let request = review::Request {
+        pack_export: false,
+        audiences: vec!["players".into()],
+        collection_revision: 5,
+        version_name: None,
+        player_setup: None,
+        approvals: vec![review::Approval {
+            audience: "players".into(),
+            path: file.file.path,
+            sha512: file.file.sha512,
+            redistribution_evidence: "Fixture permission".into(),
+            reviewed_configuration: true,
+        }],
+        excluded: vec![],
+        server_paths: vec![],
+        datapacks: vec![],
+    };
+    let prepared = review::prepare(&server, "owner", request, &|| false).unwrap();
+    assert!(review::preview(&server, &prepared.id, "different-owner").is_err());
+    std::fs::write(
+        fixture.0.join(file.source_relative),
+        b"changed after preview",
+    )
+    .unwrap();
+    assert!(review::preview(&server, &prepared.id, "owner").is_ok());
+    assert!(review::load(&server, &prepared.id, "owner").is_err());
+}

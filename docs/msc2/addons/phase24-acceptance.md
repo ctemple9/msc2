@@ -296,3 +296,36 @@ represented as a launcher-only .mrpack; the UI reports its existing eligibility
 reason and the organized ZIP remains available. Older servers without retained
 client bytes must still supply the original pack for missing client content.
 Illustrated launcher guides and phase acceptance remain open.
+
+
+### P24.33 — Export control theming and preparation progress (2026-11-07)
+
+All export dropdowns now use MSC's shared Select control, including Save to;
+the export action uses the shared primary button at the trailing edge. The
+preparation operation reports percentage, stage and the current verification
+file. Percentages count inspected work within weighted phases, not elapsed-time
+predictions. Unknown-duration settings/world discovery reports its actual stage.
+
+Opening the sheet reads persisted collection metadata rather than hashing the
+entire server for its revision, and history comparison is deferred until Previous
+exports opens. Immediate post-review and GET-preview rehashes are removed.
+Preview still checks owner/server identity, metadata/setup/revision and expiry;
+publication commit still recomputes the current fingerprint and verifies every
+prepared source's exact bytes. Cancellation is checked between snapshot files.
+No measured timing claim is made for the owner's physical pack.
+
+Passed: Rust formatting and focused agent Clippy; essential publication regression
+source compilation only; API generation; frontend check (0 errors/10 existing
+CSS warnings) and production build (existing CSS/chunk-size warnings). The new
+regression distinguishes display preview from commit and protects wrong-owner
+refusal and stale-byte rejection; tiny controlled local inputs, expected <100 ms,
+not run. No test suite, live mutation, service restart or release was performed.
+Native desktop Rust is unchanged.
+
+Agent build and staged copy SHA256:
+`70371ce9050927a1ea0c970b8f40f7b2eb209a3a4dd3681124a4b6222fdfe589`.
+The final development helper-staging outcome is recorded in the execution ledger.
+The running agent still needs the owner's normal update/repair action for numeric
+progress and the lighter metadata read. Owner visual/interactive verification is
+pending for themed Save to, both preparation modes, cancellation, history and
+changed-content refusal at export commit. No phase acceptance is inferred.

@@ -2,6 +2,7 @@
   import { onMount, onDestroy } from 'svelte';
   import Sheet from '../../components/base/Sheet.svelte';
   import Button from '../../components/base/Button.svelte';
+  import Select from '../../components/base/Select.svelte';
   import {
     bytesLabel,
     errorMessage,
@@ -104,6 +105,8 @@
   let snapshot: ContentSnapshot | undefined;
   let history: History | undefined;
   let historyOffset = 0;
+  let preparing = false;
+  let preparationPercent: number | undefined;
   let audience: 'players' | 'server' = 'players';
   let versionName = '',
     selectedId = 'new';
@@ -145,6 +148,8 @@
     busy = true;
     error = '';
     worldError = '';
+    status = 'Loading export settings…';
+    preparationPercent = undefined;
     try {
       const caps = await connection.get<Schema['CapabilitiesDTO']>('/v1/capabilities');
       if (
@@ -154,9 +159,8 @@
       )
         throw new Error('Update this agent to export full modpacks with your changes.');
       const results = await Promise.allSettled([
-        connection.get<ContentSnapshot>(`${root}/collection`),
+        connection.get<ContentSnapshot>(`${root}/collection?metadataOnly=true`),
         connection.get<Schema['WorldSlotsResponseDTO']>('/v1/worlds'),
-        historyPage(),
       ]);
       if (!current()) return;
       if (results[0].status === 'fulfilled') snapshot = results[0].value;
@@ -166,8 +170,6 @@
         worlds = results[1].value;
         slotId = worlds.activeSlotId ?? '';
       } else worldError = `World datapacks are unavailable: ${errorMessage(results[1].reason)}`;
-      if (results[2].status === 'rejected')
-        error += ` Publication history unavailable: ${errorMessage(results[2].reason)}`;
     } catch (cause) {
       if (current()) error = errorMessage(cause);
     } finally {
@@ -182,6 +184,7 @@
     changed();
     if (!slotId) return;
     busy = true;
+    status = 'Inspecting world datapacks…';
     error = '';
     try {
       const response = await connection.get<{ items: Datapack[] }>(
@@ -216,6 +219,9 @@
       return;
     }
     busy = true;
+    preparing = true;
+    preparationPercent = 0;
+    status = 'Checking server content…';
     dirty = true;
     error = '';
     publication = undefined;
@@ -270,8 +276,14 @@
               redistributionEvidence: datapackEvidence[item.path]?.trim() ?? '',
             })),
         },
-        (line) => {
-          if (current()) status = line;
+        (line, amount) => {
+          if (!current()) return;
+          status = line;
+          if (amount && amount.total > 0)
+            preparationPercent = Math.max(
+              preparationPercent ?? 0,
+              Math.min(100, Math.floor((amount.current * 100) / amount.total)),
+            );
         },
         (id) => (operationId = id),
       );
@@ -286,6 +298,7 @@
         review = value;
         dirty = false;
         incompleteConsent = false;
+        preparationPercent = 100;
         status = 'Export contents ready.';
       }
     } catch (cause) {
@@ -293,6 +306,7 @@
     } finally {
       if (current()) {
         busy = false;
+        preparing = false;
         operationId = '';
       }
     }
@@ -357,7 +371,10 @@
       selectedId = result.publicationId;
       review = undefined;
       await inspectPublication(selectedId);
-      await historyPage();
+      if (history)
+        void historyPage().catch((cause) => {
+          if (current()) error = errorMessage(cause);
+        });
       if (current())
         status = 'Dated revision published. Later server changes cannot change these frozen files.';
     } catch (cause) {
@@ -482,7 +499,7 @@
     review = undefined;
     changed();
     try {
-      snapshot = await connection.get<ContentSnapshot>(`${root}/collection`);
+      snapshot = await connection.get<ContentSnapshot>(`${root}/collection?metadataOnly=true`);
       if (current()) await prepare();
     } catch (cause) {
       if (current()) error = errorMessage(cause);
@@ -564,6 +581,12 @@
     {#if status || busy}<p role="status">
         {busy ? status || 'Preparing export contents…' : status}
       </p>{/if}
+    {#if preparing && preparationPercent !== undefined}
+      <div class="preparation-progress">
+        <progress max="100" value={preparationPercent} aria-label="Export preparation"></progress>
+        <span>{preparationPercent}%</span>
+      </div>
+    {/if}
     {#if busy && (operationId || transferAbort)}<Button onclick={() => void cancel()}>Cancel</Button
       >{/if}
     {#if selectedId === 'new'}
@@ -607,12 +630,19 @@
               .toLowerCase()
               .includes('loader'))}
           <label
-            >Player loader<select bind:value={playerLoader} disabled={busy} onchange={changed}
-              ><option value="">Use server setup</option
-              >{#each ['vanilla', 'fabric', 'forge', 'neoforge', 'quilt'] as loader}<option
-                  value={loader}>{loader}</option
-                >{/each}</select
-            ></label
+            >Player loader<Select
+              ariaLabel="Player loader"
+              bind:value={playerLoader}
+              options={[
+                { value: '', label: 'Use server setup' },
+                ...['vanilla', 'fabric', 'forge', 'neoforge', 'quilt'].map((value) => ({
+                  value,
+                  label: value,
+                })),
+              ]}
+              disabled={busy}
+              onchange={changed}
+            /></label
           >
           <label
             >Player loader version<input
@@ -631,18 +661,19 @@
           /></label
         >
         <label
-          >World datapacks<select
+          >World datapacks<Select
+            ariaLabel="World datapacks"
             bind:value={slotId}
+            options={[
+              { value: '', label: 'No world datapacks' },
+              ...(worlds?.slots ?? []).map((slot) => ({ value: slot.id, label: slot.name })),
+            ]}
             disabled={busy}
             onchange={async () => {
               await loadDatapacks();
               await prepare();
             }}
-            ><option value="">No world datapacks</option
-            >{#each worlds?.slots ?? [] as slot (slot.id)}<option value={slot.id}
-                >{slot.name}</option
-              >{/each}</select
-          ></label
+          /></label
         >
         {#if worldError}<p class="issue">{worldError}</p>{/if}
         <p>{datapacks.length} datapack files from the selected world.</p>
@@ -681,11 +712,16 @@
     {#each eligibility?.reasons ?? [] as reason}<p>.mrpack unavailable: {reason}</p>{/each}
     {#each eligibility?.warnings ?? [] as warning}<p>{warning}</p>{/each}
     <label
-      >Save to<select bind:value={destination} disabled={busy}
-        ><option value="local">This computer</option><option value="host"
-          >Selected host’s server exports folder</option
-        ></select
-      ></label
+      >Save to<Select
+        ariaLabel="Save to"
+        value={destination}
+        options={[
+          { value: 'local', label: 'This computer' },
+          { value: 'host', label: 'Selected host’s server exports folder' },
+        ]}
+        disabled={busy}
+        onchange={(value) => (destination = value as 'local' | 'host')}
+      /></label
     >
     {#if destination === 'host'}
       <label
@@ -711,46 +747,58 @@
           />Replace the existing file at this destination.</label
         >{/if}
     {/if}
-    <Button
-      disabled={busy ||
-        (!publication && !review) ||
-        (review !== undefined && !review.complete && !incompleteConsent) ||
-        (publication !== undefined &&
-          (!publication.audiences.includes(audience) ||
-            (publication.issues.length > 0 && !incompleteConsent)))}
-      onclick={() => void saveExport()}>Export modpack</Button
+    <div class="export-action">
+      <Button
+        variant="primary"
+        disabled={busy ||
+          (!publication && !review) ||
+          (review !== undefined && !review.complete && !incompleteConsent) ||
+          (publication !== undefined &&
+            (!publication.audiences.includes(audience) ||
+              (publication.issues.length > 0 && !incompleteConsent)))}
+        onclick={() => void saveExport()}>Export modpack</Button
+      >
+    </div>
+    <details
+      ontoggle={(event) => {
+        if (event.currentTarget.open && !history)
+          void historyPage().catch((cause) => (error = errorMessage(cause)));
+      }}
     >
-    {#if history?.items.length}<details>
-        <summary>Previous exports</summary>
-        <label
-          >Dated export<select
-            bind:value={selectedId}
-            disabled={busy}
-            onchange={() => {
-              if (selectedId === 'new') void switchMode();
-              else void selectPublication();
-            }}
-            ><option value="new">Current modpack</option
-            >{#each history.items.filter( (item) => item.audiences.includes(audience) ) as item (item.publicationId)}<option
-                value={item.publicationId}
-                disabled={!item.available}
-                >{item.createdAt} · {item.versionName ??
-                  `revision ${item.publicationRevision}`}{item.complete
-                  ? ''
-                  : ' · incomplete'}</option
-              >{/each}</select
-          ></label
-        >
-        {#if history.total > 50}<div class="actions">
-            <Button
-              disabled={busy || historyOffset === 0}
-              onclick={() => void historyPage(Math.max(0, historyOffset - 50))}>Previous</Button
-            ><Button
-              disabled={busy || historyOffset + 50 >= history.total}
-              onclick={() => void historyPage(historyOffset + 50)}>Next</Button
-            >
-          </div>{/if}
-      </details>{/if}
+      <summary>Previous exports</summary>
+      {#if !history}<p>Loading previous exports…</p>{:else if !history.items.length}<p>
+          No previous exports.
+        </p>{/if}
+      <label
+        >Dated export<Select
+          ariaLabel="Dated export"
+          bind:value={selectedId}
+          options={[
+            { value: 'new', label: 'Current modpack' },
+            ...(history?.items ?? [])
+              .filter((item) => item.available && item.audiences.includes(audience))
+              .map((item) => ({
+                value: item.publicationId,
+                label: `${item.createdAt} · ${item.versionName ?? `revision ${item.publicationRevision}`}${item.complete ? '' : ' · incomplete'}`,
+              })),
+          ]}
+          disabled={busy}
+          onchange={() => {
+            if (selectedId === 'new') void switchMode();
+            else void selectPublication();
+          }}
+        /></label
+      >
+      {#if history && history.total > 50}<div class="actions">
+          <Button
+            disabled={busy || historyOffset === 0}
+            onclick={() => void historyPage(Math.max(0, historyOffset - 50))}>Previous</Button
+          ><Button
+            disabled={busy || historyOffset + 50 >= history.total}
+            onclick={() => void historyPage(historyOffset + 50)}>Next</Button
+          >
+        </div>{/if}
+    </details>
   </div>
 </Sheet>
 
@@ -764,6 +812,7 @@
     margin: 0;
     font-size: 12px;
     line-height: 1.5;
+    overflow-wrap: anywhere;
     color: var(--msc2-text-secondary);
   }
   .modes {
@@ -783,6 +832,10 @@
     font-size: 13px;
     font-weight: 500;
   }
+  .export-action {
+    display: flex;
+    justify-content: flex-end;
+  }
   .actions {
     display: flex;
     flex-wrap: wrap;
@@ -798,14 +851,42 @@
     align-items: center;
     gap: 6px;
   }
-  input:not([type='checkbox'], [type='radio']),
-  select {
+  input:not([type='checkbox'], [type='radio']) {
     min-width: 0;
     padding: 7px 9px;
     background: var(--msc2-tier-content);
     color: var(--msc2-text-primary);
     border: 1px solid var(--msc2-hairline-subtle);
     border-radius: 6px;
+  }
+  .preparation-progress {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .preparation-progress span {
+    min-width: 3ch;
+    font-size: 12px;
+    color: var(--msc2-text-secondary);
+    font-variant-numeric: tabular-nums;
+  }
+  progress {
+    appearance: none;
+    height: 4px;
+    width: 100%;
+    border: 0;
+    border-radius: 2px;
+    overflow: hidden;
+    background: var(--msc2-hairline-subtle);
+  }
+  progress::-webkit-progress-bar {
+    background: var(--msc2-hairline-subtle);
+  }
+  progress::-webkit-progress-value {
+    background: var(--msc2-text-secondary);
+  }
+  progress::-moz-progress-bar {
+    background: var(--msc2-text-secondary);
   }
   .error,
   .issue {

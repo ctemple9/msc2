@@ -435,3 +435,20 @@ pack. No network/timing assumptions; expected <100 ms. Compiled with
 `cargo check -p msc-application --test content_publication_safety`; not run.
 Final non-test check/build results are recorded in phase24-acceptance.md. No live
 server mutation, service restart, release or phase closure is authorized here.
+
+
+### P24.33 — Theme export controls and report preparation progress
+
+**Status:** implemented candidate — awaiting owner visual and interactive verification
+**Files:** desktop ContentExportSheet.svelte/content-model.ts and generated API types; application content_management.rs/pack_export_selection.rs/publication_review.rs; agent content_management.rs/content_publications.rs; publication regression source; API contract and Phase 24 records
+**What:** Replace every raw export-sheet select with MSC's shared Select, use the primary export button at the trailing edge, and display preparation percentage/stage/current file. Progress counts actual inspection work across weighted stages; it does not estimate elapsed time. Load persisted collection metadata without a full scan and defer history comparison until Previous exports opens. Remove immediate post-review and display-fetch rehashes while preserving preview identity/revision/expiry and fresh exact-byte/fingerprint validation before publication commits. Add cancellation checks between snapshot files. Full/server selection and export contents remain as specified in P24.32.
+**Verify:** `npm --prefix clients/desktop-web run check`. Open Components → Export modpack: Save to and advanced dropdowns must match MSC controls; preparation should show percentage/stage/current file and remain cancelable. Verify both audiences prepare, Previous exports loads when expanded, and changing content after preview still prevents publishing stale bytes.
+**Commit:** `P24.33: theme export controls and report preparation progress`
+**Batch:** owner-requested export design/loading correction; final owner review pending
+
+One essential local regression protects the preview/commit trust boundary:
+a preview may display a previously reviewed file without hashing it again, but
+another owner is refused and publication still rejects changed bytes. Existing
+coverage did not distinguish preview from commit. Controlled tiny local files,
+no network/timing assumptions, expected <100 ms; compile only, not run. Check
+and staged-artifact results are recorded in phase24-acceptance.md.

@@ -178,6 +178,16 @@ pub fn prepare(
     request: Request,
     cancelled: &dyn Fn() -> bool,
 ) -> Result<Review, String> {
+    prepare_with_progress(server, owner, request, cancelled, &|_, _, _| {})
+}
+
+pub fn prepare_with_progress(
+    server: &ConfigServer,
+    owner: &str,
+    request: Request,
+    cancelled: &dyn Fn() -> bool,
+    progress: &dyn Fn(u64, u64, &str),
+) -> Result<Review, String> {
     if request
         .version_name
         .as_ref()
@@ -216,10 +226,21 @@ pub fn prepare(
             return Err("Player setup requires the player publication audience".into());
         }
     }
-    let mut snapshot = management::snapshot(server)?;
+    progress(0, 100, "Checking server content");
+    let mut snapshot = management::snapshot_with_progress(
+        server,
+        &|done, total, label| progress(done * 35 / total.max(1), 100, label),
+        cancelled,
+    )?;
 
+    progress(35, 100, "Finding retained client content and owner changes");
     if request.pack_export {
-        crate::pack_export_selection::project(server, &mut snapshot, cancelled)?;
+        crate::pack_export_selection::project_with_progress(
+            server,
+            &mut snapshot,
+            cancelled,
+            &|done, total, label| progress(35 + done * 5 / total.max(1), 100, label),
+        )?;
     }
     if request.collection_revision != snapshot.collection.revision {
         return Err("Content changed; refresh publication review".into());
@@ -372,6 +393,17 @@ pub fn prepare(
             ));
         }
     }
+    let entry_total = (if audiences.contains("server") {
+        server_files.len()
+    } else {
+        0
+    } + if audiences.contains("players") {
+        snapshot.collection.player_files.len()
+    } else {
+        0
+    })
+    .max(1) as u64;
+    let mut inspected = 0u64;
     for (audience, entries) in [
         ("server", &server_files),
         ("players", &snapshot.collection.player_files),
@@ -380,6 +412,16 @@ pub fn prepare(
             continue;
         }
         for (path, entry) in entries {
+            progress(
+                40 + inspected * 50 / entry_total,
+                100,
+                &format!(
+                    "Verifying export file {}/{}: {path}",
+                    inspected + 1,
+                    entry_total
+                ),
+            );
+            inspected += 1;
             if cancelled() {
                 return Err("Publication review cancelled".into());
             }
@@ -591,6 +633,7 @@ pub fn prepare(
             });
         }
     }
+    progress(90, 100, "Verifying selected world datapacks");
     let datapack_files = selected_datapacks(server, &request.datapacks, true, cancelled)?;
     let datapack_grants: BTreeMap<_, _> = request
         .datapacks
@@ -666,6 +709,7 @@ pub fn prepare(
             });
         }
     }
+    progress(95, 100, "Recording export contents");
     let fingerprint =
         fingerprint_snapshot(server, &snapshot, &request.server_paths, &request.datapacks)?;
     let content_fingerprint = if request.pack_export {
@@ -702,9 +746,24 @@ pub fn prepare(
         &bytes,
     )
     .map_err(|error| error.to_string())?;
+    progress(100, 100, "Export contents ready");
     Ok(review)
 }
 pub fn load(server: &ConfigServer, id: &str, owner: &str) -> Result<Review, String> {
+    read_review(server, id, owner, true)
+}
+
+/// Preview reads keep identity/revision/expiry checks. Exact current bytes are
+/// revalidated by load at publication commit, not on every display fetch.
+pub fn preview(server: &ConfigServer, id: &str, owner: &str) -> Result<Review, String> {
+    read_review(server, id, owner, false)
+}
+fn read_review(
+    server: &ConfigServer,
+    id: &str,
+    owner: &str,
+    verify_bytes: bool,
+) -> Result<Review, String> {
     use msc_infrastructure::fs::FileSystem;
     let bytes = msc_infrastructure::fs::StdFileSystem
         .read_bounded(&path(server, id)?, 32 * 1024 * 1024)
@@ -721,6 +780,9 @@ pub fn load(server: &ConfigServer, id: &str, owner: &str) -> Result<Review, Stri
         || now().saturating_sub(review.created_unix) > 1800
     {
         return Err("Publication review expired or server changed".into());
+    }
+    if !verify_bytes {
+        return Ok(review);
     }
     let current_fingerprint = if review.request.pack_export {
         pack_fingerprint(

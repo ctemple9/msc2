@@ -957,6 +957,7 @@
         ],
         "description": "Read current server and retained player content with recomputed requirement gaps.",
         "parameters": [
+          {"name": "metadataOnly", "in": "query", "required": false, "schema": {"type": "boolean", "default": false}, "description": "Read persisted collection metadata without hashing live files. Export preparation verifies live bytes in its operation."},
           {
             "name": "server_id",
             "in": "path",

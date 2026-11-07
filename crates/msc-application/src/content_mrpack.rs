@@ -127,7 +127,11 @@ pub fn write<W: Write>(
     if !eligibility.supported {
         return Err(eligibility.reasons.join("; "));
     }
-    if !eligibility.complete && !allow_incomplete {
+    let missing_notes_allowed = publications::exportable(
+        publication.content_fingerprint.starts_with("pack-v1:"),
+        &environment::issues(publication, audience),
+    );
+    if !eligibility.complete && !missing_notes_allowed && !allow_incomplete {
         return Err("Explicit incomplete consent is required for the nested .mrpack".into());
     }
     let files = if audience == "players" {
@@ -156,7 +160,18 @@ pub fn write<W: Write>(
     if manifest.len() > 64 * 1024 * 1024 {
         return Err("Nested .mrpack metadata exceeds its size limit".into());
     }
-    let readme=format!("MSC {} CONTENT\\nPublication {}\\n\\n{}\\n\\nThe game/loader dependencies are pinned in modrinth.index.json. Content bytes are embedded in this package. Optional shader/resource packs remain under optional-content and require a deliberate move into the matching game folder. Files ending in .jar.disabled remain inactive; confirm the compatible loader before enabling them. Enabled optional mods load by default. Read msc-manifest.json for exact paths, SHA1/SHA512, side/optional flags and missing-content reasons.\\n",audience.to_uppercase(),publication.id,if eligibility.complete {"Selected content is complete."}else{"INCOMPLETE: resolve the missing content listed in msc-manifest.json before playing."}).replace("\\n","\n");
+    let mut readme=format!("MSC {} CONTENT\\nPublication {}\\n\\n{}\\n\\nThe game/loader dependencies are pinned in modrinth.index.json. Content bytes are embedded in this package. Optional shader/resource packs remain under optional-content and require a deliberate move into the matching game folder. Files ending in .jar.disabled remain inactive; confirm the compatible loader before enabling them. Enabled optional mods load by default. Read msc-manifest.json for exact paths, SHA1/SHA512, side/optional flags and missing-content reasons.\\n",audience.to_uppercase(),publication.id,if eligibility.complete {"Selected content is complete."}else{"INCOMPLETE: resolve the missing content listed in msc-manifest.json before playing."}).replace("\\n","\n");
+    if missing_notes_allowed && !issues.is_empty() {
+        readme.push_str("\nFILES TO DOWNLOAD\nDownload these exact filenames and place them at the listed paths in your launcher instance or server before playing. These files are not included in this package.\n");
+        for issue in issues
+            .iter()
+            .filter(|issue| publications::is_missing_local_file(issue))
+        {
+            if let Some(path) = &issue.path {
+                readme.push_str(&format!("- {path}\n"));
+            }
+        }
+    }
     let mut zip = zip::ZipWriter::new_stream(target);
     archives::text_entry(&mut zip, "modrinth.index.json", &index)?;
     archives::text_entry(&mut zip, "msc-manifest.json", &manifest)?;

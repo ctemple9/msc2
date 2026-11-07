@@ -516,3 +516,21 @@ retained local configuration with no permission evidence and provider-download
 metadata must export in personal mode without approval. Existing legacy tests
 protect the separate publication rules. No network/timers; expected <100 ms;
 compile only, not run. Check and staged-agent evidence is in the acceptance record.
+
+
+### P24.38 — Document missing files in the README and browse nested export folders
+
+**Status:** implemented candidate — awaiting owner verification
+**Files:** application publication_review/content_publications/content_archives/content_mrpack and publication safety source; agent content_publications route; OpenAPI/generated types; ContentExportSheet/ExportFileTree/export-file-tree and pure tree test source; D-045 and Phase 24 records
+**What:** Apply the owner amendment: personal exports with known missing local files proceed automatically and document exact filenames/paths in ZIP and optional .mrpack instructions. Mark those gaps distinctly; actual source checksum/path/setup failures remain blocking, and completeness metadata remains truthful. Ignore stale gap records when the exact retained bytes are already present. Add exportable readiness to review/publication/history responses while preserving complete as a separate fact. No consent checkbox or provider acquisition. Hide excluded-content UI. Replace the included-file wall with naturally sorted folders/subfolders, descendant counts and file sizes/state; collapsed branches do not mount their descendants, and the tree has its own bounded scroll area.
+**Verify:** `npm --prefix clients/desktop-web run check`. Export the ATM10 pack with the missing moreoverlays file: Export should proceed and README.txt should name its exact path under Files to download. No excluded-content list should appear. Expand Included files → config → a subfolder and mods to inspect nested content. Exercise an eligible .mrpack and historical re-export; integrity errors must still be refused.
+**Commit:** `P24.38: document missing export files and show nested folders`
+**Batch:** owner-directed missing-file behavior and folder-tree presentation; verification pending
+
+Essential source coverage reuses the local publication fixture to prepare/freeze/
+archive a missing-file case without consent, inspect its README and reject the
+same exception for integrity/legacy publication issues; <100 ms expected. Extend
+the existing personal-export fixture for a stale recovered gap. One pure tree
+case protects all-path preservation/nesting/counts; <5 ms expected. No network,
+timing assumptions or test execution; Rust source compiled and frontend source
+type checked. Final check/staged-agent outcomes are in phase24-acceptance.md.

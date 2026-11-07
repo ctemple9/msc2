@@ -3,6 +3,8 @@
   import Sheet from '../../components/base/Sheet.svelte';
   import Button from '../../components/base/Button.svelte';
   import Select from '../../components/base/Select.svelte';
+  import ExportFileTree from './ExportFileTree.svelte';
+  import { exportFileTree } from './export-file-tree';
   import {
     bytesLabel,
     errorMessage,
@@ -44,6 +46,7 @@
     redistributionEvidence?: string | null;
   }
   interface Review {
+    exportable?: boolean;
     reviewId: string;
     collectionRevision: number;
     versionName?: string;
@@ -56,6 +59,7 @@
     guideStatus: string;
   }
   interface Summary {
+    exportable?: boolean;
     publicationId: string;
     available: boolean;
     publicationRevision: number;
@@ -73,6 +77,7 @@
     comparisonError?: string;
   }
   interface Publication {
+    exportable?: boolean;
     id: string;
     contentFingerprint?: string;
     createdAt: string;
@@ -128,6 +133,13 @@
   const current = () => !disposed && connection.isCurrent?.() !== false;
   function changed(): void {
     dirty = true;
+  }
+  function canExport(value: {
+    exportable?: boolean;
+    complete?: boolean;
+    issues?: Issue[];
+  }): boolean {
+    return value.exportable ?? value.complete ?? value.issues?.length === 0;
   }
   async function historyPage(offset = 0): Promise<void> {
     const value = await connection.get<History>(`${root}/publications?offset=${offset}&limit=50`);
@@ -300,7 +312,7 @@
         review = value;
         dirty = false;
         preparationPercent = 100;
-        status = value.complete ? 'Export contents ready.' : 'Export could not be prepared.';
+        status = canExport(value) ? 'Export contents ready.' : 'Export could not be prepared.';
       }
     } catch (cause) {
       if (current()) {
@@ -353,7 +365,7 @@
     }
   }
   async function publish(): Promise<void> {
-    if (!review || dirty || busy || !review.complete) return;
+    if (!review || dirty || busy || !canExport(review)) return;
     busy = true;
     error = '';
     try {
@@ -392,7 +404,7 @@
       !publication ||
       busy ||
       !publication.audiences.includes(audience) ||
-      publication.issues.length > 0
+      !canExport(publication)
     )
       return;
     busy = true;
@@ -507,7 +519,7 @@
     if (selectedId === 'new') {
       if (!datapacksReady) return;
       if (dirty) await prepare();
-      if (!review || error || !review.complete) return;
+      if (!review || error || !canExport(review)) return;
       await publish();
       if (!publication || error) return;
     }
@@ -586,28 +598,27 @@
       >{/if}
     {#if selectedId === 'new'}
       {#if review}
-        {#if review.complete}<p>
+        {#if canExport(review)}<p>
             {review.files.length} files · {bytesLabel(review.contentBytes)} · dated ZIP with installation
             instructions
           </p>{/if}
         {#if review.issues.length}
           <details>
-            <summary>Files that could not be exported ({review.issues.length})</summary>
-            {#each review.issues as item}<p class="issue">
+            <summary
+              >{canExport(review)
+                ? 'Missing files listed in the README'
+                : 'Files that could not be exported'} ({review.issues.length})</summary
+            >
+            {#each review.issues as item}<p class:issue={!canExport(review)}>
                 {item.path ?? item.audience}: {item.reason}
               </p>{/each}
           </details>
         {/if}
-        {#if review.exclusions.length}<details>
-            <summary>Excluded content ({review.exclusions.length})</summary
-            >{#each review.exclusions as item}<p>{item.path}: {item.reason}</p>{/each}
-          </details>{/if}
         <details>
-          <summary>Included files</summary>{#each review.files as item}<p>
-              {item.file.path}{item.file.optional ? ' · optional' : ''}{item.file.enabled
-                ? ''
-                : ' · disabled'}
-            </p>{/each}
+          <summary>Included files</summary>
+          <div class="file-tree">
+            <ExportFileTree nodes={exportFileTree(review.files.map((item) => item.file))} />
+          </div>
         </details>
       {/if}
     {/if}
@@ -621,7 +632,7 @@
           This older export uses its previously selected content; it may not contain the full
           original pack.
         </p>{/if}
-      {#each publication.issues as item}<p class="issue">
+      {#each publication.issues as item}<p class:issue={!canExport(publication)}>
           {item.path ?? item.audience}: {item.reason}
         </p>{/each}
     {/if}
@@ -675,9 +686,9 @@
         variant="primary"
         disabled={busy ||
           (!publication && !review) ||
-          (review !== undefined && !review.complete) ||
+          (review !== undefined && !canExport(review)) ||
           (publication !== undefined &&
-            (!publication.audiences.includes(audience) || publication.issues.length > 0))}
+            (!publication.audiences.includes(audience) || !canExport(publication)))}
         onclick={() => void saveExport()}>Export modpack</Button
       >
     </div>
@@ -699,7 +710,7 @@
             { value: 'new', label: 'Current modpack' },
             ...(history?.items ?? [])
               .filter(
-                (item) => item.available && item.complete && item.audiences.includes(audience),
+                (item) => item.available && canExport(item) && item.audiences.includes(audience),
               )
               .map((item) => ({
                 value: item.publicationId,
@@ -727,6 +738,10 @@
 </Sheet>
 
 <style>
+  .file-tree {
+    max-height: 340px;
+    overflow: auto;
+  }
   .content {
     display: grid;
     gap: 14px;

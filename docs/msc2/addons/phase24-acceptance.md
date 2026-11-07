@@ -436,3 +436,39 @@ Development agent/helper staging, including Intel BedrockSidecar, succeeded. The
 running agent must be updated for this backend correction. Physical ATM10 export
 in both modes, archive contents/owner changes/active-world datapacks and actual
 read-failure behavior remain owner verification items. No phase closure inferred.
+
+
+### P24.38 — Missing-file README and nested folder tree (2026-11-07)
+
+Owner permits known missing files to be documented in the exported README and
+requests hidden exclusions plus folder-based included-file browsing. Known local
+gaps now have an explicit internal missing-file marker; personal publication,
+ZIP and eligible nested .mrpack exports proceed without a consent switch when
+those are the only issues. Integrity/path/setup errors remain blocking. The ZIP
+README and .mrpack instruction copies list exact filenames/paths under Files to
+download, with placement instructions. No file is fetched or substituted.
+Completeness remains false for recorded gaps while additive exportable readiness
+can be true; review/get/history APIs disclose the distinction. Old frozen exports
+retain their prior archive behavior. A stale gap is ignored if exact retained
+bytes are already present.
+
+The excluded-content section is removed from the export sheet. Included files
+use a naturally sorted directory tree with nested subfolders, descendant counts,
+file sizes and optional/disabled state. Collapsed descendants are not mounted;
+the tree scrolls within a bounded area instead of stretching the sheet.
+
+Passed Rust fmt/focused agent Clippy, publication regression source compilation,
+API generation, frontend check (0 errors/10 existing CSS warnings) and production
+frontend build (existing CSS/chunk-size warnings). Essential source additions
+cover prepare/freeze/ZIP README for a missing file with no consent, hard integrity
+refusal, stale recovered-gap handling and pure tree path preservation/nesting.
+Controlled tiny local inputs, no network/timing assumptions; expected <100 ms
+Rust case and <5 ms tree case. Compiled/type checked only, not run. Development
+agent/helper staging including Intel BedrockSidecar succeeded. No tests, live
+exports/mutations, service restarts or releases performed. Native desktop Rust
+unchanged; physical export and folder-tree verification remain owner items.
+
+Built/staged development agent SHA256:
+`9366d2274d16bfd755fd163ba4af8d36bdc8a44c3598ab6ed1616c82d2273866`.
+Update the running agent for the missing-file readiness change, then reopen the
+sheet. No phase acceptance inferred.

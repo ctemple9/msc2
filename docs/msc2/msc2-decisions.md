@@ -1507,6 +1507,15 @@ file boundaries and exact-byte checks remain. Format and save destination remain
 as previously approved; remove the extraneous content/configuration settings.
 Legacy publication APIs retain their prior behavior and frozen snapshots.
 
+**Missing-file README and folder presentation amendment, owner-approved
+2026-11-07.** If an expected file is not stored locally, export the available
+content and list its exact filename/path in the README so the recipient knows
+what to download. This supersedes P24.37's blocking rule for known missing files
+only. No confirmation or partial-pack setting is added; no provider download is
+performed. Integrity, private-path and unresolved setup errors still block.
+Hide the excluded-content list in the export sheet. Present included files as
+collapsible folders with nested subfolders rather than one flat list.
+
 **Boundaries.** Existing no-hosted-backend and no-browser-management decisions
 remain. This does not authorize tests or release changes.
 [Phase 24 scope](addons/phase24-scope.md) separates the approved behavior from

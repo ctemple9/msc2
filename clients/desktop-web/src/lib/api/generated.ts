@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: ce2f303e01b945ecf00bd8822d4969a1ebc2b46cb745878fea05a20752482206
+// Contract SHA-256: a9953910ae42c11e609bedd587d75a12b5c78c16d363552e04b9e91d86b786db
 
 export interface paths {
   '/v1/active-server': {
@@ -9239,6 +9239,8 @@ export interface components {
       contentFingerprint: string;
       createdAt: string;
       exclusions: components['schemas']['PublicationIssueDTO'][];
+      /** @description Ready to export; personal exports may document known missing local files in the README without a consent prompt. Integrity/setup errors still block. */
+      exportable?: boolean;
       guideAssets: {
         [key: string]: components['schemas']['PublicationGuideFileDTO'];
       };
@@ -10397,6 +10399,8 @@ export interface components {
       /** Format: int64 */
       contentBytes: number;
       exclusions: components['schemas']['PublicationIssueDTO'][];
+      /** @description Ready to export; personal exports may document known missing local files in the README without a consent prompt. Integrity/setup errors still block. */
+      exportable?: boolean;
       files: components['schemas']['PublicationReviewedFileDTO'][];
       guideStatus: string;
       guideVersion: string;
@@ -10419,6 +10423,8 @@ export interface components {
       contentBytes?: number;
       createdAt?: string;
       error?: string;
+      /** @description Ready to export; personal exports may document known missing local files in the README without a consent prompt. Integrity/setup errors still block. */
+      exportable?: boolean;
       guideVersion?: string;
       issues?: components['schemas']['PublicationIssueDTO'][];
       playerFileCount?: number;

@@ -10949,6 +10949,7 @@
       "PublicationReviewResultDTO": {
         "type": "object",
         "properties": {
+          "exportable": {"type": "boolean", "description": "Ready to export; personal exports may document known missing local files in the README without a consent prompt. Integrity/setup errors still block."},
           "candidates": {"type": "array", "items": {"type": "object", "properties": {"audience": {"type": "string"}, "path": {"type": "string"}, "sha512": {"type": "string"}, "byteSize": {"type": "integer", "format": "int64"}, "optional": {"type": "boolean"}, "configuration": {"type": "boolean"}, "restricted": {"type": "boolean"}, "redistributionEvidence": {"type": "string", "nullable": true}}}},
           "reviewId": {
             "type": "string"
@@ -11044,6 +11045,7 @@
       "ContentPublicationDTO": {
         "type": "object",
         "properties": {
+          "exportable": {"type": "boolean", "description": "Ready to export; personal exports may document known missing local files in the README without a consent prompt. Integrity/setup errors still block."},
           "archiveLayoutVersion": {
             "type": "string"
           },
@@ -11183,6 +11185,7 @@
       "PublicationSummaryDTO": {
         "type": "object",
         "properties": {
+          "exportable": {"type": "boolean", "description": "Ready to export; personal exports may document known missing local files in the README without a consent prompt. Integrity/setup errors still block."},
           "publicationId": {
             "type": "string"
           },

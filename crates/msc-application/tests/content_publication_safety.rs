@@ -356,6 +356,10 @@ fn personal_pack_export_uses_local_bytes_without_publication_approvals() {
     entry
         .extra
         .insert("providerDistributionAllowed".into(), false.into());
+    server.content_collection.as_mut().unwrap().extra.insert(
+        "retainedPackUnresolved".into(),
+        serde_json::json!({"config/example.toml": "stale recovery warning"}),
+    );
     let request = review::Request {
         pack_export: true,
         audiences: vec!["players".into()],
@@ -372,4 +376,98 @@ fn personal_pack_export_uses_local_bytes_without_publication_approvals() {
     assert_eq!(result.files.len(), 1);
     assert_eq!(result.files[0].file.path, "config/example.toml");
     assert!(review::load(&server, &result.id, "owner").is_ok());
+}
+
+// Essential: the owner's missing-file exception must produce an archive whose
+// README names the absent file, without bypassing integrity/setup failures.
+// Tiny existing fixture, no network/timing assumptions; expected <100 ms.
+#[test]
+fn personal_export_documents_missing_files_without_extra_consent() {
+    use std::io::Read;
+    let (fixture, mut server, _) = fixture();
+    server.content_collection.as_mut().unwrap().extra.insert(
+        "retainedPackUnresolved".into(),
+        serde_json::json!({"mods/absent-client.jar": "Exact client file needs recovery"}),
+    );
+    let reviewed = review::prepare(
+        &server,
+        "owner",
+        review::Request {
+            pack_export: true,
+            audiences: vec!["players".into()],
+            collection_revision: 5,
+            version_name: None,
+            player_setup: None,
+            approvals: vec![],
+            excluded: vec![],
+            server_paths: vec![],
+            datapacks: vec![],
+        },
+        &|| false,
+    )
+    .unwrap();
+    assert_eq!(reviewed.issues.len(), 1);
+    assert!(publications::is_missing_local_file(&reviewed.issues[0]));
+    let missing = publications::missing_local_file("players", "mods/absent-client.jar");
+    assert!(!publications::exportable(
+        false,
+        std::slice::from_ref(&missing)
+    ));
+    assert!(!publications::exportable(
+        true,
+        &[publications::PublicationIssue {
+            audience: "players".into(),
+            path: Some("mods/broken.jar".into()),
+            required: true,
+            reason: "File checksum changed".into(),
+        }]
+    ));
+    let mut saved = None;
+    let publication = publications::freeze(
+        &server,
+        5,
+        None,
+        vec!["players".into()],
+        Some(msc_application::content_environment::PlayerSetup {
+            loader: "fabric".into(),
+            loader_version: Some("0.16.0".into()),
+        }),
+        msc_application::content_guides::VERSION,
+        &reviewed.files,
+        reviewed.issues,
+        vec![],
+        reviewed.content_fingerprint,
+        vec![],
+        vec![],
+        false,
+        &|| false,
+        &mut |collection| {
+            saved = Some(collection);
+            Ok(())
+        },
+    )
+    .unwrap();
+    server.content_collection = saved;
+    let output = fixture.0.join("export.zip");
+    msc_application::content_archives::build(
+        &server,
+        &publication.id,
+        "players",
+        false,
+        &output,
+        &|| false,
+        &mut |_, _| {},
+    )
+    .unwrap();
+    let mut archive = zip::ZipArchive::new(std::fs::File::open(output).unwrap()).unwrap();
+    let mut readme = String::new();
+    archive
+        .by_name("README.txt")
+        .unwrap()
+        .read_to_string(&mut readme)
+        .unwrap();
+    assert!(readme.contains("FILES TO DOWNLOAD"));
+    assert!(readme.contains("mods/absent-client.jar"));
+    assert!(archive.by_name("config/example.toml").is_ok());
+    assert!(archive.by_name("mods/absent-client.jar").is_err());
 }

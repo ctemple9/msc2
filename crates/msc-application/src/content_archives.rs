@@ -162,7 +162,11 @@ pub fn build_with_options(
         &publication.server_files
     };
     let issues = crate::content_environment::issues(&publication, audience);
-    if !issues.is_empty() && !allow_incomplete {
+    let exportable = publications::exportable(
+        publication.content_fingerprint.starts_with("pack-v1:"),
+        &issues,
+    );
+    if !exportable && !allow_incomplete {
         return Err("Explicit incomplete-export consent is required for this audience".into());
     }
     let mrpack = crate::content_mrpack::eligibility(&publication, audience);
@@ -237,10 +241,23 @@ pub fn build_with_options(
         publication.publication_revision,
         if issues.is_empty() {
             "complete selected content"
+        } else if exportable {
+            "Missing files are listed in the README; add them before playing"
         } else {
             "INCOMPLETE — read missing-content reasons before joining"
         }
     );
+    if !issues.is_empty() && exportable {
+        text.push_str("\nFILES TO DOWNLOAD\nThese files were not included because they are not stored locally. Download each exact filename for the Minecraft and loader versions above, then place it at its listed path in the launcher instance (or server folder for a server export) before playing. MSC has not downloaded or substituted these files.\n");
+        for issue in issues
+            .iter()
+            .filter(|issue| publications::is_missing_local_file(issue))
+        {
+            if let Some(path) = &issue.path {
+                text.push_str(&format!("- {path}\n"));
+            }
+        }
+    }
     if let Some(name) = &mrpack_file_name {
         text.push_str(&format!(
             "\nMRPACK IMPORT\n{name} contains the same frozen {audience} content. {}\n{}\n",

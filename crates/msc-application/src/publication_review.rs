@@ -383,6 +383,22 @@ pub fn prepare_with_progress(
         .and_then(serde_json::Value::as_object)
     {
         for (path, reason) in missing.iter().filter(|_| audiences.contains("players")) {
+            if request.pack_export {
+                // A retained gap record may predate local recovery. Trust exact
+                // bytes on disk rather than repeating a stale download warning.
+                if snapshot
+                    .collection
+                    .player_files
+                    .get(path)
+                    .is_some_and(|entry| management::player_source(server, entry).is_ok())
+                {
+                    continue;
+                }
+                issues.push(crate::content_publications::missing_local_file(
+                    "players", path,
+                ));
+                continue;
+            }
             issues.push(issue(
                 "players",
                 Some(path),
@@ -593,6 +609,12 @@ pub fn prepare_with_progress(
                     continue;
                 }
             };
+            if request.pack_export && !source.try_exists().map_err(|error| error.to_string())? {
+                issues.push(crate::content_publications::missing_local_file(
+                    audience, path,
+                ));
+                continue;
+            }
             let actual = match identify(&source) {
                 Ok(identity) => identity,
                 Err(error) => {

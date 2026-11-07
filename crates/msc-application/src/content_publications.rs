@@ -30,6 +30,28 @@ pub struct PublicationIssue {
     pub required: bool,
     pub reason: String,
 }
+const MISSING_LOCAL_PREFIX: &str = "Missing local file: ";
+pub fn missing_local_file(audience: &str, path: &str) -> PublicationIssue {
+    PublicationIssue {
+        audience: audience.into(),
+        path: Some(path.into()),
+        required: true,
+        reason: format!(
+            "{MISSING_LOCAL_PREFIX}not included in this archive; download the exact filename and add it at this path before playing"
+        ),
+    }
+}
+pub fn is_missing_local_file(issue: &PublicationIssue) -> bool {
+    issue.reason.starts_with(MISSING_LOCAL_PREFIX)
+        && issue
+            .path
+            .as_deref()
+            .is_some_and(|path| crate::content_management::content_path(path).is_ok())
+}
+pub fn exportable(personal: bool, issues: &[PublicationIssue]) -> bool {
+    issues.is_empty() || (personal && issues.iter().all(is_missing_local_file))
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GuideFile {
@@ -216,7 +238,7 @@ pub fn freeze(
             reason: "Exact player loader/version needs review".into(),
         });
     }
-    if !issues.is_empty() && !incomplete_consent {
+    if !exportable(content_fingerprint.starts_with("pack-v1:"), &issues) && !incomplete_consent {
         return Err(
             "Unresolved selected content needs explicit incomplete-publication consent".into(),
         );

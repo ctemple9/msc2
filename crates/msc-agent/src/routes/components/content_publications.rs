@@ -17,15 +17,16 @@ fn server(
 }
 fn public_review(review: service::Review) -> serde_json::Value {
     let content_bytes: u64 = review.files.iter().map(|file| file.file.byte_size).sum();
+    let exportable = snapshots::exportable(review.request.pack_export, &review.issues);
     let files: Vec<_> = review
         .files
         .into_iter()
         .map(|file| serde_json::json!({"audience":file.audience,"file":file.file}))
         .collect();
-    serde_json::json!({"reviewId":review.id,"serverId":review.server_id,"collectionRevision":review.request.collection_revision,"versionName":review.request.version_name,"audiences":review.request.audiences,"files":files,"candidates":review.candidates,"contentBytes":content_bytes,"complete":review.issues.is_empty(),"issues":review.issues,"exclusions":review.exclusions,"playerSetup":review.player_setup,"guideVersion":msc_application::content_guides::VERSION,"guideStatus":"textFallback"})
+    serde_json::json!({"reviewId":review.id,"serverId":review.server_id,"collectionRevision":review.request.collection_revision,"versionName":review.request.version_name,"audiences":review.request.audiences,"files":files,"candidates":review.candidates,"contentBytes":content_bytes,"complete":review.issues.is_empty(),"exportable":exportable,"issues":review.issues,"exclusions":review.exclusions,"playerSetup":review.player_setup,"guideVersion":msc_application::content_guides::VERSION,"guideStatus":"textFallback"})
 }
 fn summary(publication: &snapshots::Publication) -> serde_json::Value {
-    serde_json::json!({"publicationId":publication.id,"available":true,"publicationRevision":publication.publication_revision,"collectionRevision":publication.collection_revision,"createdAt":publication.created_at,"versionName":publication.version_name,"audiences":publication.audiences,"complete":publication.issues.is_empty(),"issues":publication.issues,"playerFileCount":publication.player_files.len(),"serverFileCount":publication.server_files.len(),"contentBytes":publication.player_files.values().chain(publication.server_files.values()).map(|file|file.byte_size).sum::<u64>(),"guideVersion":publication.guide_version})
+    serde_json::json!({"publicationId":publication.id,"available":true,"publicationRevision":publication.publication_revision,"collectionRevision":publication.collection_revision,"createdAt":publication.created_at,"versionName":publication.version_name,"audiences":publication.audiences,"complete":publication.issues.is_empty(),"exportable":snapshots::exportable(publication.content_fingerprint.starts_with("pack-v1:"), &publication.issues),"issues":publication.issues,"playerFileCount":publication.player_files.len(),"serverFileCount":publication.server_files.len(),"contentBytes":publication.player_files.values().chain(publication.server_files.values()).map(|file|file.byte_size).sum::<u64>(),"guideVersion":publication.guide_version})
 }
 pub(super) async fn review(
     State(state): State<ComponentsRoutesState>,
@@ -343,7 +344,15 @@ pub(super) async fn get(
     })
     .await;
     match result {
-        Ok(Ok(publication)) => Json(publication).into_response(),
+        Ok(Ok(publication)) => {
+            let exportable = snapshots::exportable(
+                publication.content_fingerprint.starts_with("pack-v1:"),
+                &publication.issues,
+            );
+            let mut value = serde_json::to_value(publication).expect("publication serialization");
+            value["exportable"] = serde_json::json!(exportable);
+            Json(value).into_response()
+        }
         Ok(Err(error)) => error_response(StatusCode::CONFLICT, "publication_unavailable", &error),
         Err(_) => error_response(
             StatusCode::INTERNAL_SERVER_ERROR,

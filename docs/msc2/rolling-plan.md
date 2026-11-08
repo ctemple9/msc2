@@ -534,3 +534,16 @@ the existing personal-export fixture for a stale recovered gap. One pure tree
 case protects all-path preservation/nesting/counts; <5 ms expected. No network,
 timing assumptions or test execution; Rust source compiled and frontend source
 type checked. Final check/staged-agent outcomes are in phase24-acceptance.md.
+
+### P24.39 — Investigate slow snapshot and archive stages
+
+**Status:** investigation recorded — owner review pending
+**Files:** addons/export-performance-investigation.md; rolling-plan.md
+**What:** Read-only investigation of the owner's already-running export. Record snapshot/archive timestamp spans, file/config sizes, running development-binary identity and a short process sample. Trace repeated full-config clones in chunk cancellation checks, overlapping verification/per-file fsync, duplicate payload compression and discarded progress. Separate measured facts from unquantified contributors; recommend a bounded correction order without changing production code or the live export.
+**Verify:** `cat docs/msc2/addons/export-performance-investigation.md`
+**Commit:** `P24.39: record export performance investigation`
+**Batch:** owner-requested investigation only; implementation not performed in this step
+
+No tests, benchmarks, builds, releases, new live exports, restarts or cancellation.
+Read-only metadata/process inspection only. No timing claim is made for any
+proposed optimization; phase acceptance remains pending.

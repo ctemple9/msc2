@@ -131,7 +131,7 @@ commits per turn. Rolling-plan statuses and Git history remain the step record.
 | Field | Current value |
 |---|---|
 | Run state | Implementation complete by owner direction, 2026-11-07; guides deferred; independent review pending |
-| Current step | P24.42 — owner implementation closure and guide deferral |
+| Current step | None active; P24.1–43 archived, P24.20 deferred |
 | Next action | No further Phase 24 implementation requested. Independent gate review remains separate; resume deferred guides only when requested. Physical evidence remains recorded honestly. |
 | Last implementation commit | P24.38: document missing export files and show nested folders |
 | Pending UI review | Deferred to final handoff: conditional manual-download exception and all subsequent new surfaces. Prior discovery/project-detail approvals remain recorded; no ordinary installation confirmation sheet exists. |
@@ -189,3 +189,12 @@ P24.41 implements the owner-requested export performance correction following P2
 ## Owner implementation closure
 
 Owner closure amendment — 2026-11-07: Cameron requested marking Phase 24 done and deferring guide work ("i dont feel like doing the guides right now. can we mark this phase doen"). Implementation is owner-closed through P24.41. P24.20 illustrated screenshots, exact launcher-build verification and rendered-guide review are deferred follow-up work, not completed evidence. Existing offline instructions remain bundled. Unrecorded physical scenarios remain unverified; the other agent's independent gate review remains pending. This records owner acceptance of ending implementation, not an implementer self-review, blanket test pass or release approval.
+
+## Owner step completion and archive — 2026-11-07
+
+Cameron explicitly requested marking the steps done and moving them to the
+archive. Implemented P24 steps are DONE by owner direction; P24.20 illustrated
+guides remain DEFERRED. Full step records, verification commands and historical
+evidence are preserved in the [rolling plan archive](../rolling-plan-archive.md#phase-24--modpack-management-and-content-exports).
+This does not manufacture missing physical/test evidence or an independent gate
+review. No next-phase work started.

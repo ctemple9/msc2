@@ -409,7 +409,7 @@ assert release packaging or row-by-row parity in the client-capability matrix.
 
 **State:** implementation complete by owner direction, 2026-11-07, through P24.41. Illustrated launcher guides are deferred follow-up work. Independent gate review remains pending; unrecorded physical evidence stays unverified. See [acceptance](addons/phase24-acceptance.md) and [execution ledger](addons/phase24-execution.md).
 **Scope:** [Phase 24 contract](addons/phase24-scope.md).
-**Steps:** P24.1–P24.42 in [rolling plan](rolling-plan.md).
+**Steps:** P24.1–P24.43 in the [rolling plan archive](rolling-plan-archive.md#phase-24--modpack-management-and-content-exports); implemented steps marked DONE at Cameron’s request, P24.20 deferred.
 
 Owner closure amendment — 2026-11-07: Cameron requested marking Phase 24 done and deferring guide work ("i dont feel like doing the guides right now. can we mark this phase doen"). Implementation is owner-closed through P24.41. P24.20 illustrated screenshots, exact launcher-build verification and rendered-guide review are deferred follow-up work, not completed evidence. Existing offline instructions remain bundled. Unrecorded physical scenarios remain unverified; the other agent's independent gate review remains pending. This records owner acceptance of ending implementation, not an implementer self-review, blanket test pass or release approval.
 

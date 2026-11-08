@@ -499,3 +499,12 @@ agent; target/debug/msc and the staged Resources/agent/msc both have SHA256
 `f72f1027f47d080c847a84041da711cea3205fd4af319e7bc23c77be50e8c597`.
 The running agent was not restarted; the owner must update/relaunch it before
 comparing export times. Release profiles and workflows were not changed.
+
+## Owner step completion and archive — 2026-11-07
+
+Cameron explicitly requested marking the steps done and moving them to the
+archive. Implemented P24 steps are DONE by owner direction; P24.20 illustrated
+guides remain DEFERRED. Full step records, verification commands and historical
+evidence are preserved in the [rolling plan archive](../rolling-plan-archive.md#phase-24--modpack-management-and-content-exports).
+This does not manufacture missing physical/test evidence or an independent gate
+review. No next-phase work started.

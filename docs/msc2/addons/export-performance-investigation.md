@@ -103,3 +103,29 @@ Raw diagnostic sample remains outside the repository at
    on this pack. No speed estimate or improvement claim is justified yet.
 
 The export path is local; no CurseForge/Modrinth acquisition is called here.
+
+## Follow-up — Desktop zero-byte save (P24.40)
+
+Read-only investigation of the owner's save at 01:18–01:20 UTC November 8.
+The source ZIP was already complete at 546,473,206 bytes. The Desktop private
+.msc-transfer partial file was still zero bytes 96 seconds after creation.
+A two-second sample of the active agent directly captured
+components::download_staged_bytes at components.rs:1623 inside SHA256 software
+compression (703 samples in that path). The handler hashes the entire staged
+file before sending HTTP headers/body, then seeks back and streams it. The native
+client creates its private partial file before waiting for that response.
+This explains both the zero-byte file and the 0 B saved display during hashing.
+
+By the next observation the save had finished. The Desktop file
+msc-ATM10-Lite-2026-11-08-r1-players.zip was 546,473,206 bytes, with last-write time
+01:20:22 UTC. Its ZIP directory was readable: 1,575 entries, README.txt, the
+nested .mrpack and expected content folders. README.txt names the missing
+moreoverlays JAR. This inspected directory metadata/README, not a full ZIP CRC
+or test-suite run. No file was changed, cancelled, copied or repaired manually.
+
+Further correction should calculate and retain a verified archive digest during
+creation, bind it to the immutable staged download, and avoid an opaque full-file
+pre-transfer pass where safe. Preserve receiver-side verification and ownership/
+revocation checks. If pre-transfer verification remains necessary, expose it as
+a separate stage instead of displaying 0 B saved without explanation. The sample
+is /tmp/msc-export-download-profile.txt; no production implementation changed.

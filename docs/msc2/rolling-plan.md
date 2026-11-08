@@ -547,3 +547,15 @@ type checked. Final check/staged-agent outcomes are in phase24-acceptance.md.
 No tests, benchmarks, builds, releases, new live exports, restarts or cancellation.
 Read-only metadata/process inspection only. No timing claim is made for any
 proposed optimization; phase acceptance remains pending.
+
+### P24.40 — Check the zero-byte Desktop save
+
+**Status:** investigation recorded — owner review pending
+**Files:** addons/export-performance-investigation.md; rolling-plan.md
+**What:** Inspect the existing zero-byte Desktop partial and completed staged ZIP. Sample the active download handler and identify its whole-file SHA256 pass before any response bytes are sent. Observe the final Desktop ZIP reaching 546,473,206 bytes, inspect its directory/README/.mrpack presence and record the result. No production code or live transfer was changed.
+**Verify:** `cat docs/msc2/addons/export-performance-investigation.md`
+**Commit:** `P24.40: record zero byte save diagnosis and completed download`
+**Batch:** owner-requested check only; save completion observed, optimization not implemented
+
+No tests, benchmarks, builds, releases, restarts, new exports or cancellation.
+Read-only process sampling and inspection of the owner's existing output only.

@@ -42,6 +42,16 @@ pub(crate) fn copy_exact(
     limit: u64,
     cancelled: &dyn Fn() -> bool,
 ) -> Result<RetainedFile, String> {
+    copy_exact_with_progress(source, destination, limit, cancelled, &mut |_| {})
+}
+
+pub(crate) fn copy_exact_with_progress(
+    source: &Path,
+    destination: &Path,
+    limit: u64,
+    cancelled: &dyn Fn() -> bool,
+    progress: &mut dyn FnMut(u64),
+) -> Result<RetainedFile, String> {
     let metadata = std::fs::symlink_metadata(source).map_err(|error| error.to_string())?;
     if !metadata.is_file() || metadata.len() > limit {
         return Err("Pack source is not a bounded regular file".into());
@@ -84,6 +94,7 @@ pub(crate) fn copy_exact(
             output
                 .write_all(&buffer[..count])
                 .map_err(|error| error.to_string())?;
+            progress(count as u64);
         }
         if total != metadata.len() {
             return Err("Pack source changed during retention".into());

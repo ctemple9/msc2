@@ -105,12 +105,7 @@ pub(super) async fn export(
                     || current == total
                     || current.saturating_sub(last) >= 8 * 1024 * 1024
                 {
-                    let _ = operations.progress(
-                        &operation,
-                        current,
-                        total,
-                        "Writing frozen content ZIP",
-                    );
+                    let _ = operations.progress(&operation, current, total, "Creating ZIP");
                     last = current;
                 }
             },
@@ -166,6 +161,7 @@ pub(super) async fn export(
                 state.staging.downloads.lock().unwrap().insert(
                     id.clone(),
                     StagedDownload {
+                        archive_identity: Some((archive.byte_size, archive.sha256.clone())),
                         required_permission: Some(PermissionCategoryDto::Addons),
                         owner: credential.credential_id,
                         expires_at_unix: expiry,
@@ -297,24 +293,5 @@ fn publication_bound(
 ) -> bool {
     state
         .lifecycle
-        .app_config_servers()
-        .into_iter()
-        .find(|current| current.id == server.id)
-        .is_some_and(|current| {
-            let old = server.content_collection.as_ref();
-            let fresh = current.content_collection.as_ref();
-            current.server_dir == server.server_dir
-                && fresh.is_some_and(|collection| {
-                    collection
-                        .publication_ids
-                        .iter()
-                        .any(|id| id == publication_id)
-                })
-                && old
-                    .and_then(|collection| collection.extra.get("publicationManifestHashes"))
-                    .and_then(|hashes| hashes.get(publication_id))
-                    == fresh
-                        .and_then(|collection| collection.extra.get("publicationManifestHashes"))
-                        .and_then(|hashes| hashes.get(publication_id))
-        })
+        .publication_binding_matches(server, publication_id)
 }

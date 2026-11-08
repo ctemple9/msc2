@@ -210,6 +210,44 @@ pub fn freeze(
     player_setup: Option<crate::content_environment::PlayerSetup>,
     guide_version: &str,
     prepared: &[PreparedPublicationFile],
+    issues: Vec<PublicationIssue>,
+    exclusions: Vec<PublicationIssue>,
+    content_fingerprint: String,
+    reviewed_server_paths: Vec<String>,
+    reviewed_datapacks: Vec<crate::publication_datapacks::Selection>,
+    incomplete_consent: bool,
+    cancelled: &dyn Fn() -> bool,
+    persist: &mut dyn FnMut(ContentCollection) -> Result<(), String>,
+) -> Result<Publication, String> {
+    freeze_with_progress(
+        server,
+        revision,
+        version_name,
+        audiences,
+        player_setup,
+        guide_version,
+        prepared,
+        issues,
+        exclusions,
+        content_fingerprint,
+        reviewed_server_paths,
+        reviewed_datapacks,
+        incomplete_consent,
+        cancelled,
+        persist,
+        &mut |_, _| {},
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn freeze_with_progress(
+    server: &ConfigServer,
+    revision: u64,
+    version_name: Option<String>,
+    audiences: Vec<String>,
+    player_setup: Option<crate::content_environment::PlayerSetup>,
+    guide_version: &str,
+    prepared: &[PreparedPublicationFile],
     mut issues: Vec<PublicationIssue>,
     exclusions: Vec<PublicationIssue>,
     content_fingerprint: String,
@@ -218,6 +256,7 @@ pub fn freeze(
     incomplete_consent: bool,
     cancelled: &dyn Fn() -> bool,
     persist: &mut dyn FnMut(ContentCollection) -> Result<(), String>,
+    progress: &mut dyn FnMut(u64, u64),
 ) -> Result<Publication, String> {
     if server
         .content_collection
@@ -381,6 +420,12 @@ pub fn freeze(
     }
     std::fs::create_dir(&root).map_err(|error| error.to_string())?;
     let mut copied = std::collections::BTreeSet::new();
+    let total_bytes = sizes
+        .values()
+        .try_fold(0u64, |sum, size| sum.checked_add(*size))
+        .ok_or("Publication size overflow")?;
+    let mut copied_bytes = 0u64;
+    progress(0, total_bytes);
     for prepared in prepared {
         if cancelled() {
             return Err("Publication cancelled; unfinished retained data remains protected".into());
@@ -388,30 +433,41 @@ pub fn freeze(
         msc_domain::content_collection::validate_relative_path(&prepared.source_relative)?;
         let source = checked_source(server, &prepared.source_relative)?;
         let expected = &prepared.file;
-        let actual = identify(&source)?;
-        if actual.sha512 != expected.sha512
-            || actual.sha1 != expected.sha1
-            || actual.byte_size != expected.byte_size
-        {
-            return Err(format!(
-                "Content changed during publication: {}",
-                expected.path
-            ));
-        }
         if copied.insert(expected.sha512.clone()) {
             let destination = blob(server, &id, &expected.sha512)?;
-            crate::pack_retention::copy_exact(
+            let streamed = crate::pack_retention::copy_exact_with_progress(
                 &source,
                 &destination,
                 expected.byte_size,
                 cancelled,
+                &mut |delta| {
+                    copied_bytes += delta;
+                    progress(copied_bytes, total_bytes);
+                },
             )?;
+            if streamed.sha512 != expected.sha512 || streamed.byte_size != expected.byte_size {
+                return Err(format!(
+                    "Content changed during publication: {}",
+                    expected.path
+                ));
+            }
             let copied = identify(&destination)?;
             if copied.sha512 != expected.sha512
                 || copied.sha1 != expected.sha1
                 || copied.byte_size != expected.byte_size
             {
                 return Err("Copied publication bytes changed".into());
+            }
+        } else {
+            let actual = identify(&source)?;
+            if actual.sha512 != expected.sha512
+                || actual.sha1 != expected.sha1
+                || actual.byte_size != expected.byte_size
+            {
+                return Err(format!(
+                    "Content changed during publication: {}",
+                    expected.path
+                ));
             }
         }
     }

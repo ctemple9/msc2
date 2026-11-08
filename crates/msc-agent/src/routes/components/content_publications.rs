@@ -201,7 +201,7 @@ pub(super) async fn publish(
     let operation = match operations.begin_lifecycle(
         "content-publish",
         Some(server_id.clone()),
-        "Freezing reviewed content publication",
+        "Preparing export files",
     ) {
         Ok(operation) => operation,
         Err(error) => return crate::routes::operations::operation_error_response(error),
@@ -228,8 +228,9 @@ pub(super) async fn publish(
             if cancelled() {
                 return Err("Publication cancelled or permission revoked".into());
             }
-            let review = service::load(&current, &body.review_id, &credential.credential_id)?;
-            snapshots::freeze(
+            let review = service::preview(&current, &body.review_id, &credential.credential_id)?;
+            let mut last_percent = None;
+            snapshots::freeze_with_progress(
                 &current,
                 review.request.collection_revision,
                 review.request.version_name.clone(),
@@ -250,6 +251,8 @@ pub(super) async fn publish(
                     if fresh != current || cancelled() {
                         return Err("Server or permission changed before publication commit".into());
                     }
+                    let _ =
+                        operations.progress(&operation, 95, 100, "Verifying saved export files");
                     service::load(&fresh, &body.review_id, &credential.credential_id)?;
                     state
                         .lifecycle
@@ -270,10 +273,19 @@ pub(super) async fn publish(
                         })
                         .map_err(|_| "Could not save publication registry".to_string())
                 },
+                &mut |done, total| {
+                    let percent = done.saturating_mul(90).checked_div(total).unwrap_or(90);
+                    if last_percent != Some(percent) {
+                        let _ =
+                            operations.progress(&operation, percent, 100, "Copying export files");
+                        last_percent = Some(percent);
+                    }
+                },
             )
         })();
         match result {
             Ok(publication) => {
+                let _ = operations.progress(&operation, 100, 100, "Export files ready");
                 let mut result = BTreeMap::new();
                 result.insert("publicationId".into(), publication.id);
                 let _ = operations.succeed(&operation, "Dated content publication frozen", result);

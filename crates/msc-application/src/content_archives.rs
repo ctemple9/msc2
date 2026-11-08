@@ -4,7 +4,7 @@ use crate::content_publications::{self as publications, PublishedFile};
 use msc_domain::app_config_schema::ConfigServer;
 use serde::{Deserialize, Serialize};
 use sha1::{Digest, Sha1};
-use sha2::Sha512;
+use sha2::{Sha256, Sha512};
 use std::{
     collections::BTreeMap,
     io::{Read, Write},
@@ -16,6 +16,7 @@ pub struct ArchiveResult {
     pub mrpack_file_name: Option<String>,
     pub file_name: String,
     pub byte_size: u64,
+    pub sha256: String,
     pub content_bytes: u64,
     pub file_count: usize,
     pub complete: bool,
@@ -24,6 +25,43 @@ pub(crate) fn options() -> zip::write::SimpleFileOptions {
     zip::write::SimpleFileOptions::default()
         .compression_method(zip::CompressionMethod::Deflated)
         .unix_permissions(0o644)
+}
+struct DigestWriter<W> {
+    inner: W,
+    hash: Sha256,
+}
+impl<W: Write> Write for DigestWriter<W> {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        let written = self.inner.write(bytes)?;
+        self.hash.update(&bytes[..written]);
+        Ok(written)
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        self.inner.flush()
+    }
+}
+fn file_options(path: &str) -> zip::write::SimpleFileOptions {
+    // Recompressing JARs, packs and images adds CPU work with little size benefit.
+    let extension = path.rsplit('.').next().unwrap_or("").to_ascii_lowercase();
+    if matches!(
+        extension.as_str(),
+        "jar"
+            | "zip"
+            | "mrpack"
+            | "png"
+            | "jpg"
+            | "jpeg"
+            | "webp"
+            | "ogg"
+            | "mp3"
+            | "gz"
+            | "xz"
+            | "zst"
+    ) {
+        options().compression_method(zip::CompressionMethod::Stored)
+    } else {
+        options().compression_level(Some(1))
+    }
 }
 fn escape(text: &str) -> String {
     text.replace('&', "&amp;")
@@ -66,7 +104,7 @@ pub(crate) fn copy_entry<W: Write + std::io::Seek>(
     cancelled: &dyn Fn() -> bool,
     progress: &mut dyn FnMut(u64),
 ) -> Result<(), String> {
-    zip.start_file(path, options())
+    zip.start_file(path, file_options(path))
         .map_err(|error| error.to_string())?;
     let mut input = std::fs::File::open(source).map_err(|error| error.to_string())?;
     let mut buffer = [0u8; 128 * 1024];
@@ -316,7 +354,13 @@ pub fn build_with_options(
     }
     let output = open.open(&temporary).map_err(|error| error.to_string())?;
     let result = (|| {
-        let mut zip = zip::ZipWriter::new(output);
+        let output = DigestWriter {
+            inner: std::io::BufWriter::new(output),
+            hash: Sha256::new(),
+        };
+        // Streaming headers never seek backwards, so the digest covers exactly
+        // the final ZIP bytes, including its directory and nested package.
+        let mut zip = zip::ZipWriter::new_stream(output);
         text_entry(&mut zip, "README.txt", text.as_bytes())?;
         text_entry(&mut zip, "README.html", html.as_bytes())?;
         text_entry(&mut zip, "manifest.json", &manifest)?;
@@ -365,9 +409,17 @@ pub fn build_with_options(
                 .map_err(|error| error.to_string())?;
             text_entry(&mut zip, &format!("instructions/{path}"), &bytes)?;
         }
-        let output = zip.finish().map_err(|error| error.to_string())?;
-        output.sync_all().map_err(|error| error.to_string())?;
-        drop(output);
+        let DigestWriter { mut inner, hash } = zip
+            .finish()
+            .map_err(|error| error.to_string())?
+            .into_inner();
+        inner.flush().map_err(|error| error.to_string())?;
+        inner
+            .get_ref()
+            .sync_all()
+            .map_err(|error| error.to_string())?;
+        let sha256 = format!("{:x}", hash.finalize());
+        drop(inner);
         if cancelled() {
             return Err("Content export cancelled before completion".into());
         }
@@ -407,6 +459,7 @@ pub fn build_with_options(
                 date, publication.publication_revision
             ),
             byte_size,
+            sha256,
             content_bytes,
             file_count: files.len(),
             complete: issues.is_empty(),

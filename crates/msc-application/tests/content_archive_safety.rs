@@ -196,7 +196,23 @@ fn nested_mrpack_pins_setup_and_preserves_player_scope() {
         &mut |_, _| {},
     )
     .unwrap();
+    // The cached transfer digest must cover the finished streaming ZIP, including its directory.
+    use sha2::Digest;
+    assert_eq!(
+        result.sha256,
+        format!(
+            "{:x}",
+            sha2::Sha256::digest(std::fs::read(&output).unwrap())
+        )
+    );
     let mut outer = zip::ZipArchive::new(std::fs::File::open(output).unwrap()).unwrap();
+    assert_eq!(
+        outer
+            .by_name(result.mrpack_file_name.as_deref().unwrap())
+            .unwrap()
+            .compression(),
+        zip::CompressionMethod::Stored
+    );
     let mut bytes = Vec::new();
     outer
         .by_name(result.mrpack_file_name.as_deref().unwrap())

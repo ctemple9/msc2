@@ -10,3 +10,14 @@ members = [
     "crates/msc-platform-windows",
     "crates/msc-platform-linux",
 ]
+
+# Keep development exports responsive in CPU-heavy hashing/compression without
+# optimizing the application itself or changing release behavior.
+[profile.dev.package.sha2]
+opt-level = 3
+[profile.dev.package.sha1]
+opt-level = 3
+[profile.dev.package.zlib-rs]
+opt-level = 3
+[profile.dev.package.flate2]
+opt-level = 3

@@ -1597,32 +1597,48 @@ pub async fn download_staged_bytes(
                 .as_ref()
                 .is_none_or(|Extension(auth)| auth.stream_retains_permissions(&identity))
     };
-    let mut hash = Sha256::new();
-    let mut buffer = vec![0; 256 * 1024];
-    loop {
-        if !permitted(&source) {
+    let digest = if let Some((expected_size, digest)) = entry.archive_identity {
+        if size != expected_size
+            || digest.len() != 64
+            || !digest.bytes().all(|byte| byte.is_ascii_hexdigit())
+        {
             return error_response(
                 StatusCode::CONFLICT,
-                "download_cancelled",
-                "Download cancelled or authorization changed.",
+                "download_changed",
+                "The staged archive changed after creation.",
             );
         }
-        let count = match source.file.read(&mut buffer).await {
-            Ok(n) => n,
-            Err(_) => {
+        // The receiver still hashes every byte and rejects any later mutation.
+        // This digest was computed while writing this owned immutable archive.
+        digest
+    } else {
+        let mut hash = Sha256::new();
+        let mut buffer = vec![0; 256 * 1024];
+        loop {
+            if !permitted(&source) {
                 return error_response(
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    "download_read",
-                    "Could not verify staged download.",
+                    StatusCode::CONFLICT,
+                    "download_cancelled",
+                    "Download cancelled or authorization changed.",
                 );
             }
-        };
-        if count == 0 {
-            break;
+            let count = match source.file.read(&mut buffer).await {
+                Ok(n) => n,
+                Err(_) => {
+                    return error_response(
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        "download_read",
+                        "Could not verify staged download.",
+                    );
+                }
+            };
+            if count == 0 {
+                break;
+            }
+            hash.update(&buffer[..count]);
         }
-        hash.update(&buffer[..count]);
-    }
-    let digest = format!("{:x}", hash.finalize());
+        format!("{:x}", hash.finalize())
+    };
     if source.file.seek(std::io::SeekFrom::Start(0)).await.is_err() {
         return error_response(
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -2099,6 +2115,7 @@ pub async fn get_client_export(
             state.staging.downloads.lock().unwrap().insert(
                 id.clone(),
                 StagedDownload {
+                    archive_identity: None,
                     required_permission: None,
                     owner: credential.credential_id.clone(),
                     expires_at_unix: now_unix() + STAGING_TTL_SECONDS,

@@ -129,3 +129,19 @@ pre-transfer pass where safe. Preserve receiver-side verification and ownership/
 revocation checks. If pre-transfer verification remains necessary, expose it as
 a separate stage instead of displaying 0 B saved without explanation. The sample
 is /tmp/msc-export-download-profile.txt; no production implementation changed.
+
+## P24.41 implementation candidate
+
+The correction removes full-config clones from archive chunk checks, removes one
+full pre-freeze review scan and the unique-source pre-copy hash pass, uses fast
+text compression and stores already compressed payloads. Source verification
+while copying, destination readback, per-file durability and final review
+validation remain. Development builds optimize sha1/sha2/flate2/zlib-rs only.
+A streaming ZIP writer hashes the complete archive as it writes; the owner-bound
+staged download reuses that digest, while the desktop still checks received
+bytes before committing the save. Other staged download types retain their
+original checksum path. Each active UI stage has its own percentage.
+
+No timing run or new live export was performed. The earlier observed timings
+are the baseline, not a claim for the new implementation. Optional .mrpack still
+contains a second copy of the payload to preserve the owner's chosen ZIP layout.

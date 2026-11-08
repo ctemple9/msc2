@@ -131,7 +131,7 @@ commits per turn. Rolling-plan statuses and Git history remain the step record.
 | Field | Current value |
 |---|---|
 | Run state | Final implementation candidate prepared; owner final review/physical acceptance and illustrated-guide prerequisites remain open |
-| Current step | P24.38 — missing-file README notes and nested export folders |
+| Current step | P24.41 — export performance correction; owner timing pending |
 | Next action | Owner final UI review and physical scenarios in phase24-acceptance.md; supply launcher screenshots/build evidence for P24.20 illustration integration. Do not close the phase or repeat builds without changed source/new evidence. |
 | Last implementation commit | P24.38: document missing export files and show nested folders |
 | Pending UI review | Deferred to final handoff: conditional manual-download exception and all subsequent new surfaces. Prior discovery/project-detail approvals remain recorded; no ordinary installation confirmation sheet exists. |
@@ -183,3 +183,5 @@ After approval, resume the phase with the next checkpoint as the finish line.
 Do not set an unlimited “finish the phase” goal that repeatedly wakes at review
 stops or treats them as approval. Final implementation handoff is not phase-gate
 acceptance: Cameron verifies and the other agent reviews when requested.
+
+P24.41 implements the owner-requested export performance correction following P24.39/40 investigation. No intermediate UI stop; owner timing and archive verification remain pending.

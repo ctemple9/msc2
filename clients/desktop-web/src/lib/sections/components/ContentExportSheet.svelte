@@ -115,7 +115,7 @@
   let snapshot: ContentSnapshot | undefined;
   let history: History | undefined;
   let historyOffset = 0;
-  let preparationPercent: number | undefined;
+  let progressPercent: number | undefined;
   let audience: 'players' | 'server' = 'players';
   let selectedId = 'new';
   let review: Review | undefined;
@@ -174,7 +174,7 @@
       settingsPending.delete(label);
       settingsCompleted += 1;
       if (current()) {
-        preparationPercent = Math.min(12, settingsCompleted * 4);
+        progressPercent = Math.min(12, settingsCompleted * 4);
         if (settingsPending.size) status = `Waiting for ${[...settingsPending].join(' and ')}…`;
       }
     }
@@ -184,7 +184,7 @@
     error = '';
     worldError = '';
     status = 'Loading export settings…';
-    preparationPercent = 0;
+    progressPercent = 0;
     settingsCompleted = 0;
     settingsPending.clear();
     snapshot = undefined;
@@ -264,7 +264,7 @@
       return;
     }
     busy = true;
-    preparationPercent = 15;
+    progressPercent = 15;
     status = 'Checking server content…';
     dirty = true;
     error = '';
@@ -290,13 +290,13 @@
           if (!current()) return;
           status = line;
           if (amount && amount.total > 0)
-            preparationPercent = Math.max(
-              preparationPercent ?? 0,
-              Math.min(100, 15 + Math.floor((amount.current * 85) / amount.total)),
+            progressPercent = Math.max(
+              progressPercent ?? 0,
+              Math.min(99, 15 + Math.floor((amount.current * 85) / amount.total)),
             );
         },
         (id) => {
-          preparationPercent = 15;
+          progressPercent = 15;
           trackOperation(id);
         },
         { serverId, isCurrent: current },
@@ -311,7 +311,7 @@
       if (current()) {
         review = value;
         dirty = false;
-        preparationPercent = 100;
+        progressPercent = 100;
         status = canExport(value) ? 'Export contents ready.' : 'Export could not be prepared.';
       }
     } catch (cause) {
@@ -350,6 +350,7 @@
     }
   }
   async function selectPublication(): Promise<void> {
+    progressPercent = undefined;
     publication = undefined;
     eligibility = undefined;
     includeMrpack = false;
@@ -368,13 +369,19 @@
     if (!review || dirty || busy || !canExport(review)) return;
     busy = true;
     error = '';
+    progressPercent = 0;
+    status = 'Preparing export files…';
     try {
       const result = await contentOperation(
         connection,
         `${root}/publications`,
         { reviewId: review.reviewId, incompleteConsent: false },
-        (line) => {
-          if (current()) status = line;
+        (line, amount) => {
+          if (current()) {
+            status = line;
+            if (amount && amount.total > 0)
+              progressPercent = Math.min(99, Math.floor((amount.current * 100) / amount.total));
+          }
         },
         trackOperation,
       );
@@ -409,6 +416,8 @@
       return;
     busy = true;
     error = '';
+    progressPercent = 0;
+    status = 'Creating ZIP…';
     let stagedId: string | undefined;
     try {
       if (destination === 'host') {
@@ -442,8 +451,12 @@
               }
             : {}),
         },
-        (line) => {
-          if (current()) status = line;
+        (line, amount) => {
+          if (current()) {
+            status = line;
+            if (amount && amount.total > 0)
+              progressPercent = Math.min(99, Math.floor((amount.current * 100) / amount.total));
+          }
         },
         trackOperation,
       );
@@ -462,12 +475,19 @@
         throw new Error('Export remains on its original host; the save sheet was closed.');
       const size = Number(result.byteSize);
       if (!Number.isSafeInteger(size) || size < 0) throw new Error('Export size is invalid.');
+      progressPercent = 0;
+      status = 'Saving to this computer…';
       transferAbort = new AbortController();
       await connection.saveNativeDownload!(stagedId, result.fileName, size, {
         signal: transferAbort.signal,
         onProgress: (progress) => {
-          if (current())
+          if (current()) {
             status = `${bytesLabel(progress.bytesTransferred)} of ${bytesLabel(progress.totalBytes)} saved`;
+            progressPercent =
+              progress.totalBytes > 0
+                ? Math.min(99, Math.floor((progress.bytesTransferred * 100) / progress.totalBytes))
+                : 0;
+          }
         },
       });
       if (current()) status = 'Export saved on this computer.';
@@ -588,10 +608,10 @@
     {#if !error && (status || busy)}<p role="status">
         {busy ? status || 'Preparing export contents…' : status}
       </p>{/if}
-    {#if busy && selectedId === 'new' && preparationPercent !== undefined}
+    {#if busy && progressPercent !== undefined}
       <div class="preparation-progress">
-        <progress max="100" value={preparationPercent} aria-label="Export preparation"></progress>
-        <span>{preparationPercent}%</span>
+        <progress max="100" value={progressPercent} aria-label="Export progress"></progress>
+        <span>{progressPercent}%</span>
       </div>
     {/if}
     {#if busy && (operationId || transferAbort)}<Button onclick={() => void cancel()}>Cancel</Button

@@ -472,3 +472,28 @@ Built/staged development agent SHA256:
 `9366d2274d16bfd755fd163ba4af8d36bdc8a44c3598ab6ed1616c82d2273866`.
 Update the running agent for the missing-file readiness change, then reopen the
 sheet. No phase acceptance inferred.
+
+## P24.41 — Export performance correction candidate
+
+Owner requested implementation after the P24.39/40 measurements. No additional
+settings or provider downloads were added. The two content modes and optional
+nested .mrpack remain unchanged. Active stages now reset and display their own
+percentage; preparation/ZIP progress stays below 100 until the operation returns.
+
+Validation: focused archive/publication safety test targets compiled using
+`cargo check -p msc-application --test content_archive_safety --test content_publication_safety`;
+no tests executed. Frontend `npm run check` reports 0 errors and the existing
+10 unused-selector warnings; production frontend build passes with its existing
+chunk-size warning. Rust formatting and diff whitespace checks pass.
+
+Owner verification pending: use the updated agent, time the same ATM10 export
+with/without .mrpack, confirm prompt transfer bytes, readable ZIP and nested
+package, matching contents and cancellation. No new live export, restart,
+benchmark, release or physical UI acceptance was performed by the implementer.
+
+Final non-test checks: `cargo clippy -p msc-agent -- -D warnings` passes.
+`npm --prefix clients/desktop-web run prepare:agent` builds/stages the development
+agent; target/debug/msc and the staged Resources/agent/msc both have SHA256
+`f72f1027f47d080c847a84041da711cea3205fd4af319e7bc23c77be50e8c597`.
+The running agent was not restarted; the owner must update/relaunch it before
+comparing export times. Release profiles and workflows were not changed.

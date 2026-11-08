@@ -559,3 +559,18 @@ proposed optimization; phase acceptance remains pending.
 
 No tests, benchmarks, builds, releases, restarts, new exports or cancellation.
 Read-only process sampling and inspection of the owner's existing output only.
+
+### P24.41 — Accelerate local export preparation, ZIP writing and saving
+
+**Status:** implemented candidate — awaiting owner verification
+**Files:** application content_archives/content_publications/pack_retention; agent lifecycle, staged downloads and content routes; Cargo.toml; ContentExportSheet; archive safety source; Phase 24 records
+**What:** Replace per-chunk whole-configuration clones with a borrowed binding check; retain authorization and cancellation checks. Verify copied source bytes while copying instead of a redundant pre-copy hash pass; preserve destination readback, per-file sync and final review validation. Stream the finished ZIP through SHA256 once and retain that trusted digest with its owned staged download, avoiding the whole-archive hash before response headers. Native transfer still verifies every received byte before final save. Store already compressed payloads and use fast compression for text; optimize only hashing/compression dependencies in development builds. Show separate progress for preparation, copying, ZIP creation and saving; cap active stages below 100 until completion. Preserve both content modes and optional nested .mrpack layout.
+**Verify:** `npm --prefix clients/desktop-web run check`. With the updated staged agent, export the ATM10 pack to Desktop with and without .mrpack; observe stage progress, prompt first-byte transfer, successful save and readable archives. Compare elapsed times with P24.39/40; cancellation and source-change protection must remain effective.
+**Commit:** `P24.41: accelerate export snapshots archives and downloads`
+**Batch:** owner-directed performance correction; physical timing and acceptance pending
+
+Essential regression source extends the existing tiny nested ZIP case to compare
+its cached SHA256 against all finished file bytes and verify nested-package
+storage. This protects the trusted digest replacing the download pre-pass,
+including streaming ZIP headers/directory. No network or timing assumptions;
+expected added runtime <10 ms. Source compiled only; no tests executed.

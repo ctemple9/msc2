@@ -1896,6 +1896,44 @@ impl LifecycleRoutesState {
         self.inner.app_config.servers()
     }
 
+    /// Read only the binding fields while locked; archive chunks must not clone
+    /// the entire retained content collection merely to check cancellation.
+    pub(crate) fn publication_binding_matches(
+        &self,
+        server: &ConfigServer,
+        publication_id: &str,
+    ) -> bool {
+        let config = self.inner.app_config.config.lock().unwrap();
+        config
+            .servers
+            .iter()
+            .find(|current| current.id == server.id)
+            .is_some_and(|current| {
+                current.server_dir == server.server_dir
+                    && current
+                        .content_collection
+                        .as_ref()
+                        .is_some_and(|collection| {
+                            collection
+                                .publication_ids
+                                .iter()
+                                .any(|id| id == publication_id)
+                        })
+                    && server
+                        .content_collection
+                        .as_ref()
+                        .and_then(|collection| collection.extra.get("publicationManifestHashes"))
+                        .and_then(|hashes| hashes.get(publication_id))
+                        == current
+                            .content_collection
+                            .as_ref()
+                            .and_then(|collection| {
+                                collection.extra.get("publicationManifestHashes")
+                            })
+                            .and_then(|hashes| hashes.get(publication_id))
+            })
+    }
+
     /// The currently-active server's full `ConfigServer` record — what
     /// every P6.21 world/backup route needs (`server_dir`, `server_type`,
     /// the auto-backup fields) beyond the narrower

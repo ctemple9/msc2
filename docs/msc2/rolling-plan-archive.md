@@ -20474,3 +20474,15 @@ expected added runtime <10 ms. Source compiled only; no tests executed.
 **Verify:** `git show --stat --oneline HEAD`
 **Commit:** `P24.43: archive completed phase 24 steps`
 **Batch:** owner-directed archive cleanup only
+
+### P24.44 — Publish v0.1.44 with Intel Bedrock packaging assurance
+
+**Status:** release prepared — publication pending
+**Files:** release.yml; version manifests/locks and bundle identity; release/v0.1.44.md; rolling-plan-archive.md
+**What:** Owner explicitly requested pushing current code and publishing the next release, with Bedrock included for this Intel Mac. Preserve helper staging/signing, inspect all three Bedrock resources inside the finished Intel DMG, and carry forward the successful isolated Apple Silicon renderer compiler recovery. Bump all release identities to 0.1.44. Preserve nine packages, checksums and signed updates; no added test/lint gates.
+**Verify:** `gh release view v0.1.44 --json url,isPrerelease,assets`
+**Commit:** `P24.44: prepare v0.1.44 with intel bedrock resources`
+**Batch:** owner-authorized post-closure release follow-up; no feature-phase reopening
+
+Expected release cost: roughly 20–45 minutes, with Apple notarization/ticket
+availability external. Physical fresh-install acceptance remains owner work.

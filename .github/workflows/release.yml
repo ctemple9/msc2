@@ -189,6 +189,17 @@ jobs:
 
           echo "APPLE_API_KEY_PATH=$api_key_path" >> "$GITHUB_ENV"
 
+      # Carry forward the successful v0.1.43 recovery without reusing a
+      # potentially incomplete cached compiler directory on Apple Silicon.
+      - name: Install isolated renderer compiler on Apple Silicon
+        if: matrix.platform == 'macos-aarch64'
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          compiler_root="$RUNNER_TEMP/msc2-renderer-compiler"
+          python3 -m pip install --disable-pip-version-check --no-deps --only-binary=:all: --upgrade --target "$compiler_root" ziglang==0.16.0
+          echo "MSC2_ZIG_BIN=$compiler_root/ziglang/zig" >> "$GITHUB_ENV"
+
       - name: Stage the matching Tauri agent payload
         if: matrix.platform != 'windows-x86_64'
         working-directory: clients/desktop-web
@@ -276,6 +287,20 @@ jobs:
           hdiutil attach -readonly -nobrowse -mountpoint "$mount_dir" "$dmg" >/dev/null
           app_bundle="$(find "$mount_dir" -maxdepth 1 -type d -name '*.app' -print -quit)"
           test -n "$app_bundle" || { echo "Tauri disk image contains no app" >&2; exit 1; }
+          # Inspect the shipped image, not only the staging folder: a fresh
+          # Intel installation must contain all three Bedrock VM resources.
+          if [[ "${{ matrix.platform }}" == macos-x86_64 ]]; then
+            for resource in BedrockSidecar vmlinuz-kata appliance-initramfs.gz; do
+              packaged="$app_bundle/Contents/Resources/agent/sidecar/$resource"
+              test -s "$packaged" || { echo "Intel installer is missing Bedrock resource: $resource" >&2; exit 1; }
+              if [[ "$resource" != BedrockSidecar ]]; then
+                cmp "clients/desktop-web/src-tauri/target/package/agent/sidecar/$resource" "$packaged"
+              else
+                test -x "$packaged"
+              fi
+            done
+            /usr/bin/lipo "$app_bundle/Contents/Resources/agent/sidecar/BedrockSidecar" -verify_arch x86_64
+          fi
           codesign --verify --deep --strict --verbose=2 "$app_bundle"
           spctl --assess --type execute --verbose=4 "$app_bundle"
           stapler_attempt=1

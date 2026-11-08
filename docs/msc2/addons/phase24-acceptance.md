@@ -1,6 +1,8 @@
 # Phase 24 acceptance record
 
-Implementation authorization: Cameron, 2026-11-05. No feature acceptance yet.
+Implementation authorization: Cameron, 2026-11-05. Implementation closure: Cameron, 2026-11-07. Independent gate review pending.
+
+Owner closure amendment — 2026-11-07: Cameron requested marking Phase 24 done and deferring guide work ("i dont feel like doing the guides right now. can we mark this phase doen"). Implementation is owner-closed through P24.41. P24.20 illustrated screenshots, exact launcher-build verification and rendered-guide review are deferred follow-up work, not completed evidence. Existing offline instructions remain bundled. Unrecorded physical scenarios remain unverified; the other agent's independent gate review remains pending. This records owner acceptance of ending implementation, not an implementer self-review, blanket test pass or release approval.
 Contract: [integration specification](phase24-contract.md).
 
 | Scenario | Owner evidence | Result |
@@ -20,7 +22,7 @@ Contract: [integration specification](phase24-contract.md).
 | World-slot datapacks and private-file exclusions | pending | unverified |
 | CLI/TUI capabilities and old-agent behavior | pending | unverified |
 | Storage references, cleanup safety and large-pack resource behavior | pending | unverified |
-| Five launcher guides with supplied screenshots | pending screenshots | unverified |
+| Five launcher guides with supplied screenshots | owner deferred 2026-11-07 | deferred; text fallback retained |
 | macOS/Windows/Linux physical evidence | pending | unverified |
 
 P24.1: production source inventory and compatibility/review/export contracts

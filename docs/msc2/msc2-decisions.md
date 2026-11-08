@@ -1446,6 +1446,8 @@ Recorded because each produced a confident wrong answer, and each is the kind of
 **Status:** Approved product direction · **Origin:** owner discussion ·
 **Approved by:** Cameron Temple · **Date:** 2026-11-05.
 
+**Owner closure amendment, 2026-11-07.** Owner closure amendment — 2026-11-07: Cameron requested marking Phase 24 done and deferring guide work ("i dont feel like doing the guides right now. can we mark this phase doen"). Implementation is owner-closed through P24.41. P24.20 illustrated screenshots, exact launcher-build verification and rendered-guide review are deferred follow-up work, not completed evidence. Existing offline instructions remain bundled. Unrecorded physical scenarios remain unverified; the other agent's independent gate review remains pending. This records owner acceptance of ending implementation, not an implementer self-review, blanket test pass or release approval.
+
 **Decision.** Extend Modrinth/CurseForge browsing across existing content surfaces,
 including modpacks in the add-content creation step. Show incompatible packs;
 offer trying the selected setup or automatically matching the chosen pack's

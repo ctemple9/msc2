@@ -130,9 +130,9 @@ commits per turn. Rolling-plan statuses and Git history remain the step record.
 
 | Field | Current value |
 |---|---|
-| Run state | Final implementation candidate prepared; owner final review/physical acceptance and illustrated-guide prerequisites remain open |
-| Current step | P24.41 — export performance correction; owner timing pending |
-| Next action | Owner final UI review and physical scenarios in phase24-acceptance.md; supply launcher screenshots/build evidence for P24.20 illustration integration. Do not close the phase or repeat builds without changed source/new evidence. |
+| Run state | Implementation complete by owner direction, 2026-11-07; guides deferred; independent review pending |
+| Current step | P24.42 — owner implementation closure and guide deferral |
+| Next action | No further Phase 24 implementation requested. Independent gate review remains separate; resume deferred guides only when requested. Physical evidence remains recorded honestly. |
 | Last implementation commit | P24.38: document missing export files and show nested folders |
 | Pending UI review | Deferred to final handoff: conditional manual-download exception and all subsequent new surfaces. Prior discovery/project-detail approvals remain recorded; no ordinary installation confirmation sheet exists. |
 | Candidate base commit / changed files | P24.24 is the final phase candidate base; P24.25–38 contain owner-requested UI/creation/export corrections recorded in rolling-plan.md. P24.32–34 and P24.37–38 change the agent and requires updating the running agent; see the new staged SHA256 in phase24-acceptance.md. No live agent was repaired or restarted. |
@@ -185,3 +185,7 @@ stops or treats them as approval. Final implementation handoff is not phase-gate
 acceptance: Cameron verifies and the other agent reviews when requested.
 
 P24.41 implements the owner-requested export performance correction following P24.39/40 investigation. No intermediate UI stop; owner timing and archive verification remain pending.
+
+## Owner implementation closure
+
+Owner closure amendment — 2026-11-07: Cameron requested marking Phase 24 done and deferring guide work ("i dont feel like doing the guides right now. can we mark this phase doen"). Implementation is owner-closed through P24.41. P24.20 illustrated screenshots, exact launcher-build verification and rendered-guide review are deferred follow-up work, not completed evidence. Existing offline instructions remain bundled. Unrecorded physical scenarios remain unverified; the other agent's independent gate review remains pending. This records owner acceptance of ending implementation, not an implementer self-review, blanket test pass or release approval.

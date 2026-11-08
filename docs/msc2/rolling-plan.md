@@ -31,11 +31,13 @@ This table is the quick map; detailed steps and historical findings are linked f
 | 21 | Storage inventory and management | Implementation records archived |
 | 22 | Restored full-screen TUI | Accepted by Cameron 2026-10-30; implementation records archived |
 | 23 | Repository presentation, agent indicator and release follow-ups | Complete; records archived at Cameron’s request 2026-11-05 |
-| 24 | Modpack management and content exports | Implementation candidate ready for final owner review; illustrated guides and physical acceptance incomplete |
+| 24 | Modpack management and content exports | Implementation complete by owner direction; illustrated guides deferred; independent gate review pending |
 
 ## Phase 24 — Modpack management and content exports
 
-**State:** final implementation candidate, 2026-11-06. P24.1–19 and P24.21–23 implemented with owner verification pending. P24.20 has offline text/HTML preparation but remains incomplete without owner screenshots and exact launcher-build verification. P24.24 records final candidate/physical acceptance evidence; no phase closure or independent review claimed.
+**State:** implementation complete by owner direction, 2026-11-07, through P24.41. Illustrated guide completion is deferred; independent gate review remains pending. Unrecorded physical acceptance is not inferred.
+
+Owner closure amendment — 2026-11-07: Cameron requested marking Phase 24 done and deferring guide work ("i dont feel like doing the guides right now. can we mark this phase doen"). Implementation is owner-closed through P24.41. P24.20 illustrated screenshots, exact launcher-build verification and rendered-guide review are deferred follow-up work, not completed evidence. Existing offline instructions remain bundled. Unrecorded physical scenarios remain unverified; the other agent's independent gate review remains pending. This records owner acceptance of ending implementation, not an implementer self-review, blanket test pass or release approval.
 **Scope:** [owner-agreed behavior and implementation boundaries](addons/phase24-scope.md).
 **Gate:** [port plan](msc2-port-plan.md#phase-24--modpack-management-and-content-exports).
 
@@ -574,3 +576,12 @@ its cached SHA256 against all finished file bytes and verify nested-package
 storage. This protects the trusted digest replacing the download pre-pass,
 including streaming ZIP headers/directory. No network or timing assumptions;
 expected added runtime <10 ms. Source compiled only; no tests executed.
+
+### P24.42 — Record owner implementation closure and defer illustrated guides
+
+**Status:** owner-directed implementation closure recorded; independent gate review pending
+**Files:** rolling-plan.md; msc2-decisions.md; msc2-port-plan.md; addons/phase24-execution.md; addons/phase24-acceptance.md
+**What:** Record Cameron's decision to finish Phase 24 implementation now and defer illustrated guide completion. Preserve the existing offline instructions and honest outstanding physical evidence. Keep independent review separate from owner closure; no code, release or test execution.
+**Verify:** `git show --stat --oneline HEAD`
+**Commit:** `P24.42: record owner closure and defer illustrated guides`
+**Batch:** owner-directed documentation only; no next-phase implementation

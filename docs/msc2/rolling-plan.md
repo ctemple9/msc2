@@ -35,8 +35,37 @@ This table is the quick map; detailed steps and historical findings are linked f
 
 ## Current work
 
-No active implementation step. Phase 24's completed steps are in the
+Windows spot fixes are owner-requested, one issue per commit, with owner
+verification pending. Phase 24's completed steps are in the
 [archive](rolling-plan-archive.md#phase-24--modpack-management-and-content-exports).
 Illustrated launcher guides (P24.20) are deferred by Cameron. Independent gate
 review and unrecorded physical evidence remain tracked in the
 [acceptance record](addons/phase24-acceptance.md).
+
+### P24.45 — allow provider catalog images in the desktop app
+
+**Status:** Implemented; awaiting Cameron's verification.
+
+**Files:** `clients/desktop-web/src-tauri/tauri.conf.json`; `docs/msc2/rolling-plan.md`.
+
+**What:** Owner requested fixing blocked Modrinth and CurseForge images after
+Windows Intel 0.1.44 first-server setup showed missing datapack thumbnails.
+Added Modrinth's HTTPS CDN and HTTPS CurseForge CDN subdomains to the desktop
+image allowlist, retaining every existing source and all other security
+directives. This shared desktop configuration applies on Windows, macOS and
+Linux; no platform-specific behavior or UI code changes. The existing
+CurseForge media host was already allowed, so this addresses blocking on other
+CDN subdomains rather than claiming all CurseForge images were blocked.
+No tests added or run; JSON formatting and diff inspection are the relevant
+non-test checks. Physical thumbnail/gallery verification remains pending.
+
+**Verify:** `cd clients/desktop-web; npx tauri dev` — in the native app, search
+Modrinth and CurseForge datapacks during creation, then inspect project
+thumbnails and galleries; repeat representative mod/modpack searches. Confirm
+existing player images still load. Windows owner verification and macOS/Linux
+physical regression checks remain pending. The installed 0.1.44 app needs a
+rebuilt native shell to receive this configuration change.
+
+**Batch:** This issue only; stop for owner verification.
+
+**Commit:** `P24.45: allow modrinth and curseforge catalog images`

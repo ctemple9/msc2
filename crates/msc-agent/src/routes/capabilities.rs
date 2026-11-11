@@ -89,7 +89,11 @@ async fn capabilities_for_query(
         .server_type
         .as_deref()
         .and_then(msc_domain::identity::ServerType::from_raw_value)
-        .or_else(|| active.map(|server| server.server_type));
+        .or_else(|| {
+            active
+                .filter(|_| !hypothetical)
+                .map(|server| server.server_type)
+        });
     let selected_version_raw = query
         .minecraft_version
         .filter(|value| !value.trim().is_empty())
@@ -107,7 +111,11 @@ async fn capabilities_for_query(
         .java_flavor
         .as_deref()
         .and_then(msc_domain::identity::JavaServerFlavor::from_raw_value)
-        .or_else(|| active.map(|server| server.java_flavor));
+        .or_else(|| {
+            active
+                .filter(|_| !hypothetical)
+                .map(|server| server.java_flavor)
+        });
     let selected_version = crate::routes::versions::minecraft_version_from_selection(
         selected_flavor
             .filter(|_| selected_server_type == Some(msc_domain::identity::ServerType::Java)),
@@ -116,7 +124,11 @@ async fn capabilities_for_query(
     let selected_loader = query
         .loader_version
         .filter(|value| !value.trim().is_empty())
-        .or_else(|| active.and_then(|server| server.loader_version.clone()));
+        .or_else(|| {
+            active
+                .filter(|_| !hypothetical)
+                .and_then(|server| server.loader_version.clone())
+        });
     let java_runtime_path = query
         .java_runtime_path
         .filter(|value| !value.trim().is_empty())

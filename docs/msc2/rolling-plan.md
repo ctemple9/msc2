@@ -169,3 +169,47 @@ request; retained the console link, password field, Save key action and existing
 permission handling. Key saving/catalog results still await owner verification.
 Prettier check passed. No commit or tests. This frontend-only adjustment updates
 in the running development app without another agent repair.
+
+
+### P25.4 - use the creation draft for World step context
+
+**Status:** DONE - owner accepted and authorized commit on 2026-11-11.
+
+**Files:** `clients/desktop-web/src/lib/sections/fleet/wizard/WorldStep.svelte`;
+`clients/desktop-web/src/lib/sections/worlds/WorldSettingsForm.svelte`;
+`crates/msc-agent/src/routes/capabilities.rs`; this plan.
+
+**What:** Owner selected Purpur and installed/selected Java 25, but World showed
+Paper and host-default Java 21. World omitted the selected runtime path from its
+capability request and refresh key. Include it, snapshot edition/flavor/runtime
+across asynchronous requests, and reject responses for a different edition or
+flavor instead of displaying incorrect context. The current source already sent
+the flavor; its reported mismatch was not independently reproduced. Prevent
+explicit creation contexts from inheriting missing flavor/loader/type values
+from the existing active server. Ordinary active-server capability requests
+retain their fallback behavior; Bedrock sends no Java runtime context. No tests
+added or run. No Java installation deleted by the agent.
+
+**Verify:** `cd clients/desktop-web; npx tauri dev` ? repair the rebuilt agent,
+create Purpur with latest Minecraft, install/select Java 25, and enter World.
+Confirm Purpur and available Java runtime; go back, change flavor/version and
+select its compatible runtime, then confirm refreshed context. Check Bedrock
+shows Bedrock without Java context and an existing server's settings still use
+that server. Owner verification pending.
+
+**Batch:** P25.4 only; owner has now authorized commit.
+
+**Commit:** `P25.4: bind world context to creation selections`
+
+Retry preparation: inspected the managed Windows installation at
+`C:/Users/Cameron/AppData/Local/MSC2/runtimes/temurin-25-windows-x64`.
+Owner can remove that exact directory after closing the wizard and stopping
+any Minecraft server using it; no other Java installation is targeted.
+
+P25.4 context also displays the detected Java major beside availability, so the
+owner can verify Java 25 directly. `cargo check --locked -p msc-agent` passed
+with existing warnings. Frontend type-check and formatting verification recorded
+below. No runtime removal or tests performed.
+
+P25.4 final frontend checks: Prettier passed; `npm run check` passed with
+0 errors and 10 existing unused CSS warnings. Owner verification pending.

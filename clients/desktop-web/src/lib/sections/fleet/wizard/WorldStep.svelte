@@ -144,6 +144,7 @@
         (draft.serverType === 'bedrock' ? draft.bedrockVersion : draft.versionId) ??
         'latest',
       pack?.loaderVersion ?? '',
+      draft.javaPath ?? '',
     ].join('|');
     if (requestKey !== capabilityRequestKey) {
       capabilityRequestKey = requestKey;
@@ -157,6 +158,8 @@
     if (!api) return;
     capabilitiesError = undefined;
     resolvingVersion = true;
+    // Keep one selection throughout both requests, even if the draft changes.
+    const { serverType, javaFlavor, javaPath } = draft;
     try {
       const pack = draft.stagedModpack?.inspection;
       let minecraftVersion =
@@ -164,7 +167,7 @@
         (draft.serverType === 'bedrock' ? draft.bedrockVersion : draft.versionId);
       if (!pack?.minecraftVersion) {
         const versions = await api.get<Schema['VersionsResponseDTO']>(
-          versionsForCreatePath(draft.serverType, draft.javaFlavor),
+          versionsForCreatePath(serverType, javaFlavor),
         );
         if (requestKey !== capabilityRequestKey) return;
         const resolved =
@@ -181,14 +184,26 @@
         }
       }
       resolvedMinecraftVersion = minecraftVersion ?? '';
-      const params = new URLSearchParams({ serverType: draft.serverType });
+      const params = new URLSearchParams({ serverType });
       if (minecraftVersion) params.set('minecraftVersion', minecraftVersion);
-      if (draft.serverType === 'java') params.set('javaFlavor', draft.javaFlavor);
+      if (serverType === 'java') {
+        params.set('javaFlavor', javaFlavor);
+        if (javaPath) params.set('javaRuntimePath', javaPath);
+      }
       if (pack?.loaderVersion) params.set('loaderVersion', pack.loaderVersion);
       const response = await api.get<{ worldSettings?: WorldSettingsCapabilities }>(
         `/v1/capabilities?${params.toString()}`,
       );
       if (requestKey !== capabilityRequestKey) return;
+      if (
+        response.worldSettings &&
+        (response.worldSettings.context.serverType !== serverType ||
+          (serverType === 'java' && response.worldSettings.context.javaFlavor !== javaFlavor))
+      ) {
+        throw new Error(
+          'The agent returned settings for a different server type or flavor. Retry the World step.',
+        );
+      }
       capabilities = response.worldSettings;
     } catch (error) {
       if (requestKey === capabilityRequestKey) {

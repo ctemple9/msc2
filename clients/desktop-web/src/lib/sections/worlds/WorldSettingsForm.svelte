@@ -157,6 +157,9 @@
       {#if capabilities.context.javaRuntime}
         <p class="hint">
           Java runtime: {capabilities.context.javaRuntime.state}
+          {#if capabilities.context.javaRuntime.detectedMajor}
+            · Java {capabilities.context.javaRuntime.detectedMajor}
+          {/if}
           {#if capabilities.context.javaRuntime.reason}
             — {capabilities.context.javaRuntime.reason}
           {/if}

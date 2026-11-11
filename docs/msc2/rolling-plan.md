@@ -135,3 +135,37 @@ Follow-up non-test verification: `cargo build --locked -p msc-agent` passed
 with existing warnings. PE header inspection confirms the rebuilt debug
 executable reserves 16,777,216 bytes of stack. No service launch or tests were
 run; Cameron must restart `npx tauri dev` to stage it, then retry Repair agent.
+
+### P25.3 — show the existing CurseForge key form for catalog searches
+
+**Status:** DONE - owner accepted and authorized commit on 2026-11-11.
+
+**Files:** `crates/msc-agent/src/routes/components.rs`; `clients/desktop-web/src/lib/sections/components/ProviderCatalogBrowser.svelte`; this plan.
+
+**What:** Owner screenshot shows the creation wizard's plugin browser reporting
+no CurseForge key with only Retry. Its existing key-entry form requires the
+`missing_curseforge_api_key` response code, but the shared catalog error mapper
+returned `provider_unavailable` for every provider error. Return the specific
+missing-key code with HTTP 409, matching the world-pack route convention. Keep
+other provider failures unchanged. Reuse the existing form, agent secret storage,
+permission checks and retry-after-save behavior; no UI redesign or platform
+branch changes. No tests added or run. `cargo fmt --all --check`,
+`cargo check --locked -p msc-agent` (existing warnings only), and
+`git diff --check` passed.
+
+**Verify:** `cd clients/desktop-web; npx tauri dev` — repair the agent to stage
+the rebuilt source, then open Add Server → Add-ons → Browse plugins → CurseForge
+without a configured key. Confirm the existing password field, console link and
+Save key control appear. Save a key and confirm results/thumbnails load without
+losing staged selections. Confirm Modrinth still browses normally.
+
+**Batch:** P25.3 only; owner has now authorized commit.
+
+**Commit:** `P25.3: expose curseforge key entry for catalog searches`
+
+P25.3 owner UI follow-up: screenshot confirms the missing-key form now appears.
+Removed the redundant API key focus link and explanatory paragraph at Cameron's
+request; retained the console link, password field, Save key action and existing
+permission handling. Key saving/catalog results still await owner verification.
+Prettier check passed. No commit or tests. This frontend-only adjustment updates
+in the running development app without another agent repair.

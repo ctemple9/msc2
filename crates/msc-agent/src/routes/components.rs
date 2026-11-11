@@ -600,6 +600,14 @@ fn modrinth_get(path: &str, what: &str) -> Result<String, AddonProviderError> {
 }
 
 fn provider_error(error: AddonProviderError) -> Response {
+    // Catalog clients use this code to offer the existing key-entry form.
+    if matches!(error, AddonProviderError::MissingApiKey) {
+        return error_response(
+            StatusCode::CONFLICT,
+            "missing_curseforge_api_key",
+            &error.to_string(),
+        );
+    }
     error_response(
         StatusCode::BAD_GATEWAY,
         "provider_unavailable",

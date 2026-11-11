@@ -302,19 +302,7 @@
           onclick={() => (supported ? void search(offset) : void initialize())}>Retry</Button
         >{/if}
     {/if}
-    {#if needsKey && can(permissions, 'admin')}
-      <button
-        type="button"
-        class="key-link"
-        onclick={() => document.getElementById('provider-api-key')?.focus()}
-        >CurseForge API key…</button
-      >
-    {/if}
     {#if needsKey}
-      <p class="context">
-        CurseForge requires an API key for catalog access. Save it on this agent to browse and
-        download supported content.
-      </p>
       <a
         class="key-link"
         href="https://console.curseforge.com/"

@@ -213,3 +213,43 @@ below. No runtime removal or tests performed.
 
 P25.4 final frontend checks: Prettier passed; `npm run check` passed with
 0 errors and 10 existing unused CSS warnings. Owner verification pending.
+
+
+### P25.5 - avoid repeated Windows machine-build hashing during status refresh
+
+**Status:** DONE - owner accepted and authorized commit on 2026-11-11.
+
+**Files:** `clients/desktop-web/src-tauri/src/lib.rs`; this plan.
+
+**What:** Owner reports desktop lag, Windhawk popups and local status network
+failures. Read-only sampling found desktop using 25.5 CPU seconds over two wall
+seconds and about 1.4 GiB working memory; agent service remained running and
+healthz returned 204. Windhawk was idle during that sample; no causal claim for
+its popups. Windows expected-agent lookup reread and hashed all three executables
+on every guarded API request. Cache successful validation of the immutable,
+administrator-protected machine build per desktop process, serialize first
+verification, and revalidate when the expected build path changes. Still query
+actual service identity for every lookup; failures are not cached. Other
+platform paths unchanged. No tests or live operations run.
+
+**Verify:** `cd clients/desktop-web; npx tauri dev` ? after closing the old app,
+check local server status refreshes reliably and desktop CPU/memory settles;
+retry after a Repair to a new build. Windhawk popup cause remains unconfirmed.
+
+**Batch:** P25.5 only; owner has now authorized commit.
+
+**Commit:** `P25.5: cache protected windows agent build verification`
+
+P25.5 checks: Rust formatting and `git diff --check` passed; native desktop
+`cargo check --manifest-path clients/desktop-web/src-tauri/Cargo.toml --locked
+--lib` passed with an existing infrastructure dead-code warning. Owner
+performance/network verification remains pending.
+
+P25.5 accepted recheck: desktop used 0.11 CPU seconds over 3 seconds and 73 MB
+RAM; agent was running at 53 MB and healthz returned 204. About 9 GB RAM was
+free. This confirms lower load in that sample; Windhawk causality and sustained
+status-refresh reliability were not independently established.
+
+Commit preparation: workspace formatting passed. Agent and native desktop
+Clippy completed with pre-existing warnings (including needless returns); no
+unrelated warning fixes, tests, release actions or platform-pass claims.

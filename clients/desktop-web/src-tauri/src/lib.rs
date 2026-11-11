@@ -1325,6 +1325,9 @@ fn expected_local_agent_binary() -> Result<PathBuf, String> {
 
 #[cfg(target_os = "windows")]
 fn expected_local_agent_binary() -> Result<PathBuf, String> {
+    // Machine builds are immutable and administrator-protected. Verify once
+    // per build/session, serializing concurrent API requests during first use.
+    static VERIFIED_MACHINE_BUILD: Mutex<Option<PathBuf>> = Mutex::new(None);
     let staged = staged_packaged_agent_path()?;
     let digest = staged
         .parent()
@@ -1342,10 +1345,16 @@ fn expected_local_agent_binary() -> Result<PathBuf, String> {
         .definition
         .is_some_and(|definition| definition.binary_path == machine)
     {
-        for name in ["msc.exe", "vantage.exe", "bedrock-map.exe"] {
-            let source = staged.with_file_name(name);
-            let bytes = std::fs::read(&source).map_err(|error| error.to_string())?;
-            verify_staged_agent(&machine.with_file_name(name), &bytes)?;
+        let mut verified = VERIFIED_MACHINE_BUILD
+            .lock()
+            .map_err(|_| "The machine agent verification lock failed.".to_string())?;
+        if verified.as_ref() != Some(&machine) {
+            for name in ["msc.exe", "vantage.exe", "bedrock-map.exe"] {
+                let source = staged.with_file_name(name);
+                let bytes = std::fs::read(&source).map_err(|error| error.to_string())?;
+                verify_staged_agent(&machine.with_file_name(name), &bytes)?;
+            }
+            *verified = Some(machine.clone());
         }
         return Ok(machine);
     }

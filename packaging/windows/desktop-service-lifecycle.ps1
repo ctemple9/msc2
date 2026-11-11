@@ -3,7 +3,7 @@ function Invoke-MscDesktopLifecycle($request, $expectedHashes) {
     $ErrorActionPreference = 'Stop'
     # Pin directory handles without delete sharing for the entire operation.
     # Attribute checks alone leave a junction-replacement race during elevation.
-    Add-Type -TypeDefinition @'
+    if (-not ('MscLifecyclePaths' -as [type])) { Add-Type -TypeDefinition @'
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -99,6 +99,7 @@ public static class MscLifecyclePaths {
     }
 }
 '@
+    }
     $serviceName = 'com.ctemple.msc2.agent'
     $serviceRoot = 'C:\ProgramData\MSC2\Services'
     $stateRoot = Join-Path $serviceRoot 'DesktopLifecycle'
@@ -270,7 +271,7 @@ public static class MscLifecyclePaths {
         foreach ($name in @('msc.exe', 'vantage.exe', 'bedrock-map.exe')) {
             if ((Get-FileHash -LiteralPath (Join-Path (Split-Path -Parent $binary) $name)).Hash -ine $expectedHashes.$name) { $repairMatch = $false }
         }
-        if (-not $repairMatch -and (-not $previousRoot -or (Bundle-Digest (Join-Path (Guard-Path $previousRoot) 'agent')) -ne $build)) {
+        if (-not $request.repair -and -not $repairMatch -and (-not $previousRoot -or (Bundle-Digest (Join-Path (Guard-Path $previousRoot) 'agent')) -ne $build)) {
             throw 'The copied agent cannot be matched to this desktop package. Keep the installation for inspection.'
         }
         return $true
@@ -341,6 +342,44 @@ public static class MscLifecyclePaths {
     }
 
     $null = Guard-Path $serviceRoot
+    if ($request.operation -eq 'repair') {
+        $svc = Service
+        if (-not $svc) { throw 'The local service disappeared. Refresh status and install it again.' }
+        $meta = Metadata
+        $null = Assert-Definition $svc $meta
+        if ((Account-Sid $svc.StartName) -ne (Account-Sid $request.account) -or
+            -not (Same-Path $meta.working_directory $request.dataRoot) -or
+            [int]$meta.expected_port -ne 48001) {
+            throw 'Repair cannot take over a service belonging to another account, data directory or port.'
+        }
+        $previousRoot = $request.packageRoot
+        if (Test-Path -LiteralPath $ownerPath) {
+            Assert-Protected $ownerPath
+            $previousRoot = (Get-Content -LiteralPath $ownerPath -Raw | ConvertFrom-Json).packageRoot
+        }
+        $repair = [pscustomobject]@{
+            operation='prepare'; transaction=$request.transaction; packageRoot=$request.packageRoot
+            previousRoot=$previousRoot; installed=$true; managed=$false; remove=$false; repair=$true
+        }
+        try {
+            Invoke-MscDesktopLifecycle $repair $expectedHashes
+            $repair.operation = 'apply'
+            Invoke-MscDesktopLifecycle $repair $expectedHashes
+            # Repair is an explicit start request, including when initially stopped.
+            $repair.operation = 'repair-start'
+            Invoke-MscDesktopLifecycle $repair $expectedHashes
+            $repair.operation = 'commit'
+            Invoke-MscDesktopLifecycle $repair $expectedHashes
+        } catch {
+            $failure = $_.Exception.Message
+            try {
+                $repair.operation = 'rollback'
+                Invoke-MscDesktopLifecycle $repair $expectedHashes
+            } catch { throw "$failure Rollback also failed: $($_.Exception.Message). Retain the recovery record." }
+            throw $failure
+        }
+        return
+    }
     $guid = [Guid]::Parse($request.transaction).ToString('D')
     $transactionPath = Join-Path $stateRoot ($guid + '.json')
     if ($request.operation -in @('recover','finalize','probe-recovery','resume-health')) {
@@ -413,13 +452,23 @@ public static class MscLifecyclePaths {
         }
         return
     }
-    if (-not (Test-Path -LiteralPath $transactionPath -PathType Leaf)) { return }
+    if (-not (Test-Path -LiteralPath $transactionPath -PathType Leaf)) {
+        if ($request.repair) { throw 'The repair recovery record is missing; no further changes were made.' }
+        return
+    }
     Assert-Protected $transactionPath
     try { $transaction = Get-Content -LiteralPath $transactionPath -Raw | ConvertFrom-Json }
     catch { throw 'The protected service recovery record could not be parsed; retain it for inspection.' }
     if ($transaction.version -ne 1) { throw 'The local service recovery record is not recognized.' }
 
     switch ($request.operation) {
+        'repair-start' {
+            $svc = Service
+            if (-not $svc -or $svc.State -ne 'Stopped' -or $svc.PathName -ne $transaction.newCommand -or (Account-Sid $svc.StartName) -ne $transaction.accountSid -or $svc.StartMode -ne $transaction.startMode) {
+                throw 'The repaired service changed before startup.'
+            }
+            Restore-Running
+        }
         'apply' {
             if ($transaction.noService -or $transaction.independentService) { return }
             $svc = Service

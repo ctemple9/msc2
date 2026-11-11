@@ -976,10 +976,19 @@ fn manage_agent_service_blocking(
                     true,
                 )
                 .map_err(|e| e.to_string())?;
-                windows_service::install(&request, _owner_window)?;
+                if matches!(action, AgentServiceAction::Repair) {
+                    windows_service::repair(&request, _owner_window)?;
+                } else {
+                    windows_service::install(&request, _owner_window)?;
+                }
                 let report = manager
                     .execute(ServiceManagerCommand::Status { service_name })
                     .map_err(|error| error.to_string())?;
+                let expected_binary = if matches!(action, AgentServiceAction::Repair) {
+                    expected_local_agent_binary()?
+                } else {
+                    expected_binary
+                };
                 ensure_service_report_uses_binary(report, &expected_binary)?
             }
             AgentServiceAction::Start => manager

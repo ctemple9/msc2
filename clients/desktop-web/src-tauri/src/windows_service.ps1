@@ -40,6 +40,8 @@ try {
             Start-Sleep -Milliseconds 500
         }
         if (-not $ready) { throw 'The MSC agent did not finish starting within 30 seconds.' }
+    } elseif ($operation -eq 'repair') {
+        Invoke-MscDesktopLifecycle ($installArgs[0] | ConvertFrom-Json) ($installArgs[1] | ConvertFrom-Json)
     } elseif ($operation -eq 'uninstall') {
         Invoke-Agent @('service', 'uninstall', '--service-name', $serviceName)
     } else {
